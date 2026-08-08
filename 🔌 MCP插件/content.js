@@ -1,4 +1,4 @@
-// LingoTrace Chrome Extension — ChatGPT 日报自动同步
+// VoiceLog Chrome Extension — ChatGPT 日报自动同步
 let SERVER_URL = 'https://voicelog.onrender.com';
 
 // Read server URL from extension storage
@@ -24,8 +24,8 @@ function addSendButtons() {
 
     const btn = document.createElement('button');
     btn.className = 'lingotrace-btn';
-    btn.innerHTML = '📤 同步到 LingoTrace';
-    btn.title = '一键发送日报到 LingoTrace';
+    btn.innerHTML = '📤 同步到 VoiceLog';
+    btn.title = '一键发送日报到 VoiceLog';
     btn.addEventListener('click', () => sendToLingoTrace(msg));
 
     actions.appendChild(btn);
@@ -75,7 +75,7 @@ async function sendToLingoTrace(msgElement) {
       showToast('❌ 同步失败: ' + (data.error || '未知错误'), 'error');
     }
   } catch (e) {
-    showToast('❌ 无法连接到 LingoTrace。请确保服务已启动。', 'error');
+    showToast('❌ 无法连接到 VoiceLog。请确保服务已启动。', 'error');
   }
 }
 

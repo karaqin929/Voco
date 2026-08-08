@@ -1,4 +1,4 @@
-"""LingoTrace — MCP Server + REST API + PWA 三合一"""
+"""VoiceLog — MCP Server + REST API + PWA 三合一"""
 import sys
 import os
 import json
@@ -139,7 +139,7 @@ def mark_error_fixed(index: int) -> dict:
 
 
 # ─── FastAPI REST + PWA ─────────────────────────────────
-app = FastAPI(title="LingoTrace")
+app = FastAPI(title="VoiceLog")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -202,7 +202,7 @@ def index():
         with open(p, "r", encoding="utf-8") as f:
             html = f.read()
         html = html.replace("VoiceLog", cfg.get("app_name", "VoiceLog"))
-        html = html.replace("<title>LingoTrace</title>", f"<title>{cfg.get('app_name', 'VoiceLog')}</title>")
+        html = html.replace("<title>VoiceLog</title>", f"<title>{cfg.get('app_name', 'VoiceLog')}</title>")
         return HTMLResponse(html)
     return HTMLResponse("<h1>VoiceLog</h1>")
 
@@ -233,8 +233,14 @@ def sw():
     return FileResponse(os.path.join(FRONTEND_DIR, "sw.js"))
 
 
-if os.path.exists(FRONTEND_DIR):
-    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")
+# Static file routes (avoid StaticFiles mount which overrides routes)
+@app.get("/style.css")
+def style_css():
+    return FileResponse(os.path.join(FRONTEND_DIR, "style.css"))
+
+@app.get("/app.js")
+def app_js():
+    return FileResponse(os.path.join(FRONTEND_DIR, "app.js"))
 
 
 # ─── MCP + REST 统一启动 ──────────────────────────────
