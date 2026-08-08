@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { width: 240px; padding: 16px; font-family: system-ui; background: #1a1a2e; color: #eee; }
+    h2 { font-size: 16px; color: #e94560; margin: 0 0 8px; }
+    p { font-size: 12px; color: #999; margin: 0 0 12px; }
+    .status { font-size: 12px; padding: 8px; border-radius: 6px; background: #16213e; }
+    .status.online { color: #2ecc71; }
+    .status.offline { color: #e94560; }
+    input { width: 100%; padding: 6px 8px; border-radius: 4px; border: 1px solid #333; background: #16213e; color: #eee; font-size: 12px; box-sizing: border-box; }
+    label { font-size: 11px; color: #999; display: block; margin: 8px 0 4px; }
+    button { width: 100%; padding: 8px; margin-top: 8px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h2>🔌 LingoTrace 同步</h2>
+  <div class="status" id="status">检查中...</div>
+  <label>服务器地址</label>
+  <input type="text" id="server" placeholder="http://localhost:8765" value="http://localhost:8765">
+  <button id="save">保存</button>
+  <script src="popup.js"></script>
+</body>
+</html>
