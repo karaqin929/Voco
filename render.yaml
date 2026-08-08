@@ -2,9 +2,8 @@ services:
   - type: web
     name: voicelog
     runtime: python
-    rootDir: ⚙️ 后端
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r "⚙️ 后端/requirements.txt"
+    startCommand: cd "⚙️ 后端" && uvicorn server:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONIOENCODING
         value: utf-8
