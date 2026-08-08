@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>VoiceLog</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div id="app">
+  <nav class="tab-bar">
+    <button class="tab active" data-tab="home">🏠 首页</button>
+    <button class="tab" data-tab="library">📚 词汇</button>
+    <button class="tab" data-tab="me">👤 我的</button>
+  </nav>
+
+  <!-- ====== 首页 ====== -->
+  <section id="tab-home" class="tab-content active">
+    <!-- Streak -->
+    <div class="streak-bar">
+      <div class="streak-flame">🔥</div>
+      <div class="streak-info">
+        <div class="streak-days" id="streak-days">--</div>
+        <div class="streak-label">已坚持</div>
+      </div>
+    </div>
+
+    <!-- Calendar -->
+    <h3>学习日历</h3>
+    <div id="calendar-grid" class="calendar-grid"></div>
+
+    <!-- Quick stats -->
+    <div class="home-stats">
+      <div class="mini-stat" id="stat-vocab">📝 0 单词</div>
+      <div class="mini-stat" id="stat-errors">🔧 0 纠正</div>
+      <div class="mini-stat" id="stat-fluency">🎯 --/10</div>
+    </div>
+
+    <!-- Review prompt -->
+    <div class="card" id="review-prompt" style="display:none;">
+      <h3>🔁 今日复习</h3>
+      <div id="review-preview"></div>
+    </div>
+  </section>
+
+  <!-- ====== 词汇 ====== -->
+  <section id="tab-library" class="tab-content">
+    <div class="lib-tabs">
+      <button class="lib-tab active" data-lib="vocab">单词</button>
+      <button class="lib-tab" data-lib="errors">纠错</button>
+      <button class="lib-tab" data-lib="patterns">句型</button>
+    </div>
+    <div id="library-content" class="loading">加载中...</div>
+  </section>
+
+  <!-- ====== 我的 ====== -->
+  <section id="tab-me" class="tab-content">
+    <h3>📥 导入日报</h3>
+    <textarea id="report-input" placeholder="将 ChatGPT 生成的日报粘贴到这里..."></textarea>
+    <button id="btn-submit" class="btn-primary">解析入库</button>
+    <div id="import-result"></div>
+
+    <h3 style="margin-top:30px;">⚙️ 设置</h3>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input id="setting-name" placeholder="App 名称" style="flex:1;padding:10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:14px;" />
+      <button id="btn-save-name" style="padding:10px 16px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">保存</button>
+    </div>
+
+    <h3 style="margin-top:30px;">📊 能力趋势</h3>
+    <div id="me-trends" class="loading">加载中...</div>
+  </section>
+</div>
+
+<script src="/app.js"></script>
+<script>
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }
+</script>
+</body>
+</html>

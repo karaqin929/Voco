@@ -6,7 +6,7 @@ import socket
 from io import BytesIO
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = os.path.join(SCRIPT_DIR, "..", "🖥️ 前端")
+FRONTEND_DIR = SCRIPT_DIR  # frontend files co-located for deployment
 sys.path.insert(0, SCRIPT_DIR)
 
 from fastapi import FastAPI, Request
