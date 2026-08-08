@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f0f23"/>
+      <stop offset="100%" stop-color="#1a1a2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+
+  <!-- Sound waves -->
+  <path d="M 95 190 Q75 225 75 256 Q75 287 95 322" fill="none" stroke="#e94560" stroke-width="9" stroke-linecap="round" opacity="0.4"/>
+  <path d="M 72 165 Q48 213 48 256 Q48 299 72 347"   fill="none" stroke="#e94560" stroke-width="7" stroke-linecap="round" opacity="0.25"/>
+
+  <!-- Speech bubble outline -->
+  <path d="M310 90 Q400 90 400 170 V240 Q400 280 350 280 L310 280 L275 318 L275 280 L210 280 Q160 280 160 240 V170 Q160 90 210 90 Z"
+        fill="none" stroke="#e94560" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+
+  <!-- Cute bear face (large, centered) -->
+  <!-- Ears -->
+  <circle cx="200" cy="155" r="28" fill="#2c1810"/>
+  <circle cx="200" cy="155" r="16" fill="#ffe0c0"/>
+  <circle cx="295" cy="155" r="28" fill="#2c1810"/>
+  <circle cx="295" cy="155" r="16" fill="#ffe0c0"/>
+
+  <!-- Head -->
+  <circle cx="248" cy="215" r="62" fill="#2c1810"/>
+  <circle cx="248" cy="215" r="57" fill="#ffe0c0"/>
+
+  <!-- Muzzle -->
+  <ellipse cx="248" cy="238" rx="32" ry="23" fill="#fff5ec"/>
+
+  <!-- Eyes -->
+  <circle cx="228" cy="202" r="5.5" fill="#2c1810"/>
+  <circle cx="228" cy="200" r="2.5" fill="white"/>
+  <circle cx="268" cy="202" r="5.5" fill="#2c1810"/>
+  <circle cx="268" cy="200" r="2.5" fill="white"/>
+
+  <!-- Nose -->
+  <ellipse cx="248" cy="226" rx="6" ry="4.5" fill="#2c1810"/>
+  <ellipse cx="246" cy="224" rx="2.5" ry="1.5" fill="white" opacity="0.6"/>
+
+  <!-- W mouth -->
+  <path d="M240 234 Q244 240 248 234 Q252 240 256 234" fill="none" stroke="#2c1810" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Blush -->
+  <ellipse cx="206" cy="228" rx="10" ry="6" fill="#ffaaaa" opacity="0.4"/>
+  <ellipse cx="290" cy="228" rx="10" ry="6" fill="#ffaaaa" opacity="0.4"/>
+
+  <!-- V mark bottom -->
+  <text x="256" y="447" text-anchor="middle"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="56" font-weight="900" fill="#e94560">V</text>
+</svg>
