@@ -1,27 +1,46 @@
 """VoiceLog — REST API + PWA"""
-import sys
-import os
-import json
-import socket
+import sys, os, json, socket, traceback
 
+print("VOICELOG: Starting imports...", flush=True)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = SCRIPT_DIR  # frontend files co-located for deployment
+FRONTEND_DIR = SCRIPT_DIR
 sys.path.insert(0, SCRIPT_DIR)
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import uvicorn
+try:
+    from fastapi import FastAPI
+    from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+    from fastapi.middleware.cors import CORSMiddleware
+    from pydantic import BaseModel
+    import uvicorn
+    print("VOICELOG: Core imports OK", flush=True)
+except Exception as e:
+    print(f"VOICELOG: Core imports FAILED: {e}", flush=True)
+    traceback.print_exc()
+    raise
 
-from parser import parse_report
-from storage import (
-    add_vocabulary, add_errors, add_patterns,
-    save_report, update_progress,
-    get_vocabulary, get_errors, get_patterns,
-    load_progress, mark_vocabulary_mastered,
-    mark_error_reviewed, get_today_review,
-)
+try:
+    from parser import parse_report
+    print("VOICELOG: parser OK", flush=True)
+except Exception as e:
+    print(f"VOICELOG: parser import FAILED: {e}", flush=True)
+    traceback.print_exc()
+    raise
+
+try:
+    from storage import (
+        add_vocabulary, add_errors, add_patterns,
+        save_report, update_progress,
+        get_vocabulary, get_errors, get_patterns,
+        load_progress, mark_vocabulary_mastered,
+        mark_error_reviewed, get_today_review,
+    )
+    print("VOICELOG: storage OK", flush=True)
+except Exception as e:
+    print(f"VOICELOG: storage import FAILED: {e}", flush=True)
+    traceback.print_exc()
+    raise
+
+print("VOICELOG: All imports OK, building app...", flush=True)
 
 SERVER_CONFIG_PATH = os.path.join(SCRIPT_DIR, "..", "💾 数据", "config.json")
 
@@ -128,6 +147,7 @@ def mark_error_fixed(index: int) -> dict:
 # ─── FastAPI REST + PWA ─────────────────────────────────
 app = FastAPI(title="VoiceLog")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+print("VOICELOG: App created, routes registered", flush=True)
 
 
 class ReportInput(BaseModel):
