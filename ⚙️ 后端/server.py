@@ -1,20 +1,17 @@
-"""VoiceLog — MCP Server + REST API + PWA 三合一"""
+"""VoiceLog — REST API + PWA"""
 import sys
 import os
 import json
 import socket
-from io import BytesIO
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = SCRIPT_DIR  # frontend files co-located for deployment
 sys.path.insert(0, SCRIPT_DIR)
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from mcp.server.fastmcp import FastMCP
 import uvicorn
 
 from parser import parse_report
@@ -40,11 +37,8 @@ def save_config(cfg):
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 
-# ─── MCP Server ─────────────────────────────────────────
-mcp = FastMCP("VoiceLog")
+# ─── Core Functions ─────────────────────────────────────
 
-
-@mcp.tool()
 def import_daily_report(report_text: str) -> dict:
     """导入 ChatGPT 口语日报，解析并存入单词库、纠错库、句型库"""
     parsed = parse_report(report_text)
@@ -96,43 +90,36 @@ def import_daily_report(report_text: str) -> dict:
     }, "progress": progress}
 
 
-@mcp.tool()
 def get_vocabulary_list(status: str = "all") -> list[dict]:
     """获取单词列表。status: all/mastered/learning"""
     return get_vocabulary(status)
 
 
-@mcp.tool()
 def get_error_list(error_type: str = "all") -> list[dict]:
     """获取纠错列表。error_type: all/grammar/pronunciation"""
     return get_errors(error_type)
 
 
-@mcp.tool()
 def get_pattern_list() -> list[dict]:
     """获取地道表达句型库"""
     return get_patterns()
 
 
-@mcp.tool()
 def get_dashboard() -> dict:
     """获取学习概览"""
     return load_progress()
 
 
-@mcp.tool()
 def get_today_review_items() -> dict:
     """获取今日复习内容"""
     return get_today_review()
 
 
-@mcp.tool()
 def mark_word_mastered(word: str) -> dict:
     """标记单词已掌握"""
     return {"ok": mark_vocabulary_mastered(word), "word": word}
 
 
-@mcp.tool()
 def mark_error_fixed(index: int) -> dict:
     """标记错误已纠正"""
     return {"ok": mark_error_reviewed(index), "index": index}
@@ -150,7 +137,7 @@ class ReportInput(BaseModel):
 @app.post("/api/report")
 def api_import(report: ReportInput):
     result = import_daily_report(report.text)
-    return result  # FastMCP tool returns dict directly
+    return result
 
 
 @app.get("/api/vocabulary")
@@ -243,7 +230,7 @@ def app_js():
     return FileResponse(os.path.join(FRONTEND_DIR, "app.js"))
 
 
-# ─── MCP + REST 统一启动 ──────────────────────────────
+# ─── Startup ───────────────────────────────────────────
 if __name__ == "__main__":
     def get_ip():
         try:
