@@ -1,7 +1,8 @@
 {
-  "name": "LingoTrace",
-  "short_name": "LingoTrace",
+  "name": "VoiceLog",
+  "short_name": "VoiceLog",
   "description": "ChatGPT Live 口语学习追踪",
+  "display_override": ["standalone", "minimal-ui"],
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1a1a2e",
