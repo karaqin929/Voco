@@ -249,6 +249,10 @@ def style_css():
 def app_js():
     return FileResponse(os.path.join(FRONTEND_DIR, "app.js"))
 
+@app.get("/icon.svg")
+def icon_svg():
+    return FileResponse(os.path.join(FRONTEND_DIR, "icon.svg"))
+
 
 # ─── Startup ───────────────────────────────────────────
 if __name__ == "__main__":

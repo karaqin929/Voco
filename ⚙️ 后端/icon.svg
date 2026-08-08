@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f0f23"/>
+      <stop offset="100%" stop-color="#1a1a2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+  <!-- Speech bubble -->
+  <path d="M156 180 Q156 140 200 140 H312 Q356 140 356 180 V260 Q356 300 312 300 H280 L256 340 L232 300 H200 Q156 300 156 260 Z"
+        fill="none" stroke="#e94560" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Sound waves -->
+  <path d="M120 210 Q105 235 105 256 Q105 277 120 302" fill="none" stroke="#e94560" stroke-width="12" stroke-linecap="round" opacity="0.6"/>
+  <path d="M100 190 Q80 225 80 256 Q80 287 100 322" fill="none" stroke="#e94560" stroke-width="10" stroke-linecap="round" opacity="0.35"/>
+  <!-- "V" monogram -->
+  <text x="256" y="278" text-anchor="middle" font-family="system-ui,sans-serif" font-size="120" font-weight="900" fill="#e94560" letter-spacing="-4">V</text>
+</svg>
