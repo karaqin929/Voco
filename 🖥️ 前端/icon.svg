@@ -2,50 +2,50 @@
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#1a1a2e"/>
-      <stop offset="100%" stop-color="#0f3460"/>
+      <stop offset="100%" stop-color="#16213e"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="110" fill="url(#bg)"/>
 
-  <!-- Ears -->
-  <circle cx="175" cy="135" r="38" fill="#2c1810"/>
-  <circle cx="175" cy="135" r="22" fill="#f5d6b8"/>
-  <circle cx="337" cy="135" r="38" fill="#2c1810"/>
-  <circle cx="337" cy="135" r="22" fill="#f5d6b8"/>
+  <!-- Speech bubble -->
+  <path d="M290 90 Q355 90 355 150 V200 Q355 240 310 240 H260 L235 265 L235 240 H195 Q155 240 155 200 V150 Q155 90 195 90 Z"
+        fill="#2d2d5e" stroke="#e94560" stroke-width="4"/>
+  <text x="255" y="180" text-anchor="middle" font-family="system-ui,sans-serif" font-size="26" font-weight="800" fill="#e94560">Hello!</text>
+  <!-- Small tail of speech bubble pointing to bear -->
+  <polygon points="235,265 250,290 265,265" fill="#2d2d5e" stroke="#e94560" stroke-width="3"/>
 
-  <!-- Head -->
-  <circle cx="256" cy="260" r="105" fill="#2c1810"/>
-  <circle cx="256" cy="260" r="98" fill="#f5d6b8"/>
+  <!-- Bear ears -->
+  <circle cx="170" cy="310" r="32" fill="#2c1a1a"/>
+  <circle cx="170" cy="310" r="16" fill="#e8b88a"/>
+  <circle cx="340" cy="310" r="32" fill="#2c1a1a"/>
+  <circle cx="340" cy="310" r="16" fill="#e8b88a"/>
 
-  <!-- Muzzle (lighter area) -->
-  <ellipse cx="256" cy="295" rx="52" ry="38" fill="#fef0e0"/>
+  <!-- Bear head -->
+  <circle cx="255" cy="370" r="80" fill="#2c1a1a"/>
+  <circle cx="255" cy="370" r="72" fill="#e8b88a"/>
 
-  <!-- Eyes - simple dots -->
-  <circle cx="225" cy="245" r="9" fill="#2c1810"/>
-  <circle cx="225" cy="242" r="3.5" fill="white"/>
-  <circle cx="287" cy="245" r="9" fill="#2c1810"/>
-  <circle cx="287" cy="242" r="3.5" fill="white"/>
+  <!-- Big cute eyes -->
+  <circle cx="230" cy="355" r="14" fill="#2c1a1a"/>
+  <circle cx="230" cy="350" r="6" fill="white"/>
+  <circle cx="232" cy="353" r="2.5" fill="white"/>
+
+  <circle cx="280" cy="355" r="14" fill="#2c1a1a"/>
+  <circle cx="280" cy="350" r="6" fill="white"/>
+  <circle cx="282" cy="353" r="2.5" fill="white"/>
+
+  <!-- Blush -->
+  <ellipse cx="205" cy="375" rx="12" ry="7" fill="#ff9999" opacity="0.5"/>
+  <ellipse cx="305" cy="375" rx="12" ry="7" fill="#ff9999" opacity="0.5"/>
 
   <!-- Nose -->
-  <ellipse cx="256" cy="278" rx="10" ry="7" fill="#2c1810"/>
-  <ellipse cx="253" cy="275" rx="3" ry="2" fill="white" opacity="0.6"/>
+  <ellipse cx="255" cy="375" rx="7" ry="5" fill="#c07850"/>
 
-  <!-- Mouth - tiny W -->
-  <path d="M245 292 Q250 298 256 292 Q262 298 267 292" fill="none" stroke="#2c1810" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- Cheek blush -->
-  <ellipse cx="195" cy="280" rx="15" ry="9" fill="#ff9999" opacity="0.5"/>
-  <ellipse cx="317" cy="280" rx="15" ry="9" fill="#ff9999" opacity="0.5"/>
+  <!-- Cute open mouth (talking) -->
+  <ellipse cx="242" cy="392" rx="8" ry="5" fill="#2c1a1a"/>
+  <ellipse cx="268" cy="392" rx="8" ry="5" fill="#2c1a1a"/>
+  <path d="M242 392 Q255 405 268 392" fill="#2c1a1a"/>
+  <rect x="242" y="388" width="26" height="10" rx="4" fill="#2c1a1a"/>
 
   <!-- Body -->
-  <ellipse cx="256" cy="410" rx="70" ry="50" fill="#2c1810"/>
-
-  <!-- Simple speech bubble -->
-  <rect x="320" y="130" width="70" height="40" rx="20" fill="#e94560" opacity="0.9"/>
-  <text x="355" y="157" text-anchor="middle" font-family="system-ui" font-size="18" font-weight="800" fill="white">Hi!</text>
-  <polygon points="330,168 318,185 340,170" fill="#e94560" opacity="0.9"/>
-
-  <!-- Tiny EN badge on chest -->
-  <circle cx="256" cy="415" r="16" fill="#e94560"/>
-  <text x="256" y="421" text-anchor="middle" font-family="system-ui" font-size="14" font-weight="900" fill="white">EN</text>
+  <ellipse cx="255" cy="460" rx="60" ry="35" fill="#2c1a1a"/>
 </svg>
