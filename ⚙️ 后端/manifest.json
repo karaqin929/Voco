@@ -1,6 +1,6 @@
 {
-  "name": "VoiceLog",
-  "short_name": "VoiceLog",
+  "name": "Voco",
+  "short_name": "Voco",
   "description": "ChatGPT Live 口语学习追踪",
   "display_override": ["standalone", "minimal-ui"],
   "start_url": "/",

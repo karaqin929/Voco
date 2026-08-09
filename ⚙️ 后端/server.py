@@ -1,4 +1,4 @@
-"""VoiceLog — REST API + PWA"""
+"""Voco — REST API + PWA"""
 import sys, os, json, socket, traceback
 
 print("VOICELOG: Starting imports...", flush=True)
@@ -48,7 +48,7 @@ def load_config():
     if os.path.exists(SERVER_CONFIG_PATH):
         with open(SERVER_CONFIG_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {"app_name": "VoiceLog", "user_name": ""}
+    return {"app_name": "Voco", "user_name": ""}
 
 def save_config(cfg):
     os.makedirs(os.path.dirname(SERVER_CONFIG_PATH), exist_ok=True)
@@ -145,7 +145,7 @@ def mark_error_fixed(index: int) -> dict:
 
 
 # ─── FastAPI REST + PWA ─────────────────────────────────
-app = FastAPI(title="VoiceLog")
+app = FastAPI(title="Voco")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 print("VOICELOG: App created, routes registered", flush=True)
 
@@ -208,10 +208,10 @@ def index():
     if os.path.exists(p):
         with open(p, "r", encoding="utf-8") as f:
             html = f.read()
-        html = html.replace("VoiceLog", cfg.get("app_name", "VoiceLog"))
-        html = html.replace("<title>VoiceLog</title>", f"<title>{cfg.get('app_name', 'VoiceLog')}</title>")
+        html = html.replace("Voco", cfg.get("app_name", "Voco"))
+        html = html.replace("<title>Voco</title>", f"<title>{cfg.get('app_name', 'Voco')}</title>")
         return HTMLResponse(html)
-    return HTMLResponse("<h1>VoiceLog</h1>")
+    return HTMLResponse("<h1>Voco</h1>")
 
 
 @app.get("/api/config")
@@ -270,7 +270,7 @@ if __name__ == "__main__":
     if port == 8765:
         ip = get_ip()
         try:
-            print(f"\n  VoiceLog -> http://{ip}:{port}\n")
+            print(f"\n  Voco -> http://{ip}:{port}\n")
         except UnicodeEncodeError:
-            print(f"\n  VoiceLog -> http://{ip}:{port}\n")
+            print(f"\n  Voco -> http://{ip}:{port}\n")
     uvicorn.run(app, host="0.0.0.0", port=port)
