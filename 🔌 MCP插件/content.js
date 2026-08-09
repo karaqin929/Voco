@@ -1,5 +1,5 @@
 // Voco Chrome Extension — ChatGPT 日报自动同步
-let SERVER_URL = 'https://voco.onrender.com';
+let SERVER_URL = 'https://kks-voicelog.onrender.com';
 
 // Read server URL from extension storage
 chrome.storage.local.get('serverUrl', (data) => {
