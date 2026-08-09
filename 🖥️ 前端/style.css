@@ -166,3 +166,56 @@ textarea:focus { outline: none; border-color: var(--primary); }
 }
 .toast.show { opacity: 1; }
 .toast.error { background: var(--primary); }
+
+/* ─── Login Screen ────────────────────────────── */
+#login-screen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; min-height: 100dvh;
+  background: var(--bg);
+}
+.login-card {
+  text-align: center; padding: 40px 30px;
+  background: var(--surface); border-radius: 24px;
+  border: 1px solid var(--border);
+  max-width: 340px; width: 90%;
+}
+.login-icon { font-size: 80px; margin-bottom: 12px; }
+.login-card h1 { font-size: 32px; margin: 0 0 8px; color: var(--text); }
+.login-sub { color: var(--text-dim); font-size: 14px; margin-bottom: 28px; }
+.btn-login {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 32px; background: #fff; color: #333;
+  border: none; border-radius: 12px; font-size: 16px;
+  font-weight: 600; cursor: pointer; transition: 0.2s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.btn-login:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+/* ─── App Header ──────────────────────────────── */
+.app-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.app-title { font-size: 20px; font-weight: 700; color: var(--primary); }
+.btn-logout {
+  padding: 6px 14px; background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 8px;
+  font-size: 12px; cursor: pointer;
+}
+
+/* ─── Misc ────────────────────────────────────── */
+.badge-done { font-size: 12px; color: var(--success); }
+.toast-success { color: var(--success); font-size: 13px; }
+.toast-error { color: var(--primary); font-size: 13px; }
+.btn-small {
+  padding: 4px 10px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12px; cursor: pointer;
+}
+.trend-bars { display: flex; gap: 3px; align-items: flex-end; flex: 1; height: 40px; }
+.bar { width: 8px; background: var(--primary); border-radius: 2px 2px 0 0; }
+.example { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+.card-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.card-row { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.card-tag { font-size: 11px; color: var(--primary); margin-bottom: 4px; }

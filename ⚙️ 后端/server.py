@@ -253,6 +253,14 @@ def app_js():
 def icon_svg():
     return FileResponse(os.path.join(FRONTEND_DIR, "icon.svg"))
 
+@app.get("/supabase-client.js")
+def supabase_js():
+    return FileResponse(os.path.join(FRONTEND_DIR, "supabase-client.js"))
+
+@app.get("/parser.js")
+def parser_js():
+    return FileResponse(os.path.join(FRONTEND_DIR, "parser.js"))
+
 
 # ─── Startup ───────────────────────────────────────────
 if __name__ == "__main__":
