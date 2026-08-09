@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: voicelog
+    name: voco
     runtime: python
     buildCommand: pip install -r "⚙️ 后端/requirements.txt"
     startCommand: cd "⚙️ 后端" && uvicorn server:app --host 0.0.0.0 --port $PORT
