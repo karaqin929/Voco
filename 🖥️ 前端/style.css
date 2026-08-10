@@ -1,53 +1,133 @@
 /* ═══════════════════════════════════════════════════════
-   Voco — Warm Morandi Design System
+   Voco — Morandi Theme System (4 palettes × 2 modes)
    ═══════════════════════════════════════════════════════ */
 
+/* ── Shared (radius, transitions) ── */
 :root {
-  /* ── Background ── */
-  --bg: #FBF7F0;
-  --surface: #FFFFFF;
-  --card: #FFFFFF;
-
-  /* ── Accents ── */
-  --primary: #E07B5A;          /* Warm coral */
-  --primary-light: #FDE8E0;    /* Coral tint */
-  --primary-dark: #C45D3D;     /* Coral shade */
-
-  --blue: #8BADC5;             /* Dusty blue */
-  --blue-light: #E8F0F6;
-
-  --green: #8CAF94;            /* Sage green */
-  --green-light: #E8F2EA;
-
-  --orange: #D4956B;           /* Terracotta */
-  --orange-light: #FDF0E5;
-
-  --red: #D4756B;              /* Muted rose */
-
-  /* ── Text ── */
-  --text: #3D3533;
-  --text-dim: #8C7E78;
-  --text-ultradim: #BFB3AA;
-
-  /* ── Borders & Shadows ── */
-  --border: #EDE4DB;
-  --border-light: #F5EFEA;
-  --shadow-sm: 0 1px 3px rgba(80,40,20,0.04);
-  --shadow: 0 2px 12px rgba(80,40,20,0.06);
-  --shadow-md: 0 4px 20px rgba(80,40,20,0.08);
-
-  /* ── Calendar ── */
-  --cal-empty: #EDE6DE;
-  --cal-l1: #FAD4C4;
-  --cal-l2: #F0A88C;
-  --cal-l3: #E07B5A;
-  --cal-l4: #C45D3D;
-
-  /* ── Radius ── */
   --radius-sm: 8px;
   --radius: 14px;
   --radius-lg: 20px;
   --radius-xl: 24px;
+}
+
+/* ═══ 1. 默认暖调 (Warm Coral) ═══ */
+[data-theme="warm"], :root {
+  --bg: #FBF7F0;  --surface: #FFFFFF;  --card: #FFFFFF;
+  --primary: #E07B5A;  --primary-light: #FDE8E0;  --primary-dark: #C45D3D;
+  --blue: #8BADC5;  --blue-light: #E8F0F6;
+  --green: #8CAF94;  --green-light: #E8F2EA;
+  --orange: #D4956B;  --orange-light: #FDF0E5;
+  --red: #D4756B;
+  --text: #3D3533;  --text-dim: #8C7E78;  --text-ultradim: #BFB3AA;
+  --border: #EDE4DB;  --border-light: #F5EFEA;
+  --shadow-sm: 0 1px 3px rgba(80,40,20,0.04);
+  --shadow: 0 2px 12px rgba(80,40,20,0.06);
+  --shadow-md: 0 4px 20px rgba(80,40,20,0.08);
+  --cal-empty: #EDE6DE;  --cal-l1: #FAD4C4;  --cal-l2: #F0A88C;  --cal-l3: #E07B5A;  --cal-l4: #C45D3D;
+}
+[data-theme="warm"][data-mode="dark"] {
+  --bg: #1E1E2E;  --surface: #2A2A3C;  --card: #2A2A3C;
+  --primary: #F09878;  --primary-light: #3D2B24;  --primary-dark: #E07B5A;
+  --blue: #9DBDD5;  --blue-light: #2A3340;
+  --green: #A0BFA8;  --green-light: #2A3530;
+  --orange: #D9A880;  --orange-light: #3D3530;
+  --red: #E09088;
+  --text: #E8E0DC;  --text-dim: #A09892;  --text-ultradim: #6A6460;
+  --border: #3A3A4C;  --border-light: #303044;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow: 0 2px 12px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.3);
+  --cal-empty: #2E2E40;  --cal-l1: #4A3028;  --cal-l2: #7A4038;  --cal-l3: #C06048;  --cal-l4: #F09878;
+}
+
+/* ═══ 2. 沙滩椰林 (Beach & Palm) ═══ */
+[data-theme="beach"] {
+  --bg: #FBF6ED;  --surface: #FFFEFA;  --card: #FFFEFA;
+  --primary: #C4956A;  --primary-light: #F5EBE0;  --primary-dark: #A07850;
+  --blue: #8CAF9B;  --blue-light: #EAF2ED;
+  --green: #9DB89A;  --green-light: #EDF4EC;
+  --orange: #D4A574;  --orange-light: #FDF3EA;
+  --red: #C49A8A;
+  --text: #4A3D35;  --text-dim: #8C7A6A;  --text-ultradim: #B8A898;
+  --border: #EDE4D5;  --border-light: #F5EFE5;
+  --shadow-sm: 0 1px 3px rgba(80,50,20,0.04);
+  --shadow: 0 2px 12px rgba(80,50,20,0.06);
+  --shadow-md: 0 4px 20px rgba(80,50,20,0.08);
+  --cal-empty: #EDE6D8;  --cal-l1: #FADCC4;  --cal-l2: #E8C098;  --cal-l3: #C4956A;  --cal-l4: #A07850;
+}
+[data-theme="beach"][data-mode="dark"] {
+  --bg: #2A2520;  --surface: #35302A;  --card: #35302A;
+  --primary: #D4A574;  --primary-light: #3D3328;  --primary-dark: #C4956A;
+  --blue: #9DB89A;  --blue-light: #2A3530;
+  --green: #A8C4A5;  --green-light: #2D3832;
+  --orange: #E0B888;  --orange-light: #3D3530;
+  --red: #D4A894;
+  --text: #EDE5DC;  --text-dim: #A89888;  --text-ultradim: #6A6058;
+  --border: #3D3530;  --border-light: #353030;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow: 0 2px 12px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.3);
+  --cal-empty: #302A28;  --cal-l1: #4A3830;  --cal-l2: #7A5840;  --cal-l3: #C09060;  --cal-l4: #D4A574;
+}
+
+/* ═══ 3. 夏日大海 (Summer Ocean) ═══ */
+[data-theme="ocean"] {
+  --bg: #EEF3F5;  --surface: #F8FAFB;  --card: #F8FAFB;
+  --primary: #7A9AB5;  --primary-light: #E6EFF5;  --primary-dark: #5C7D98;
+  --blue: #8AADC5;  --blue-light: #E8F0F6;
+  --green: #8BAFAA;  --green-light: #E8F2F0;
+  --orange: #C49A8A;  --orange-light: #FDF0EB;
+  --red: #C48A8A;
+  --text: #384550;  --text-dim: #788A95;  --text-ultradim: #A0B0B8;
+  --border: #DDE5EA;  --border-light: #EEF3F5;
+  --shadow-sm: 0 1px 3px rgba(40,60,80,0.04);
+  --shadow: 0 2px 12px rgba(40,60,80,0.06);
+  --shadow-md: 0 4px 20px rgba(40,60,80,0.08);
+  --cal-empty: #E5ECF0;  --cal-l1: #C8DCE8;  --cal-l2: #9ABDD0;  --cal-l3: #7A9AB5;  --cal-l4: #5C7D98;
+}
+[data-theme="ocean"][data-mode="dark"] {
+  --bg: #1E252A;  --surface: #283038;  --card: #283038;
+  --primary: #8AB0CC;  --primary-light: #2A3540;  --primary-dark: #7A9AB5;
+  --blue: #9ABDD0;  --blue-light: #2A3540;
+  --green: #9ABFBA;  --green-light: #2A3835;
+  --orange: #D4A894;  --orange-light: #38302A;
+  --red: #D4A0A0;
+  --text: #E0E5E8;  --text-dim: #98A8B0;  --text-ultradim: #607078;
+  --border: #354048;  --border-light: #2D3840;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow: 0 2px 12px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.3);
+  --cal-empty: #283038;  --cal-l1: #384A58;  --cal-l2: #486A80;  --cal-l3: #7898B0;  --cal-l4: #8AB0CC;
+}
+
+/* ═══ 4. 冰天雪地 (Ice & Snow) ═══ */
+[data-theme="ice"] {
+  --bg: #F1F3F7;  --surface: #FAFBFD;  --card: #FAFBFD;
+  --primary: #9AABC4;  --primary-light: #EAEEF5;  --primary-dark: #7A8DA8;
+  --blue: #A8B8CC;  --blue-light: #ECF0F5;
+  --green: #A0B8B0;  --green-light: #ECF2F0;
+  --orange: #C4AC9A;  --orange-light: #FDF5EF;
+  --red: #C49A9A;
+  --text: #404550;  --text-dim: #889098;  --text-ultradim: #B0B8C0;
+  --border: #E0E5ED;  --border-light: #F0F3F7;
+  --shadow-sm: 0 1px 3px rgba(60,60,80,0.04);
+  --shadow: 0 2px 12px rgba(60,60,80,0.06);
+  --shadow-md: 0 4px 20px rgba(60,60,80,0.08);
+  --cal-empty: #E8ECF2;  --cal-l1: #D0D8E4;  --cal-l2: #B0BCC8;  --cal-l3: #9AABC4;  --cal-l4: #7A8DA8;
+}
+[data-theme="ice"][data-mode="dark"] {
+  --bg: #222530;  --surface: #2C303C;  --card: #2C303C;
+  --primary: #B0BCD0;  --primary-light: #303540;  --primary-dark: #9AABC4;
+  --blue: #B8C4D8;  --blue-light: #303540;
+  --green: #B0C4BC;  --green-light: #303835;
+  --orange: #D4BCA8;  --orange-light: #3D3530;
+  --red: #D4AAAA;
+  --text: #E5E8EC;  --text-dim: #A0A8B0;  --text-ultradim: #687078;
+  --border: #3A3D48;  --border-light: #30333D;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow: 0 2px 12px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.3);
+  --cal-empty: #2C303C;  --cal-l1: #3D4458;  --cal-l2: #586880;  --cal-l3: #98A8C0;  --cal-l4: #B0BCD0;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1435,60 +1515,39 @@ textarea::placeholder {
 .ep-count { width:30px; font-size:11px; color:var(--text-ultradim); flex-shrink:0; }
 .ep-tip { font-size:12px; color:var(--primary); padding:8px 12px; background:var(--primary-light); border-radius:var(--radius-sm); }
 
-/* Dark Mode */
-[data-theme="dark"] {
-  --bg: #1E1E2E;
-  --surface: #2A2A3C;
-  --card: #2A2A3C;
-  --primary: #F09878;
-  --primary-light: #3D2B24;
-  --primary-dark: #E07B5A;
-  --blue: #9DBDD5;
-  --blue-light: #2A3340;
-  --green: #A0BFA8;
-  --green-light: #2A3530;
-  --orange: #D9A880;
-  --orange-light: #3D3530;
-  --red: #E09088;
-  --text: #E8E0DC;
-  --text-dim: #A09892;
-  --text-ultradim: #6A6460;
-  --border: #3A3A4C;
-  --border-light: #303044;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
-  --shadow: 0 2px 12px rgba(0,0,0,0.25);
-  --shadow-md: 0 4px 20px rgba(0,0,0,0.3);
-  --cal-empty: #2E2E40;
-  --cal-l1: #4A3028;
-  --cal-l2: #7A4038;
-  --cal-l3: #C06048;
-  --cal-l4: #F09878;
-}
+/* Dark mode universal overrides (works with any theme) */
+[data-mode="dark"] body { background:var(--bg); color:var(--text); }
+[data-mode="dark"] .app-header,
+[data-mode="dark"] .tab-bar { background:var(--surface); border-color:var(--border); }
+[data-mode="dark"] .import-card,
+[data-mode="dark"] .topic-card,
+[data-mode="dark"] .prep-card,
+[data-mode="dark"] .dual-card,
+[data-mode="dark"] .stat-card,
+[data-mode="dark"] .settings-item,
+[data-mode="dark"] .vocab-card,
+[data-mode="dark"] .error-card,
+[data-mode="dark"] .pattern-card,
+[data-mode="dark"] .topic-card-item,
+[data-mode="dark"] .shadow-card,
+[data-mode="dark"] .flashcard { background:var(--surface); }
+[data-mode="dark"] input,
+[data-mode="dark"] textarea,
+[data-mode="dark"] select { background:var(--bg); color:var(--text); border-color:var(--border); }
+[data-mode="dark"] .btn-logout { border-color:var(--border); color:var(--text-dim); }
+[data-mode="dark"] .flashcard-front,
+[data-mode="dark"] .flashcard-back { background:var(--surface); }
+[data-mode="dark"] .dual-empty,
+[data-mode="dark"] .empty-state-sub { color:var(--text-ultradim); }
 
-[data-theme="dark"] body { background:var(--bg); color:var(--text); }
-[data-theme="dark"] .app-header,
-[data-theme="dark"] .tab-bar { background:var(--surface); border-color:var(--border); }
-[data-theme="dark"] .import-card,
-[data-theme="dark"] .topic-card,
-[data-theme="dark"] .prep-card,
-[data-theme="dark"] .dual-card,
-[data-theme="dark"] .stat-card,
-[data-theme="dark"] .settings-item,
-[data-theme="dark"] .vocab-card,
-[data-theme="dark"] .error-card,
-[data-theme="dark"] .pattern-card,
-[data-theme="dark"] .topic-card-item,
-[data-theme="dark"] .shadow-card,
-[data-theme="dark"] .flashcard { background:var(--surface); }
-[data-theme="dark"] input,
-[data-theme="dark"] textarea,
-[data-theme="dark"] select { background:var(--bg); color:var(--text); border-color:var(--border); }
-[data-theme="dark"] .btn-logout { border-color:var(--border); color:var(--text-dim); }
-[data-theme="dark"] .flashcard-front,
-[data-theme="dark"] .flashcard-back { background:var(--surface); }
-[data-theme="dark"] .dual-empty,
-[data-theme="dark"] .empty-state-sub { color:var(--text-ultradim); }
-[data-theme="dark"] .toast { color:var(--bg) !important; }
+/* Theme picker */
+.theme-picker { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:8px 0; }
+.theme-option { padding:12px 10px; border:2px solid var(--border); border-radius:var(--radius); cursor:pointer; text-align:center; transition:all 0.2s; background:var(--surface); }
+.theme-option.active { border-color:var(--primary); }
+.theme-option:active { transform:scale(0.96); }
+.theme-swatch { display:flex; gap:4px; justify-content:center; margin-bottom:6px; }
+.theme-swatch span { width:16px; height:16px; border-radius:50%; }
+.theme-name { font-size:12px; color:var(--text-dim); font-weight:500; }
 
 /* ═══════════════════════════════════════════════════════
    Daily Report (LingoTrace-style primary content)
@@ -1584,3 +1643,24 @@ textarea { width:100%; padding:12px; border:1px solid var(--border); border-radi
 .badge-status.mastered { background:var(--green-light); color:var(--green); }
 .badge-done { font-size:11px; padding:3px 8px; background:var(--green-light); color:var(--green); border-radius:20px; }
 .badge-source { font-size:10px; padding:2px 8px; background:var(--bg); color:var(--text-ultradim); border-radius:12px; margin-left:auto; }
+
+/* ═══════════════════════════════════════════════════════
+   Guided Practice Flow
+   ═══════════════════════════════════════════════════════ */
+.practice-flow { margin:10px 16px; background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden; }
+.flow-progress { display:flex; align-items:center; justify-content:center; padding:18px 16px 12px; gap:0; }
+.flow-dot { width:28px; height:28px; border-radius:50%; background:var(--border-light); color:var(--text-ultradim); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; flex-shrink:0; transition:all 0.3s; }
+.flow-dot.active { background:var(--primary); color:#fff; }
+.flow-dot.done { background:var(--green); color:#fff; }
+.flow-line { width:32px; height:2px; background:var(--border-light); flex-shrink:0; }
+.flow-dot.done + .flow-line { background:var(--green); }
+.flow-dot.active + .flow-line { background:var(--primary-light); }
+.flow-body { padding:0 16px 18px; }
+.flow-step-title { font-size:17px; font-weight:700; color:var(--text); margin-bottom:4px; }
+.flow-step-desc { font-size:13px; color:var(--text-dim); margin-bottom:12px; line-height:1.5; }
+.flow-actions { display:flex; gap:8px; margin-top:12px; }
+.flow-actions .btn-primary { flex:1; }
+.flow-preview-topic { font-size:16px; font-weight:600; color:var(--text); margin-bottom:4px; }
+.flow-preview-desc { font-size:13px; color:var(--text-dim); margin-bottom:10px; }
+.flow-preview-terms { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.flow-preview-challenge { padding:10px 12px; background:var(--primary-light); color:var(--primary-dark); border-radius:var(--radius-sm); font-size:13px; font-weight:500; }

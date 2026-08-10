@@ -131,21 +131,20 @@ async function loadHome() {
       tList.map(t => `<option value="${t.id}">${h(t.title)}</option>`).join('');
   }
 
-  // Decide what to show: daily report, topic preview, or CTA
+  // Decide what to show: daily report, topic preview, or practice flow
   const hasReport = latestReport && latestReport.content;
   const hasTopics = tList.length > 0;
 
   if (hasReport) {
-    // Show daily report as primary content
     document.getElementById('daily-report').style.display = 'block';
     document.getElementById('topic-preview').style.display = 'none';
-    document.getElementById('home-cta').style.display = 'none';
+    document.getElementById('practice-flow').style.display = 'none';
     renderDailyReport(latestReport, vList, eList, pList, prog);
   } else {
-    // No report yet — show topic picker CTA
     document.getElementById('daily-report').style.display = 'none';
     document.getElementById('topic-preview').style.display = 'none';
-    document.getElementById('home-cta').style.display = 'block';
+    document.getElementById('practice-flow').style.display = 'block';
+    renderFlowStep();
   }
 
   // Heatmap
@@ -918,20 +917,35 @@ function sparklineSVG(arr, color) {
 }
 
 // ═══════════════════════════════════════════════════════
-// Dark Mode
+// Theme System (4 palettes × light/dark)
 // ═══════════════════════════════════════════════════════
 function initTheme() {
-  const saved = localStorage.getItem('voco-theme');
-  const isDark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-  applyTheme(isDark);
+  const savedTheme = localStorage.getItem('voco-theme') || 'warm';
+  const savedMode = localStorage.getItem('voco-mode') || 'light';
+  applyTheme(savedTheme, savedMode);
 }
-function applyTheme(isDark) {
-  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-  const label = document.getElementById('theme-label'); if (label) label.textContent = isDark ? '开' : '关';
-  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = isDark ? '#1E1E2E' : '#FBF7F0';
-  localStorage.setItem('voco-theme', isDark ? 'dark' : 'light');
+function applyTheme(theme, mode) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-mode', mode);
+  const label = document.getElementById('theme-label'); if (label) label.textContent = mode === 'dark' ? '开' : '关';
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = mode === 'dark' ? '#1E1E2E' : '#FBF7F0';
+  localStorage.setItem('voco-theme', theme);
+  localStorage.setItem('voco-mode', mode);
+  // Update theme picker active state
+  document.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
+  const active = document.querySelector(`.theme-option[data-theme="${theme}"]`);
+  if (active) active.classList.add('active');
 }
-function toggleTheme() { applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? false : true); }
+function toggleTheme() {
+  const mode = document.documentElement.getAttribute('data-mode') === 'dark' ? 'light' : 'dark';
+  const theme = document.documentElement.getAttribute('data-theme') || 'warm';
+  applyTheme(theme, mode);
+}
+function selectTheme(theme) {
+  const mode = document.documentElement.getAttribute('data-mode') || 'light';
+  applyTheme(theme, mode);
+}
 
 // ═══════════════════════════════════════════════════════
 // Export
@@ -1000,28 +1014,6 @@ document.querySelectorAll('.tpl-btn').forEach(btn => {
   btn.addEventListener('click', (e) => { e.stopPropagation(); copyTemplate(btn.dataset.tpl); document.getElementById('import-card').setAttribute('open', ''); });
 });
 
-// Topic selector → preview
-document.getElementById('topic-select').addEventListener('change', function() {
-  if (this.value) showTopicPreview(this.value);
-  else hideTopicPreview();
-});
-
-// GO button on home CTA
-document.getElementById('hc-go-btn').addEventListener('click', () => {
-  const tid = document.getElementById('topic-select').value;
-  if (!tid) { showToast('请先选择一个话题'); return; }
-  showTopicPreview(tid);
-});
-
-// Topic preview back
-document.getElementById('tp-back').addEventListener('click', hideTopicPreview);
-
-// Start Conversation
-document.getElementById('tp-start-btn').addEventListener('click', function() {
-  showToast('🎯 打开 ChatGPT 开始练习吧！结束后将日报粘贴回来');
-  document.getElementById('import-card').setAttribute('open', '');
-});
-
 // Library search
 document.getElementById('lib-search').addEventListener('input', () => renderLibContent());
 
@@ -1044,6 +1036,125 @@ document.getElementById('btn-shadow-done').addEventListener('click', restartShad
 
 // Theme toggle
 document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
+// Theme picker
+document.querySelectorAll('.theme-option').forEach(o => { o.addEventListener('click', () => selectTheme(o.dataset.theme)); });
+
+// ═══════════════════════════════════════════════════════
+// Guided Practice Flow
+// ═══════════════════════════════════════════════════════
+let _flowStep = 0;
+
+function startFlow() {
+  _flowStep = 0;
+  renderFlowStep();
+}
+
+function renderFlowStep() {
+  const steps = ['选择话题', '练习准备', '开始练习', '导入报告'];
+  const flowContainer = document.getElementById('practice-flow');
+  if (!flowContainer) return;
+
+  const progressHTML = steps.map((s, i) => {
+    let cls = 'flow-dot';
+    if (i < _flowStep) cls += ' done';
+    if (i === _flowStep) cls += ' active';
+    return `<span class="${cls}">${i < _flowStep ? '✓' : i + 1}</span>${i < steps.length - 1 ? '<span class="flow-line"></span>' : ''}`;
+  }).join('');
+
+  let bodyHTML = '';
+  if (_flowStep === 0) {
+    bodyHTML = `<div class="flow-step-title">${steps[0]}</div>
+      <p class="flow-step-desc">从话题库选择一个话题开始今天的口语练习</p>
+      <select class="topic-select" id="flow-topic-select"><option value="">选择话题...</option></select>
+      <button class="btn-primary flow-btn" id="flow-next" style="margin-top:12px;" disabled>下一步 →</button>`;
+  } else if (_flowStep === 1) {
+    bodyHTML = `<div class="flow-step-title">${steps[1]}</div>
+      <div id="flow-preview-content"><p class="flow-step-desc">正在加载话题信息...</p></div>
+      <div class="flow-actions"><button class="btn-small flow-btn" id="flow-prev">← 上一步</button><button class="btn-primary flow-btn" id="flow-next">开始练习 →</button></div>`;
+  } else if (_flowStep === 2) {
+    bodyHTML = `<div class="flow-step-title">${steps[2]}</div>
+      <p class="flow-step-desc">打开 ChatGPT，用准备好的话题开始口语对话练习。<br>练完后回到这里导入日报。</p>
+      <div class="flow-actions"><button class="btn-small flow-btn" id="flow-prev">← 上一步</button><button class="btn-primary flow-btn" id="flow-next">我已练完 →</button></div>`;
+  } else if (_flowStep === 3) {
+    bodyHTML = `<div class="flow-step-title">${steps[3]}</div>
+      <p class="flow-step-desc">用模板生成日报 → 粘贴到 ChatGPT → 把结果粘贴回来</p>
+      <div class="template-btns" style="margin-bottom:10px;"><button class="tpl-btn" data-tpl="report">📝 日报模板</button></div>
+      <textarea id="flow-report-input" rows="5" placeholder="将 ChatGPT 生成的日报内容粘贴到这里..."></textarea>
+      <div class="flow-actions"><button class="btn-small flow-btn" id="flow-prev">← 上一步</button><button class="btn-primary flow-btn" id="flow-finish">解析入库 ✓</button></div>`;
+  }
+
+  flowContainer.innerHTML = `
+    <div class="flow-progress">${progressHTML}</div>
+    <div class="flow-body">${bodyHTML}</div>
+  `;
+
+  // Bind buttons
+  const prevBtn = document.getElementById('flow-prev');
+  const nextBtn = document.getElementById('flow-next');
+  const finishBtn = document.getElementById('flow-finish');
+
+  if (prevBtn) prevBtn.addEventListener('click', () => { if (_flowStep > 0) { _flowStep--; renderFlowStep(); } });
+  if (nextBtn) nextBtn.addEventListener('click', () => { if (_flowStep < 3) { _flowStep++; renderFlowStep(); } });
+  if (finishBtn) finishBtn.addEventListener('click', async () => { const text = document.getElementById('flow-report-input')?.value; if (text) await importReport(text); _flowStep = 4; renderCompletion(); });
+
+  // Step 0: populate topic select
+  if (_flowStep === 0) {
+    loadTopicsForFlow();
+    const sel = document.getElementById('flow-topic-select');
+    sel.addEventListener('change', function() {
+      document.getElementById('flow-next').disabled = !this.value;
+    });
+  }
+
+  // Step 1: show preview
+  if (_flowStep === 1) {
+    const sel = document.getElementById('flow-topic-select');
+    if (sel && sel.value) showFlowPreview(sel.value);
+  }
+
+  // Step 3: template buttons
+  if (_flowStep === 3) {
+    document.querySelectorAll('#practice-flow .tpl-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => copyTemplate(btn.dataset.tpl));
+    });
+  }
+}
+
+async function loadTopicsForFlow() {
+  const { data: topics } = await sb.from('topics').select('*').order('created_at', { ascending: false });
+  const sel = document.getElementById('flow-topic-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">选择话题...</option>' + (topics || []).map(t => `<option value="${t.id}">${h(t.title)}</option>`).join('');
+}
+
+async function showFlowPreview(topicId) {
+  const { data: topic } = await sb.from('topics').select('*').eq('id', topicId).single();
+  if (!topic) return;
+  const { data: vocab } = await sb.from('vocabulary').select('*').or(`source_topic.ilike.%${topic.title}%`);
+  const terms = (vocab || []).slice(0, 5);
+  const div = document.getElementById('flow-preview-content');
+  if (!div) return;
+  div.innerHTML = `
+    <div class="flow-preview-topic">${h(topic.title)}</div>
+    ${topic.description ? `<div class="flow-preview-desc">${h(topic.description)}</div>` : ''}
+    ${terms.length ? `<div class="flow-preview-terms">${terms.map(v => `<span class="prep-tag">${h(v.word)}</span>`).join('')}</div>` : ''}
+    <div class="flow-preview-challenge">💪 用英语描述你与 "${h(topic.title)}" 相关的经历</div>
+  `;
+}
+
+function renderCompletion() {
+  const flowContainer = document.getElementById('practice-flow');
+  if (!flowContainer) return;
+  flowContainer.innerHTML = `
+    <div class="flow-progress"><span class="flow-dot done">✓</span><span class="flow-line"></span><span class="flow-dot done">✓</span><span class="flow-line"></span><span class="flow-dot done">✓</span><span class="flow-line"></span><span class="flow-dot done">✓</span></div>
+    <div class="flow-body" style="text-align:center;">
+      <div style="font-size:48px;margin:16px 0;">🎉</div>
+      <div class="flow-step-title">练习完成！</div>
+      <p class="flow-step-desc">日报已入库，去首页查看学习成果</p>
+      <button class="btn-primary" onclick="document.querySelector('.tab-bar .tab[data-tab=home]').click();loadHome();">查看日报 →</button>
+    </div>
+  `;
+}
 
 initTheme();
 

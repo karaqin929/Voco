@@ -91,16 +91,8 @@
       <button class="tp-start-btn" id="tp-start-btn">🎯 Start Conversation with ChatGPT</button>
     </div>
 
-    <!-- ═══ Topic picker + CTA (shown when no preview, no report) ═══ -->
-    <div id="home-cta">
-      <div class="hc-icon">💬</div>
-      <div class="hc-title">Ready to practice?</div>
-      <div class="hc-sub">Pick a topic and start your ChatGPT Live session</div>
-      <select class="topic-select" id="topic-select">
-        <option value="">选择话题...</option>
-      </select>
-      <button class="btn-primary" id="hc-go-btn" style="width:100%;margin-top:8px;">GO →</button>
-    </div>
+    <!-- ═══ Guided Practice Flow (shown when no daily report) ═══ -->
+    <div id="practice-flow" class="practice-flow"></div>
 
     <!-- ═══ Stats ═══ -->
     <div class="stats-grid">
@@ -261,6 +253,31 @@
 
     <div class="settings-group">
       <div class="settings-group-label">🎨 外观</div>
+      <div class="settings-item" id="btn-theme-toggle">
+        <span class="settings-item-label">深色模式</span>
+        <span class="settings-item-value" id="theme-label">关</span>
+      </div>
+      <div class="settings-item" style="display:block;padding-bottom:12px;">
+        <span class="settings-item-label" style="display:block;margin-bottom:10px;">主题配色</span>
+        <div class="theme-picker" id="theme-picker">
+          <div class="theme-option active" data-theme="warm">
+            <div class="theme-swatch"><span style="background:#E07B5A"></span><span style="background:#8BADC5"></span><span style="background:#8CAF94"></span></div>
+            <div class="theme-name">默认暖调</div>
+          </div>
+          <div class="theme-option" data-theme="beach">
+            <div class="theme-swatch"><span style="background:#C4956A"></span><span style="background:#8CAF9B"></span><span style="background:#9DB89A"></span></div>
+            <div class="theme-name">🏖️ 沙滩椰林</div>
+          </div>
+          <div class="theme-option" data-theme="ocean">
+            <div class="theme-swatch"><span style="background:#7A9AB5"></span><span style="background:#8AADC5"></span><span style="background:#8BAFAA"></span></div>
+            <div class="theme-name">🌊 夏日大海</div>
+          </div>
+          <div class="theme-option" data-theme="ice">
+            <div class="theme-swatch"><span style="background:#9AABC4"></span><span style="background:#A8B8CC"></span><span style="background:#A0B8B0"></span></div>
+            <div class="theme-name">❄️ 冰天雪地</div>
+          </div>
+        </div>
+      </div>
       <div class="settings-item">
         <span class="settings-item-label">App 名称</span>
         <input id="setting-name" class="settings-input" placeholder="Voco" />
@@ -268,10 +285,6 @@
       <div class="settings-item" id="btn-save-name">
         <span>保存设置</span>
         <span class="settings-arrow">›</span>
-      </div>
-      <div class="settings-item" id="btn-theme-toggle">
-        <span class="settings-item-label">深色模式</span>
-        <span class="settings-item-value" id="theme-label">关</span>
       </div>
     </div>
 
