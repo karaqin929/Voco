@@ -1,5 +1,5 @@
 // Voco Service Worker — stale-while-revalidate
-const CACHE = 'voco-v2';
+const CACHE = 'voco-v3';
 const FILES = ['/','/style.css','/app.js','/manifest.json','/supabase-client.js','/parser.js'];
 
 self.addEventListener('install', e => {

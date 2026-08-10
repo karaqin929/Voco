@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="/icon.svg">
-  <link rel="stylesheet" href="/style.css?v=2">
+  <link rel="stylesheet" href="/style.css?v=3">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -137,6 +137,51 @@
     <div id="library-content" class="loading">加载中...</div>
   </section>
 
+  <!-- ── Tab: Review ──────────────────────────── -->
+  <section id="tab-review" class="tab-content">
+    <div id="review-container">
+      <div class="review-empty" id="review-empty">
+        <div class="review-empty-icon">📝</div>
+        <div class="review-empty-title">准备复习</div>
+        <div class="review-empty-sub">导入日报后，待复习的单词会出现在这里</div>
+        <button class="btn-primary" id="btn-start-review-empty" style="display:none;">开始复习</button>
+      </div>
+      <div id="review-active" style="display:none;">
+        <div class="review-progress">
+          <span id="review-progress-text">1/10</span>
+          <div class="review-progress-bar"><div class="review-progress-fill" id="review-progress-fill"></div></div>
+        </div>
+        <div class="flashcard" id="flashcard">
+          <div class="flashcard-inner" id="flashcard-inner">
+            <div class="flashcard-front">
+              <div class="flashcard-word" id="fc-word"></div>
+              <div class="flashcard-phonetic" id="fc-phonetic"></div>
+              <div class="flashcard-hint">点击翻转查看释义</div>
+            </div>
+            <div class="flashcard-back">
+              <div class="flashcard-word" id="fc-word-back"></div>
+              <div class="flashcard-meaning" id="fc-meaning"></div>
+              <div class="flashcard-example" id="fc-example"></div>
+              <div class="flashcard-meta" id="fc-meta"></div>
+            </div>
+          </div>
+        </div>
+        <div class="review-actions" id="review-actions" style="display:none;">
+          <button class="review-btn again" id="btn-again">🔄 再来<br><small>1天后</small></button>
+          <button class="review-btn good" id="btn-good">👍 不错<br><small>按计划</small></button>
+          <button class="review-btn easy" id="btn-easy">✅ 简单<br><small>延长间隔</small></button>
+        </div>
+        <button class="btn-primary" id="btn-reveal" style="margin-top:12px;">查看释义</button>
+      </div>
+      <div id="review-summary" style="display:none;">
+        <div class="review-summary-icon">🎉</div>
+        <div class="review-summary-title">复习完成！</div>
+        <div class="review-summary-stats" id="review-summary-stats"></div>
+        <button class="btn-primary" id="btn-review-done">返回首页</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ── Tab: Settings ─────────────────────────── -->
   <section id="tab-settings" class="tab-content">
 
@@ -166,13 +211,9 @@
 
     <div class="settings-group">
       <div class="settings-group-label">📊 数据</div>
-      <div class="settings-item">
+      <div class="settings-item" id="btn-export-data">
         <span class="settings-item-label">导出数据</span>
-        <span class="settings-item-hint">即将推出</span>
-      </div>
-      <div class="settings-item settings-item-danger">
-        <span>清除所有数据</span>
-        <span class="settings-item-hint">不可恢复</span>
+        <span class="settings-arrow">›</span>
       </div>
     </div>
 
@@ -190,13 +231,14 @@
   <!-- ── Tab Bar ──────────────────────────────── -->
   <nav class="tab-bar">
     <button class="tab active" data-tab="home">🏠 首页</button>
+    <button class="tab" data-tab="review">🔁 复习</button>
     <button class="tab" data-tab="library">📚 词汇</button>
     <button class="tab" data-tab="settings">⚙️ 设置</button>
   </nav>
 </div>
 
-<script src="/supabase-client.js?v=2"></script>
-<script src="/parser.js?v=2"></script>
-<script src="/app.js?v=2"></script>
+<script src="/supabase-client.js?v=3"></script>
+<script src="/parser.js?v=3"></script>
+<script src="/app.js?v=3"></script>
 </body>
 </html>
