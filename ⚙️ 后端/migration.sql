@@ -13,6 +13,9 @@ CREATE TABLE vocabulary (
   source_topic TEXT DEFAULT '',
   review_count INTEGER DEFAULT 0,
   mastered BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'new',
+  next_review_date DATE,
+  last_reviewed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
