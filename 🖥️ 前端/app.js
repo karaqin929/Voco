@@ -132,7 +132,15 @@ async function loadHome() {
   }
 
   // Decide what to show: daily report, topic preview, or practice flow
-  const hasReport = latestReport && latestReport.content;
+  // Only show daily report if content is actually a daily report (not topic card etc.)
+  const isDailyReport = latestReport?.content && (
+    latestReport.content.includes('type: daily-report') ||
+    latestReport.content.includes('## 语法纠正') ||
+    latestReport.content.includes('## 发音纠正') ||
+    latestReport.content.includes('## 今日生词') ||
+    latestReport.content.includes('## 表现总结')
+  );
+  const hasReport = !!(latestReport && isDailyReport);
   const hasTopics = tList.length > 0;
 
   if (hasReport) {
