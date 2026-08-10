@@ -905,15 +905,54 @@ textarea::placeholder {
   background: var(--border);
 }
 
-.btn-login-apple {
-  background: #000;
-  color: #fff;
-  border: none;
+/* ── Email login ── */
+.login-email {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.btn-login-apple:hover {
-  background: #1a1a1a;
+.login-email-input {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
 }
+
+.login-email-input:focus {
+  border-color: var(--primary);
+}
+
+.login-email-input::placeholder {
+  color: var(--text-ultradim);
+}
+
+.btn-login-email {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border: none;
+  font-weight: 600;
+}
+
+.btn-login-email:hover {
+  background: #f8d8cc;
+}
+
+.login-email-hint {
+  font-size: 12px;
+  text-align: center;
+  margin-top: 2px;
+}
+
+.login-email-hint.success { color: var(--green); }
+.login-email-hint.error { color: var(--red); }
 
 /* ═══════════════════════════════════════════════════════
    Utilities

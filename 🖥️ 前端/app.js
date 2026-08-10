@@ -48,13 +48,35 @@ async function signIn() {
   });
 }
 
-async function signInWithApple() {
-  await sb.auth.signInWithOAuth({
-    provider: 'apple',
-    options: {
-      redirectTo: window.location.origin + '/',
-    }
+async function sendMagicLink() {
+  const input = document.getElementById('login-email-input');
+  const email = input.value.trim();
+  const hint = document.getElementById('login-email-hint');
+  const btn = document.getElementById('btn-login-email');
+
+  if (!email) { hint.style.display = 'block'; hint.textContent = '请输入邮箱地址'; hint.className = 'login-email-hint error'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '发送中...';
+  hint.style.display = 'none';
+
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin + '/' }
   });
+
+  if (error) {
+    hint.style.display = 'block';
+    hint.textContent = '发送失败: ' + error.message;
+    hint.className = 'login-email-hint error';
+    btn.disabled = false;
+    btn.textContent = '发送登录链接';
+  } else {
+    hint.style.display = 'block';
+    hint.textContent = '✅ 已发送！请查收邮箱 ' + email;
+    hint.className = 'login-email-hint success';
+    btn.textContent = '已发送';
+  }
 }
 
 async function signOut() {
@@ -573,7 +595,7 @@ function showToast(msg) {
 
 // ─── Init ─────────────────────────────────────────────────
 document.getElementById('btn-login').addEventListener('click', signIn);
-document.getElementById('btn-login-apple').addEventListener('click', signInWithApple);
+document.getElementById('btn-login-email').addEventListener('click', sendMagicLink);
 document.getElementById('btn-logout').addEventListener('click', signOut);
 document.getElementById('btn-submit').addEventListener('click', importReport);
 document.getElementById('btn-save-name').addEventListener('click', saveConfig);
