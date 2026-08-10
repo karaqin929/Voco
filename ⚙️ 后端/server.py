@@ -3,7 +3,7 @@ import sys, os, json, socket, traceback
 
 print("VOICELOG: Starting imports...", flush=True)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = SCRIPT_DIR
+FRONTEND_DIR = os.path.join(SCRIPT_DIR, "..", "🖥️ 前端")
 sys.path.insert(0, SCRIPT_DIR)
 
 try:
