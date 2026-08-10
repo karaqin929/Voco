@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="/icon.svg">
-  <link rel="stylesheet" href="/style.css?v=4">
+  <link rel="stylesheet" href="/style.css?v=5">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -42,6 +42,18 @@
 
   <!-- ── Tab: Home ────────────────────────────── -->
   <section id="tab-home" class="tab-content active">
+
+    <!-- ═══ Greeting + Streak ═══ -->
+    <div id="home-greeting" class="home-greeting">
+      <div class="greeting-left">
+        <div class="greeting-text" id="greeting-text"></div>
+        <div class="greeting-date" id="greeting-date"></div>
+      </div>
+      <div class="greeting-streak" id="greeting-streak"></div>
+    </div>
+
+    <!-- ═══ Smart Task Cards ═══ -->
+    <div id="task-cards" class="task-cards"></div>
 
     <!-- ═══ Daily Report (primary content, LingoTrace-style) ═══ -->
     <div id="daily-report" class="daily-report" style="display:none;">
@@ -242,6 +254,10 @@
     <div class="settings-group">
       <div class="settings-group-label">👤 账号</div>
       <div class="settings-item">
+        <span class="settings-item-label">用户名</span>
+        <input id="setting-username" class="settings-input" placeholder="你的昵称" />
+      </div>
+      <div class="settings-item">
         <span class="settings-item-label">邮箱</span>
         <span class="settings-item-value" id="settings-email">---</span>
       </div>
@@ -321,8 +337,8 @@
   </nav>
 </div>
 
-<script src="/supabase-client.js?v=4"></script>
-<script src="/parser.js?v=4"></script>
-<script src="/app.js?v=4"></script>
+<script src="/supabase-client.js?v=5"></script>
+<script src="/parser.js?v=5"></script>
+<script src="/app.js?v=5"></script>
 </body>
 </html>

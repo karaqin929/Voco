@@ -79,19 +79,22 @@ async function loadConfig() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
   const { data } = await sb.from('user_config').select('*').eq('user_id', session.user.id).maybeSingle();
-  if (data) { APP_NAME = data.app_name || 'Voco'; }
-  else { await sb.from('user_config').insert([{ user_id: session.user.id, app_name: 'Voco' }]); }
+  if (data) { APP_NAME = data.app_name || 'Voco'; if (data.user_name) localStorage.setItem('voco-username', data.user_name); }
+  else { await sb.from('user_config').insert([{ user_id: session.user.id, app_name: 'Voco', user_name: '' }]); }
   document.querySelector('.app-title').textContent = APP_NAME;
   document.title = APP_NAME;
 }
 
 async function saveConfig() {
   const name = document.getElementById('setting-name').value.trim();
+  const username = document.getElementById('setting-username').value.trim();
   if (!name) return;
   const { data: { session } } = await sb.auth.getSession();
-  await sb.from('user_config').upsert({ user_id: session.user.id, app_name: name, user_name: '' }, { onConflict: 'user_id' });
+  await sb.from('user_config').upsert({ user_id: session.user.id, app_name: name, user_name: username }, { onConflict: 'user_id' });
   APP_NAME = name; document.querySelector('.app-title').textContent = APP_NAME; document.title = APP_NAME;
-  showToast('已保存！');
+  localStorage.setItem('voco-username', username);
+  showToast(username ? `已保存！你好，${username}` : '已保存！');
+  loadHome(); // refresh greeting
 }
 
 // ═══════════════════════════════════════════════════════
@@ -123,6 +126,11 @@ async function loadHome() {
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
   document.getElementById('stat-streak').innerHTML = `<span class="streak-flame">🔥</span>${streak}`;
+
+  // Render greeting and task cards
+  renderGreeting(streak, vList);
+  const taskCards = generateTaskCards(vList, eList, pList, [...(reports || [])], streak, tList);
+  renderTaskCards(taskCards);
 
   // Populate topic selector
   const topicSel = document.getElementById('topic-select');
@@ -234,8 +242,8 @@ async function showTopicPreview(topicId) {
   if (!topic) return;
 
   document.getElementById('daily-report').style.display = 'none';
+  document.getElementById('practice-flow').style.display = 'none';
   document.getElementById('topic-preview').style.display = 'block';
-  document.getElementById('home-cta').style.display = 'none';
 
   document.getElementById('tp-title').textContent = topic.title;
   document.getElementById('tp-desc').textContent = topic.description || '';
@@ -306,8 +314,7 @@ async function showTopicPreview(topicId) {
 
 function hideTopicPreview() {
   document.getElementById('topic-preview').style.display = 'none';
-  document.getElementById('home-cta').style.display = 'block';
-  document.getElementById('topic-select').value = '';
+  loadHome();
 }
 
 function generateQuestions(topic) {
@@ -385,6 +392,253 @@ function calcStreak(dates) {
     else break;
   }
   return streak;
+}
+
+// ═══════════════════════════════════════════════════════
+// Home Greeting + Streak Badge
+// ═══════════════════════════════════════════════════════
+function renderGreeting(streak, vocabList) {
+  const hour = new Date().getHours();
+  let greeting;
+  if (hour < 6) greeting = '夜深了';
+  else if (hour < 12) greeting = '早上好';
+  else if (hour < 14) greeting = '中午好';
+  else if (hour < 18) greeting = '下午好';
+  else greeting = '晚上好';
+
+  const name = localStorage.getItem('voco-username') || '';
+  document.getElementById('greeting-text').textContent = name ? `👋 ${greeting}，${name}！` : `👋 ${greeting}！`;
+
+  const now = new Date();
+  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  document.getElementById('greeting-date').textContent =
+    `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`;
+
+  // Weekday pills — which days this week had practice
+  const today = now.getDay();
+  const weekStart = new Date(now);
+  weekStart.setDate(weekStart.getDate() - today);
+
+  const practicedDays = new Set();
+  (vocabList || []).forEach(v => {
+    if (v.date_added) {
+      const d = new Date(v.date_added);
+      const ws = new Date(d);
+      ws.setDate(ws.getDate() - d.getDay());
+      if (ws.toDateString() === weekStart.toDateString()) practicedDays.add(d.getDay());
+    }
+  });
+
+  const dayLabels = ['日', '一', '二', '三', '四', '五', '六'];
+  const daysHTML = dayLabels.map((label, i) => {
+    let cls = 'streak-day';
+    if (practicedDays.has(i)) cls += ' done';
+    if (i === today) cls += ' today';
+    return `<span class="${cls}">${label}</span>`;
+  }).join('');
+
+  const streakEl = document.getElementById('greeting-streak');
+  if (streak > 0) {
+    streakEl.innerHTML = `
+      <span class="streak-pill">🔥 ${streak} 天坚持</span>
+      <div class="streak-weekdays">${daysHTML}</div>`;
+  } else {
+    streakEl.innerHTML = `
+      <span class="streak-pill zero">🌱 今天开始</span>
+      <div class="streak-weekdays">${daysHTML}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Smart Task Card Generator
+// ═══════════════════════════════════════════════════════
+function generateTaskCards(vocab, errors, patterns, reports, streak, topics) {
+  const cards = [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  // 1. Today's report exists → view report
+  const todayReport = (reports || []).find(r => r.date === today);
+  const isDailyReport = todayReport?.content && (
+    todayReport.content.includes('type: daily-report') ||
+    todayReport.content.includes('## 语法纠正') ||
+    todayReport.content.includes('## 发音纠正') ||
+    todayReport.content.includes('## 今日生词') ||
+    todayReport.content.includes('## 表现总结')
+  );
+  if (todayReport && isDailyReport) {
+    cards.push({
+      type: 'report',
+      icon: '📊',
+      title: '查看今日报告',
+      subtitle: '回顾今天的练习成果',
+      badge: null,
+      action: 'scroll-to-report',
+      payload: null
+    });
+  }
+
+  // 2. Flashcards due for SM-2 review
+  const dueCards = (vocab || []).filter(v => {
+    if (v.status === 'mastered' || v.mastered) return false;
+    if (!v.next_review_date) return true;
+    return v.next_review_date <= today;
+  });
+  if (dueCards.length > 0) {
+    cards.push({
+      type: 'review',
+      icon: '🃏',
+      title: '复习单词卡',
+      subtitle: dueCards.length < 3 ? `${dueCards.length} 个单词待复习` : `${dueCards.length} 个单词待复习 · 包含新词和过期词`,
+      badge: dueCards.length,
+      action: 'switch-tab',
+      payload: { tab: 'review', mode: 'flashcard' }
+    });
+  }
+
+  // 3. Unfixed errors
+  const unfixedErrors = (errors || []).filter(e => !e.correct_in_review);
+  if (unfixedErrors.length > 0) {
+    cards.push({
+      type: 'errors',
+      icon: '🔧',
+      title: '查看纠正建议',
+      subtitle: `${unfixedErrors.length} 条错误未处理`,
+      badge: unfixedErrors.length,
+      action: 'switch-tab',
+      payload: { tab: 'library', libType: 'errors' }
+    });
+  }
+
+  // 4. Today's new vocab (when no report card)
+  const todayVocab = (vocab || []).filter(v => v.date_added === today);
+  if (todayVocab.length > 0 && !(todayReport && isDailyReport)) {
+    cards.push({
+      type: 'vocab-new',
+      icon: '📝',
+      title: '今日新词',
+      subtitle: `学习了 ${todayVocab.length} 个新单词`,
+      badge: todayVocab.length,
+      action: 'switch-tab',
+      payload: { tab: 'library', libType: 'vocab' }
+    });
+  }
+
+  // 5. Shadow speaking (patterns available)
+  const hasPatterns = (patterns || []).length > 0;
+  if (hasPatterns) {
+    cards.push({
+      type: 'shadow',
+      icon: '🎤',
+      title: '影子跟读练习',
+      subtitle: `${patterns.length} 个地道表达可跟读`,
+      badge: null,
+      action: 'switch-tab',
+      payload: { tab: 'review', mode: 'shadow' }
+    });
+  }
+
+  // 6. Streak milestone
+  const milestones = [3, 7, 14, 21, 30, 50, 100];
+  if (milestones.includes(streak) && cards.length < 5) {
+    const emoji = streak >= 30 ? '🎉' : streak >= 14 ? '🌟' : '🔥';
+    cards.push({
+      type: 'milestone',
+      icon: emoji,
+      title: `连续 ${streak} 天达成！`,
+      subtitle: streak >= 30 ? '了不起的坚持！' : '坚持就是胜利，继续保持！',
+      badge: null,
+      action: 'none',
+      payload: null
+    });
+  }
+
+  // 7. Start practice — always show if nothing urgent
+  const hasTodayReport = todayReport && isDailyReport;
+  if (!hasTodayReport) {
+    const topicCount = (topics || []).length;
+    cards.push({
+      type: 'practice',
+      icon: '🎯',
+      title: '开始今日练习',
+      subtitle: topicCount > 0 ? `从 ${topicCount} 个话题中选择开始口语练习` : '导入话题后开始口语练习',
+      badge: null,
+      action: 'scroll-to-flow',
+      payload: null
+    });
+  }
+
+  // 8. All caught up
+  if (cards.length === 0) {
+    cards.push({
+      type: 'empty',
+      icon: '✅',
+      title: '全部搞定！',
+      subtitle: '今天的任务都完成了，真棒！',
+      badge: null,
+      action: 'none',
+      payload: null
+    });
+  }
+
+  return cards.slice(0, 5);
+}
+
+// ═══════════════════════════════════════════════════════
+// Render Task Cards
+// ═══════════════════════════════════════════════════════
+function renderTaskCards(cards) {
+  const container = document.getElementById('task-cards');
+  if (!cards || cards.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = cards.map((card, i) => `
+    <div class="task-card ${card.type}" style="animation-delay:${i * 0.04}s;"
+         data-action="${card.action}"
+         data-payload='${JSON.stringify(card.payload || {})}'>
+      <span class="task-card__icon">${card.icon}</span>
+      <div class="task-card__info">
+        <div class="task-card__title">${h(card.title)}</div>
+        ${card.subtitle ? `<div class="task-card__subtitle">${h(card.subtitle)}</div>` : ''}
+      </div>
+      ${card.badge !== null ? `<span class="task-card__badge ${card.type}">${card.badge}</span>` : ''}
+      ${card.action !== 'none' ? '<span class="task-card__arrow">›</span>' : ''}
+    </div>
+  `).join('');
+
+  // Click handlers
+  container.querySelectorAll('.task-card').forEach(card => {
+    card.addEventListener('click', function() {
+      const action = this.dataset.action;
+      const payload = JSON.parse(this.dataset.payload || '{}');
+
+      switch (action) {
+        case 'scroll-to-report':
+          document.getElementById('daily-report').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          break;
+        case 'scroll-to-flow':
+          document.getElementById('practice-flow').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          break;
+        case 'switch-tab':
+          const tabBtn = document.querySelector(`.tab-bar .tab[data-tab="${payload.tab}"]`);
+          if (tabBtn) tabBtn.click();
+          if (payload.tab === 'review' && payload.mode) {
+            setTimeout(() => switchReviewMode(payload.mode), 100);
+          }
+          if (payload.tab === 'library' && payload.libType) {
+            setTimeout(() => {
+              const libTab = document.querySelector(`.lib-tab[data-lib="${payload.libType}"]`);
+              if (libTab) libTab.click();
+            }, 100);
+          }
+          break;
+        case 'none':
+        default:
+          break;
+      }
+    });
+  });
 }
 
 // ═══════════════════════════════════════════════════════
@@ -610,9 +864,7 @@ function renderLibContent() {
   content.querySelectorAll('.topic-select-btn').forEach(btn => {
     btn.addEventListener('click', async function(e) {
       e.stopPropagation(); const tid = parseInt(this.dataset.topicId);
-      document.getElementById('topic-select').value = tid;
       await showTopicPreview(tid);
-      document.getElementById('home-cta').style.display = 'none';
     });
   });
   content.querySelectorAll('.topic-delete-btn').forEach(btn => {
@@ -858,6 +1110,7 @@ async function loadSettings() {
   document.getElementById('settings-email').textContent = session.user.email || '---';
   const { data: cfg } = await sb.from('user_config').select('*').eq('user_id', session.user.id).maybeSingle();
   document.getElementById('setting-name').value = cfg?.app_name || 'Voco';
+  document.getElementById('setting-username').value = cfg?.user_name || localStorage.getItem('voco-username') || '';
   const [{ data: prog }, { data: vocab }, { data: errors }] = await Promise.all([
     sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle(),
     sb.from('vocabulary').select('*'), sb.from('errors').select('*')

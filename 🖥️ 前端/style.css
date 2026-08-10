@@ -1550,6 +1550,158 @@ textarea::placeholder {
 .theme-name { font-size:12px; color:var(--text-dim); font-weight:500; }
 
 /* ═══════════════════════════════════════════════════════
+   Home Greeting + Streak Badge
+   ═══════════════════════════════════════════════════════ */
+.home-greeting {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 6px 2px 14px;
+  margin-bottom: 4px;
+}
+.greeting-left { min-width:0; }
+.greeting-text {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.greeting-date {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.greeting-streak {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.streak-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  background: var(--orange-light);
+  color: var(--orange);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.streak-pill.zero {
+  background: var(--border-light);
+  color: var(--text-dim);
+}
+.streak-weekdays {
+  display: flex;
+  gap: 3px;
+}
+.streak-day {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--cal-empty);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-ultradim);
+  transition: all 0.2s;
+}
+.streak-day.done {
+  background: var(--primary);
+  color: #fff;
+}
+.streak-day.today {
+  box-shadow: 0 0 0 2px var(--primary);
+  color: var(--text);
+  font-weight: 700;
+}
+.streak-day.today.done {
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Smart Task Cards
+   ═══════════════════════════════════════════════════════ */
+.task-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.task-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  border-left: 4px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  animation: fadeInUp 0.3s ease-out both;
+}
+.task-card:active {
+  transform: scale(0.98);
+  box-shadow: var(--shadow);
+}
+.task-card.review    { border-left-color: var(--primary); }
+.task-card.errors    { border-left-color: var(--red); }
+.task-card.report    { border-left-color: var(--blue); }
+.task-card.vocab-new { border-left-color: var(--green); }
+.task-card.shadow    { border-left-color: var(--orange); }
+.task-card.practice  { border-left-color: var(--primary); }
+.task-card.empty     { border-left-color: var(--green); }
+.task-card.milestone { border-left-color: var(--orange); }
+.task-card__icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.task-card__info {
+  flex: 1;
+  min-width: 0;
+}
+.task-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 1px;
+}
+.task-card__subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.task-card__badge {
+  flex-shrink: 0;
+  min-width: 28px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+}
+.task-card__badge.review    { background: var(--primary); }
+.task-card__badge.errors    { background: var(--red); }
+.task-card__badge.vocab-new { background: var(--green); }
+.task-card__badge.shadow    { background: var(--orange); }
+.task-card__badge.practice  { background: var(--primary); }
+.task-card__arrow {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--text-ultradim);
+  margin-left: -4px;
+}
+[data-mode="dark"] .task-card { background: var(--surface); }
+
+/* ═══════════════════════════════════════════════════════
    Daily Report (LingoTrace-style primary content)
    ═══════════════════════════════════════════════════════ */
 .daily-report { margin:10px 16px; background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow); overflow:hidden; animation:fadeInUp 0.3s ease-out; }
