@@ -1,4 +1,4 @@
-// Voco PWA — Supabase-powered
+// Voco PWA v2.1 — SM-2 · Topics · Shadow Speaking · Dark Mode
 
 // ═══════════════════════════════════════════════════════
 // Tab Switching
@@ -103,19 +103,23 @@ async function loadHome() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
 
-  const { data: vocab } = await sb.from('vocabulary').select('*');
-  const { data: errors } = await sb.from('errors').select('*');
-  const { data: prog } = await sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle();
+  const [{ data: vocab }, { data: errors }, { data: prog }, { data: topics }] = await Promise.all([
+    sb.from('vocabulary').select('*'),
+    sb.from('errors').select('*'),
+    sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle(),
+    sb.from('topics').select('*')
+  ]);
 
   const vList = vocab || [];
   const eList = errors || [];
+  const tList = topics || [];
 
-  // Stats grid — 4 cards with icons
+  // Stats grid
   document.getElementById('stat-sessions').innerHTML = prog?.total_sessions || '0';
   document.getElementById('stat-vocab').textContent = vList.length;
   document.getElementById('stat-errors').textContent = eList.length;
 
-  // Consecutive streak with flame
+  // Streak
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
   document.getElementById('stat-streak').innerHTML = `<span class="streak-flame">🔥</span>${streak}`;
@@ -128,19 +132,14 @@ async function loadHome() {
     durSpan.textContent = prog.total_minutes + ' 分钟';
   } else { durBar.style.display = 'none'; }
 
-  // Topic CTA
-  const lastTopic = prog?.topics?.slice(-1)[0];
-  const lastFluency = prog?.fluency_trend?.slice(-1)[0];
-  if (lastTopic) {
-    document.getElementById('topic-name').textContent = lastTopic;
-    document.getElementById('topic-sub').textContent = lastFluency ? `上次流利度 ${lastFluency}/10` : '最近练习的话题';
-  } else {
-    document.getElementById('topic-name').textContent = '准备开始';
-    document.getElementById('topic-sub').textContent = '和 ChatGPT 练完口语后导入日报 ✨';
-  }
-
-  // Heatmap calendar
+  // Heatmap
   renderHeatmap(vList);
+
+  // Topic selector
+  const sel = document.getElementById('topic-select');
+  sel.innerHTML = '<option value="">选择话题...</option>' +
+    tList.map(t => `<option value="${t.id}">${h(t.title)}</option>`).join('');
+  document.getElementById('topic-sub').textContent = tList.length ? `${tList.length} 个话题` : '';
 
   // Recent errors
   const recentErrors = eList.slice(-4).reverse();
@@ -169,20 +168,17 @@ async function loadHome() {
   }
 }
 
-// Streak: consecutive days counting backwards from today
 function calcStreak(dates) {
   if (!dates.length) return 0;
   const today = new Date().toISOString().slice(0, 10);
   let streak = 0;
   let check = new Date(today);
-  // Check if today or yesterday has activity to count streak
   const hasToday = dates.includes(today);
   const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
   const yStr = yesterday.toISOString().slice(0, 10);
   const hasYesterday = dates.includes(yStr);
   if (!hasToday && !hasYesterday) return 0;
-  if (!hasToday) check = yesterday; // start from yesterday
-
+  if (!hasToday) check = yesterday;
   while (true) {
     const s = check.toISOString().slice(0, 10);
     if (dates.includes(s)) { streak++; check.setDate(check.getDate() - 1); }
@@ -191,7 +187,6 @@ function calcStreak(dates) {
   return streak;
 }
 
-// GitHub-style heatmap (last 20 weeks)
 function renderHeatmap(vocab) {
   const grid = document.getElementById('calendar-grid');
   const label = document.getElementById('cal-month-label');
@@ -208,15 +203,14 @@ function renderHeatmap(vocab) {
   const today = new Date();
   const weeks = 20;
   const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - startDate.getDay() - (weeks - 1) * 7); // Monday weeks ago
+  startDate.setDate(startDate.getDate() - startDate.getDay() - (weeks - 1) * 7);
 
-  // Month labels
-  const months = [];
-  let currentMonth = -1;
   const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
   const heatmap = document.createElement('div');
   heatmap.className = 'heatmap';
+  let currentMonth = -1;
+  const months = [];
 
   for (let w = 0; w < weeks; w++) {
     const col = document.createElement('div');
@@ -232,7 +226,6 @@ function renderHeatmap(vocab) {
       if (ds === today.toISOString().slice(0, 10)) cell.style.boxShadow = '0 0 0 2px var(--primary)';
       cell.title = ds;
       col.appendChild(cell);
-
       if (d === 0 && date.getMonth() !== currentMonth) {
         currentMonth = date.getMonth();
         months.push({ label: monthNames[currentMonth], week: w });
@@ -241,7 +234,6 @@ function renderHeatmap(vocab) {
     heatmap.appendChild(col);
   }
 
-  // Build month labels
   let mlHTML = '<div class="heatmap-months" style="display:flex;">';
   let lastPos = 0;
   months.forEach(m => {
@@ -250,13 +242,95 @@ function renderHeatmap(vocab) {
   });
   mlHTML += '</div>';
 
-  label.innerHTML = `📅 练习热力图`;
+  label.innerHTML = '📅 练习热力图';
   grid.innerHTML = mlHTML;
   grid.appendChild(heatmap);
-
-  // Hide weekday labels
   document.querySelector('.calendar-weekdays').style.display = 'none';
-  document.querySelector('.calendar-header .cal-legend').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════
+// Pre-Practice Card (topic selected → show prep)
+// ═══════════════════════════════════════════════════════
+async function showPrepCard(topicId) {
+  if (!topicId) {
+    document.getElementById('prep-card').style.display = 'none';
+    return;
+  }
+  const { data: topic } = await sb.from('topics').select('*').eq('id', topicId).single();
+  if (!topic) return;
+
+  document.getElementById('prep-title').textContent = topic.title;
+  document.getElementById('prep-sub').textContent = topic.description || '';
+  document.getElementById('prep-card').style.display = 'block';
+
+  // Related errors (match by source_topic or key terms)
+  const { data: errors } = await sb.from('errors').select('*');
+  const relatedErrors = (errors || []).filter(e =>
+    (e.source_topic && topic.title && e.source_topic.includes(topic.title)) ||
+    (topic.key_terms || []).some(kt => (e.original || '').toLowerCase().includes(kt.toLowerCase()))
+  ).slice(0, 3);
+  document.getElementById('prep-errors').innerHTML = relatedErrors.length
+    ? relatedErrors.map(e => `<div class="prep-item">⚠️ ${h(e.original)} → ${h(e.correction)}</div>`).join('')
+    : '<div class="prep-item" style="color:var(--text-dim);">暂无相关错误记录</div>';
+
+  // Related vocab
+  const { data: vocab } = await sb.from('vocabulary').select('*');
+  const relatedVocab = (vocab || []).filter(v =>
+    (v.source_topic && topic.title && v.source_topic.includes(topic.title)) ||
+    (topic.key_terms || []).some(kt => (v.word || '').toLowerCase().includes(kt.toLowerCase()))
+  ).slice(0, 4);
+  document.getElementById('prep-vocab').innerHTML = relatedVocab.length
+    ? relatedVocab.map(v => `<span class="prep-tag">${h(v.word)}</span>`).join('')
+    : '<div class="prep-item" style="color:var(--text-dim);">暂无相关词汇</div>';
+
+  // Challenge
+  const challenges = [
+    `用英语描述 "${topic.title}" 相关的个人经历`,
+    `针对 "${topic.title}" 表达你的观点并给出 3 个理由`,
+    `假设你在和朋友讨论 "${topic.title}"，模拟一段 2 分钟对话`,
+    `用 "${h(topic.title)}" 为主题做 1 分钟即兴演讲`,
+  ];
+  const challenge = challenges[Math.floor(Math.random() * challenges.length)];
+  document.getElementById('prep-challenge').innerHTML = `<div class="prep-item prep-challenge">💪 ${challenge}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// SM-2 Spaced Repetition Algorithm
+// ═══════════════════════════════════════════════════════
+function sm2(easeFactor, interval, repetitions, quality) {
+  // quality: 0=again, 3=good, 5=easy
+  let ef = easeFactor || 2.5;
+  let ivl = interval || 0;
+  let reps = repetitions || 0;
+
+  if (quality < 3) {
+    // Failed: reset
+    reps = 0;
+    ivl = 1;
+  } else {
+    // Passed
+    if (reps === 0) {
+      ivl = 1;
+    } else if (reps === 1) {
+      ivl = 6;
+    } else {
+      ivl = Math.round(ivl * ef);
+      if (quality === 5) ivl = Math.round(ivl * 1.3); // easy bonus
+    }
+    reps += 1;
+  }
+
+  // Update ease factor
+  ef = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+  if (ef < 1.3) ef = 1.3;
+
+  return { ease_factor: ef, interval: ivl, repetitions: reps };
+}
+
+function statusLabel(status) {
+  if (status === 'mastered') return '已掌握';
+  if (status === 'learning') return '学习中';
+  return '新词';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -265,6 +339,7 @@ function renderHeatmap(vocab) {
 let _reviewDeck = [];
 let _reviewIdx = 0;
 let _reviewResults = [];
+let _reviewMode = 'flashcard'; // 'flashcard' | 'shadow'
 
 async function loadReview() {
   const { data: { session } } = await sb.auth.getSession();
@@ -280,14 +355,15 @@ async function loadReview() {
     })
     .sort((a, b) => (a.next_review_date || '0000') < (b.next_review_date || '0000') ? -1 : 1);
 
-  _reviewIdx = 0;
-  _reviewResults = [];
+  _reviewIdx = 0; _reviewResults = [];
+
+  // Default to flashcard mode
+  switchReviewMode('flashcard');
 
   if (_reviewDeck.length === 0) {
     document.getElementById('review-empty').style.display = 'block';
     document.getElementById('review-active').style.display = 'none';
     document.getElementById('review-summary').style.display = 'none';
-    document.getElementById('btn-start-review-empty').style.display = 'none';
     return;
   }
 
@@ -295,6 +371,24 @@ async function loadReview() {
   document.getElementById('review-active').style.display = 'block';
   document.getElementById('review-summary').style.display = 'none';
   showCard(0);
+}
+
+function switchReviewMode(mode) {
+  _reviewMode = mode;
+  document.querySelectorAll('.review-mode-tab').forEach(b => b.classList.remove('active'));
+  const tab = document.querySelector(`.review-mode-tab[data-mode="${mode}"]`);
+  if (tab) tab.classList.add('active');
+
+  document.getElementById('flashcard-mode').style.display = mode === 'flashcard' ? 'block' : 'none';
+  document.getElementById('shadow-mode').style.display = mode === 'shadow' ? 'block' : 'none';
+
+  if (mode === 'shadow') {
+    // Hide flashcard active / summary
+    document.getElementById('review-active').style.display = 'none';
+    document.getElementById('review-summary').style.display = 'none';
+    document.getElementById('review-empty').style.display = 'none';
+    initShadowMode();
+  }
 }
 
 function showCard(idx) {
@@ -312,7 +406,6 @@ function showCard(idx) {
   document.getElementById('fc-example').textContent = v.example ? `💬 ${v.example}` : '';
   document.getElementById('fc-meta').textContent = `复习 ${v.review_count || 0} 次 · ${statusLabel(v.status || (v.mastered ? 'mastered' : 'new'))}`;
 
-  // Reset card
   document.getElementById('flashcard-inner').classList.remove('flipped');
   document.getElementById('review-actions').style.display = 'none';
   document.getElementById('btn-reveal').style.display = 'block';
@@ -329,35 +422,28 @@ async function rateCard(rating) {
   const v = _reviewDeck[_reviewIdx];
   const today = new Date();
 
-  let newRc = v.review_count || 0;
-  let nextDays;
-
-  if (rating === 'again') {
-    newRc = Math.max(0, newRc - 1);
-    nextDays = 1;
-  } else if (rating === 'good') {
-    newRc += 1;
-    nextDays = REVIEW_INTERVALS[Math.min(newRc, REVIEW_INTERVALS.length - 1)];
-  } else { // easy
-    newRc += 2;
-    nextDays = REVIEW_INTERVALS[Math.min(newRc, REVIEW_INTERVALS.length - 1)] * 2;
-  }
+  // Use SM-2
+  const qMap = { 'again': 0, 'good': 3, 'easy': 5 };
+  const quality = qMap[rating] || 3;
+  const result = sm2(v.ease_factor, v.sm2_interval, v.sm2_repetitions, quality);
 
   const nextDate = new Date(today);
-  nextDate.setDate(nextDate.getDate() + nextDays);
-  const status = rating === 'again' ? 'learning' : (newRc >= 5 ? 'mastered' : 'learning');
+  nextDate.setDate(nextDate.getDate() + result.interval);
+  const status = rating === 'again' ? 'learning' : (result.repetitions >= 5 ? 'mastered' : 'learning');
 
-  // Update DB
   await sb.from('vocabulary').update({
-    status, mastered: status === 'mastered',
-    review_count: newRc,
+    status,
+    mastered: status === 'mastered',
+    ease_factor: result.ease_factor,
+    sm2_interval: result.interval,
+    sm2_repetitions: result.repetitions,
+    review_count: (v.review_count || 0) + 1,
     next_review_date: nextDate.toISOString().slice(0, 10),
     last_reviewed_at: today.toISOString()
   }).eq('id', v.id);
 
   _reviewResults.push({ word: v.word, rating });
 
-  // Next card or finish
   if (_reviewIdx + 1 < _reviewDeck.length) {
     showCard(_reviewIdx + 1);
   } else {
@@ -378,12 +464,86 @@ function endReview() {
     复习 <strong>${total}</strong> 个单词<br>
     ✅ 简单 <strong>${mastered}</strong> · 👍 不错 <strong>${learning}</strong> · 🔄 再来 <strong>${again}</strong>
   `;
+  // Update home data
+  loadHome();
+}
+
+// ═══════════════════════════════════════════════════════
+// Shadow Speaking Mode
+// ═══════════════════════════════════════════════════════
+let _shadowDeck = [];
+let _shadowIdx = 0;
+
+async function initShadowMode() {
+  const [{ data: patterns }, { data: vocab }] = await Promise.all([
+    sb.from('patterns').select('*'),
+    sb.from('vocabulary').select('*').not('example', 'is', null)
+  ]);
+
+  _shadowDeck = [];
+
+  // From patterns
+  (patterns || []).forEach(p => {
+    if (p.better) _shadowDeck.push({ phrase: p.better, context: p.scene || p.original || '', source: 'pattern' });
+  });
+
+  // From vocab examples
+  (vocab || []).forEach(v => {
+    if (v.example) _shadowDeck.push({ phrase: v.example, context: `${v.word}: ${v.meaning || ''}`, source: 'vocab' });
+  });
+
+  if (_shadowDeck.length === 0) {
+    document.getElementById('shadow-empty').style.display = 'block';
+    document.getElementById('shadow-active').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('shadow-empty').style.display = 'none';
+  document.getElementById('shadow-active').style.display = 'block';
+  document.getElementById('shadow-summary').style.display = 'none';
+  _shadowIdx = 0;
+  showShadowPhrase(0);
+}
+
+function showShadowPhrase(idx) {
+  _shadowIdx = idx;
+  const item = _shadowDeck[idx];
+  document.getElementById('shadow-progress').textContent = `${idx + 1} / ${_shadowDeck.length}`;
+  document.getElementById('shadow-phrase').textContent = item.phrase;
+  document.getElementById('shadow-context').textContent = item.context || '';
+  document.getElementById('btn-shadow-play').style.display = 'block';
+  document.getElementById('btn-shadow-next').style.display = 'none';
+  document.getElementById('btn-shadow-repeat').style.display = 'block';
+}
+
+function speakShadowPhrase() {
+  const item = _shadowDeck[_shadowIdx];
+  speak(item.phrase);
+  document.getElementById('btn-shadow-play').style.display = 'none';
+  document.getElementById('btn-shadow-next').style.display = 'block';
+}
+
+function nextShadowPhrase() {
+  if (_shadowIdx + 1 < _shadowDeck.length) {
+    showShadowPhrase(_shadowIdx + 1);
+  } else {
+    // Completed
+    document.getElementById('shadow-summary').style.display = 'block';
+    document.getElementById('shadow-active').style.display = 'none';
+  }
+}
+
+function restartShadow() {
+  _shadowIdx = 0;
+  document.getElementById('shadow-summary').style.display = 'none';
+  document.getElementById('shadow-active').style.display = 'block';
+  showShadowPhrase(0);
 }
 
 // ═══════════════════════════════════════════════════════
 // Library
 // ═══════════════════════════════════════════════════════
-let _libData = { vocab: [], errors: [], patterns: [] };
+let _libData = { vocab: [], errors: [], patterns: [], topics: [] };
 let _libType = 'vocab';
 let _libSub = 'all';
 
@@ -393,6 +553,7 @@ async function loadLibrary(type) {
   content.innerHTML = '<div class="loading">加载中...</div>';
 
   const subtabs = document.getElementById('lib-subtabs');
+
   if (type === 'vocab') {
     subtabs.style.display = 'flex';
     subtabs.innerHTML = `
@@ -407,7 +568,11 @@ async function loadLibrary(type) {
       <button class="lib-subtab" data-sub="grammar">语法</button>
       <button class="lib-subtab" data-sub="pronunciation">发音</button>
     `;
-  } else { subtabs.style.display = 'none'; }
+  } else if (type === 'topics') {
+    subtabs.style.display = 'none';
+  } else {
+    subtabs.style.display = 'none';
+  }
 
   subtabs.querySelectorAll('.lib-subtab').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -418,7 +583,8 @@ async function loadLibrary(type) {
     });
   });
 
-  const table = type === 'vocab' ? 'vocabulary' : type === 'errors' ? 'errors' : 'patterns';
+  const tableMap = { vocab: 'vocabulary', errors: 'errors', patterns: 'patterns', topics: 'topics' };
+  const table = tableMap[type];
   const { data } = await sb.from(table).select('*').order('created_at', { ascending: false });
   _libData[type] = data || [];
   const countEl = document.getElementById('lib-count-' + type);
@@ -439,17 +605,17 @@ function renderLibContent() {
 
   if (q) {
     items = items.filter(item => {
-      return [item.word, item.phonetic, item.meaning, item.example, item.original, item.correction, item.rule, item.better, item.scene]
+      return [item.word, item.phonetic, item.meaning, item.example, item.original, item.correction, item.rule, item.better, item.scene, item.title, item.description]
         .some(f => f && f.toLowerCase().includes(q));
     });
   }
 
   if (!items.length) {
-    const icons = { vocab: '📝', errors: '🔧', patterns: '✨' };
-    const labels = { vocab: '导入日报后生成单词库', errors: '导入日报后生成纠错库', patterns: '导入日报后生成句型库' };
+    const icons = { vocab: '📝', errors: '🔧', patterns: '✨', topics: '💬' };
+    const labels = { vocab: '导入日报后生成单词库', errors: '导入日报后生成纠错库', patterns: '导入日报后生成句型库', topics: '还没添加话题' };
     content.innerHTML = q
       ? '<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">无匹配结果</div><div class="empty-state-sub">试试其他关键词</div></div>'
-      : `<div class="empty-state"><div class="empty-state-icon">${icons[_libType]}</div><div class="empty-state-title">${labels[_libType]}</div><div class="empty-state-sub">和 ChatGPT 练完口语后，<br>粘贴日报到首页即可自动生成</div></div>`;
+      : `<div class="empty-state"><div class="empty-state-icon">${icons[_libType]}</div><div class="empty-state-title">${labels[_libType]}</div><div class="empty-state-sub">${_libType === 'topics' ? '通过首页导入卡片添加话题' : '和 ChatGPT 练完口语后，<br>粘贴日报到首页即可自动生成'}</div></div>`;
     return;
   }
 
@@ -457,15 +623,39 @@ function renderLibContent() {
     content.innerHTML = items.map((v, i) => vocabCard(v, i)).join('');
   } else if (_libType === 'errors') {
     content.innerHTML = items.map(e => errorCard(e)).join('');
-  } else {
+  } else if (_libType === 'patterns') {
     content.innerHTML = items.map(p => patternCard(p)).join('');
+  } else if (_libType === 'topics') {
+    content.innerHTML = items.map(t => topicCard(t)).join('');
   }
 
   // Bind expand clicks
   content.querySelectorAll('.vocab-card').forEach(card => {
     card.addEventListener('click', function(e) {
-      if (e.target.closest('button')) return; // don't toggle on button clicks
+      if (e.target.closest('button')) return;
       this.classList.toggle('expanded');
+    });
+  });
+
+  // Topic select button bindings
+  content.querySelectorAll('.topic-select-btn').forEach(btn => {
+    btn.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      const tid = parseInt(this.dataset.topicId);
+      document.getElementById('topic-select').value = tid;
+      await showPrepCard(tid);
+      document.querySelector('.tab-bar .tab[data-tab=home]').click();
+    });
+  });
+
+  content.querySelectorAll('.topic-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      const tid = parseInt(this.dataset.topicId);
+      if (!confirm('删除这个话题？')) return;
+      await sb.from('topics').delete().eq('id', tid);
+      loadLibrary('topics');
+      loadHome();
     });
   });
 }
@@ -522,37 +712,42 @@ function patternCard(p) {
   </div>`;
 }
 
-// ═══════════════════════════════════════════════════════
-// Spaced Repetition
-// ═══════════════════════════════════════════════════════
-const REVIEW_INTERVALS = [0, 1, 3, 7, 14, 30];
-
-function getNextReviewDate(reviewCount) {
-  const days = REVIEW_INTERVALS[Math.min(reviewCount, REVIEW_INTERVALS.length - 1)];
-  const d = new Date(); d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function statusLabel(status) {
-  if (status === 'mastered') return '已掌握';
-  if (status === 'learning') return '学习中';
-  return '新词';
+function topicCard(t) {
+  const count = t.practice_count || 0;
+  return `<div class="topic-card-item card-animate">
+    <div class="topic-card-header">
+      <div class="topic-card-title">${h(t.title)}</div>
+      <div class="topic-card-actions">
+        <button class="btn-small topic-select-btn" data-topic-id="${t.id}">🎯 选择</button>
+        <button class="btn-small topic-delete-btn" data-topic-id="${t.id}" style="color:var(--red);">🗑</button>
+      </div>
+    </div>
+    ${t.description ? `<div class="topic-card-desc">${h(t.description)}</div>` : ''}
+    <div class="topic-card-meta">
+      <span>练习 ${count} 次</span>
+      ${t.last_practiced_at ? `<span> · 上次 ${new Date(t.last_practiced_at).toLocaleDateString('zh-CN')}</span>` : ''}
+      ${t.source_url ? `<a href="${h(t.source_url)}" target="_blank" onclick="event.stopPropagation();" style="color:var(--blue);font-size:11px;">🔗 来源</a>` : ''}
+    </div>
+  </div>`;
 }
 
 // ═══════════════════════════════════════════════════════
 // Actions
 // ═══════════════════════════════════════════════════════
 async function markMastered(id) {
-  const { data } = await sb.from('vocabulary').select('review_count').eq('id', id).single();
-  const rc = (data?.review_count || 0) + 1;
-  const nextDate = getNextReviewDate(rc);
-  const newStatus = rc >= 5 ? 'mastered' : 'learning';
+  const { data } = await sb.from('vocabulary').select('*').eq('id', id).single();
+  const v = data;
+  const result = sm2(v.ease_factor, v.sm2_interval, v.sm2_repetitions, 3);
+  const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
+  const status = result.repetitions >= 5 ? 'mastered' : 'learning';
   await sb.from('vocabulary').update({
-    mastered: newStatus === 'mastered', status: newStatus,
-    review_count: rc, next_review_date: nextDate, last_reviewed_at: new Date().toISOString()
+    mastered: status === 'mastered', status,
+    ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
+    review_count: (v.review_count || 0) + 1, next_review_date: nextDate.toISOString().slice(0, 10),
+    last_reviewed_at: new Date().toISOString()
   }).eq('id', id);
   loadLibrary('vocab');
-  showToast(rc >= 5 ? '🎉 已掌握！' : `📖 已复习 ${rc} 次，${nextDate} 再复习`);
+  showToast(status === 'mastered' ? '🎉 已掌握！' : `📖 已复习 · ${nextDate.toISOString().slice(0, 10)} 再复习`);
 }
 
 async function markFixed(id) {
@@ -561,8 +756,98 @@ async function markFixed(id) {
 }
 
 // ═══════════════════════════════════════════════════════
-// Import Report
+// Template System & Import
 // ═══════════════════════════════════════════════════════
+const TEMPLATES = {
+  report: `请根据以下口语练习会话，生成 Voco 格式的日报：
+
+---
+type: daily-report
+date: ${new Date().toISOString().slice(0, 10)}
+topic: [话题名称]
+duration: [分钟数]
+---
+
+## 语法纠正
+- [我说] [原文]
+- [应为] [纠正后]
+- [规则] [语法规则说明]
+
+## 发音纠正
+- [问题] [发音有问题的词或短语]
+- [纠正] [正确的发音方式]
+
+## 地道表达
+- [我说] [我的表达]
+- [更自然] [更地道的说法]
+- [场景] [使用场景]
+
+## 今日生词
+- word | /ˈfəʊnɛtɪk/ | 释义 | 例句
+
+## 表现总结
+- 流利度: X/10
+- 准确度: X/10
+- 需要加强: [需要加强的方面]`,
+
+  topic: `请为以下内容生成 Voco 话题卡：
+
+[在此粘贴视频描述、文章内容或链接]
+
+---
+type: topic-card
+title: [话题标题]
+description: [简短描述]
+---
+
+## 关键术语
+- term | definition | example sentence
+- term | definition | example sentence
+
+## 讨论问题
+- question 1
+- question 2
+- question 3
+
+## 相关表达
+- expression | meaning | usage context`,
+
+  insight: `请分析以下 Voco 日报数据，找出我的口语弱点模式：
+
+[在此粘贴最近的日报数据]
+
+---
+type: insight-report
+---
+
+## 反复出现的问题
+- [问题模式] | [出现频率] | [典型例句]
+
+## 根本原因
+- [根本原因分析]
+
+## 改进建议
+- [具体练习建议]
+- [推荐的练习话题或材料]`
+};
+
+function copyTemplate(type) {
+  const text = TEMPLATES[type];
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('📋 已复制！粘贴到 ChatGPT 使用');
+  }).catch(() => {
+    // Fallback for insecure context
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('📋 已复制！粘贴到 ChatGPT 使用');
+  });
+}
+
 async function importReport(text) {
   if (!text) text = document.getElementById('report-input').value.trim();
   if (!text) return;
@@ -571,12 +856,30 @@ async function importReport(text) {
   btn.disabled = true; btn.textContent = '解析中...';
 
   const parsed = parseReport(text);
-  if (!parsed.meta || Object.keys(parsed.meta).length === 0) {
-    document.getElementById('import-result').innerHTML = '<span class="toast-error">❌ 无法解析日报格式</span>';
+  // If daily report
+  if (parsed.meta && parsed.meta.type === 'daily-report' || Object.keys(parsed.meta).length > 0) {
+    await importDailyReport(parsed);
+  }
+  // If topic card
+  else if (parsed.meta && parsed.meta.type === 'topic-card') {
+    await importTopicCard(parsed);
+  }
+  // If insight report
+  else if (parsed.meta && parsed.meta.type === 'insight-report') {
+    await importInsightReport(parsed);
+  }
+  else {
+    document.getElementById('import-result').innerHTML = '<span class="toast-error">❌ 无法识别内容格式</span>';
     btn.disabled = false; btn.textContent = '解析入库';
     return;
   }
 
+  document.getElementById('report-input').value = '';
+  btn.disabled = false; btn.textContent = '解析入库';
+  loadHome();
+}
+
+async function importDailyReport(parsed) {
   const { data: { session } } = await sb.auth.getSession();
   const uid = session.user.id;
   const date = parsed.meta.date || new Date().toISOString().slice(0, 10);
@@ -585,33 +888,134 @@ async function importReport(text) {
 
   if (parsed.vocabulary.length) {
     await sb.from('vocabulary').insert(
-      parsed.vocabulary.map(v => ({ user_id: uid, word: v.word, phonetic: v.phonetic, meaning: v.meaning, example: v.example, date_added: date, source_topic: topic, status: 'new' }))
+      parsed.vocabulary.map(v => ({
+        user_id: uid, word: v.word, phonetic: v.phonetic, meaning: v.meaning,
+        example: v.example, date_added: date, source_topic: topic, status: 'new'
+      }))
     );
   }
 
   const allErrors = [];
-  for (const e of parsed.pronunciation) allErrors.push({ user_id: uid, type: 'pronunciation', original: e.original || '', correction: e.correction || '', date_added: date, source_topic: topic });
-  for (const e of parsed.grammar) allErrors.push({ user_id: uid, type: 'grammar', original: e.original || '', correction: e.correction || '', rule: e.rule || '', date_added: date, source_topic: topic });
+  for (const e of parsed.pronunciation) {
+    allErrors.push({
+      user_id: uid, type: 'pronunciation', original: e.original || '', correction: e.correction || '',
+      date_added: date, source_topic: topic, error_pattern: detectErrorPattern(e.original, e.correction)
+    });
+  }
+  for (const e of parsed.grammar) {
+    allErrors.push({
+      user_id: uid, type: 'grammar', original: e.original || '', correction: e.correction || '',
+      rule: e.rule || '', date_added: date, source_topic: topic, error_pattern: detectErrorPattern(e.original, e.correction)
+    });
+  }
   if (allErrors.length) await sb.from('errors').insert(allErrors);
 
   if (parsed.patterns.length) {
     await sb.from('patterns').insert(
-      parsed.patterns.map(p => ({ user_id: uid, original: p.original || '', better: p.better || '', scene: p.scene || '', date_added: date, source_topic: topic }))
+      parsed.patterns.map(p => ({
+        user_id: uid, original: p.original || '', better: p.better || '',
+        scene: p.scene || '', date_added: date, source_topic: topic
+      }))
     );
   }
 
-  await sb.from('reports').upsert({ user_id: uid, date, content: text }, { onConflict: 'user_id,date' });
+  await sb.from('reports').upsert({ user_id: uid, date, content: parsed.raw }, { onConflict: 'user_id,date' });
   await updateProgress(uid, parsed.summary.fluency || 0, parsed.summary.accuracy || 0, parsed.summary.weak_areas, topic, duration);
 
+  // Update topic practice count
+  if (topic) {
+    const { data: existingTopic } = await sb.from('topics').select('id').eq('title', topic).maybeSingle();
+    if (existingTopic) {
+      await sb.from('topics').update({
+        practice_count: sb.raw('practice_count + 1'),
+        last_practiced_at: new Date().toISOString()
+      }).eq('id', existingTopic.id);
+    }
+  }
+
   document.getElementById('import-result').innerHTML = `<span class="toast-success">✅ 入库完成！单词 ${parsed.vocabulary.length} · 纠错 ${allErrors.length} · 句型 ${parsed.patterns.length}</span>`;
-  document.getElementById('report-input').value = '';
-  btn.disabled = false; btn.textContent = '解析入库';
+}
+
+async function importTopicCard(parsed) {
+  const { data: { session } } = await sb.auth.getSession();
+  const uid = session.user.id;
+
+  const title = parsed.meta.title || '未命名话题';
+  const description = parsed.meta.description || '';
+  const sourceUrl = parsed.meta.source_url || '';
+
+  // Extract key terms from topic card content
+  const keyTerms = (parsed.vocabulary || []).map(v => v.word).filter(Boolean);
+
+  const { data: topic } = await sb.from('topics').insert([{
+    user_id: uid, title, description, source_url: sourceUrl,
+    source_type: 'chatgpt', key_terms: keyTerms, notes: ''
+  }]).select().single();
+
+  // If vocabulary was included in the topic card, import it too
+  if (parsed.vocabulary.length && topic) {
+    await sb.from('vocabulary').insert(
+      parsed.vocabulary.map(v => ({
+        user_id: uid, word: v.word, phonetic: v.phonetic || '', meaning: v.meaning || '',
+        example: v.example || '', date_added: new Date().toISOString().slice(0, 10),
+        source_topic: title, status: 'new'
+      }))
+    );
+  }
+
+  document.getElementById('import-result').innerHTML = `<span class="toast-success">✅ 话题「${h(title)}」已添加！词汇 ${parsed.vocabulary.length} 个</span>`;
   loadHome();
+}
+
+async function importInsightReport(parsed) {
+  // Insight reports update error patterns
+  const { data: { session } } = await sb.auth.getSession();
+  const uid = session.user.id;
+
+  // Store the insight as notes or a report
+  await sb.from('reports').upsert({
+    user_id: uid,
+    date: new Date().toISOString().slice(0, 10),
+    content: parsed.raw
+  }, { onConflict: 'user_id,date' });
+
+  document.getElementById('import-result').innerHTML = '<span class="toast-success">✅ 分析报告已保存！可在设置页查看</span>';
+}
+
+function detectErrorPattern(original, correction) {
+  if (!original || !correction) return '';
+  const patterns = [];
+
+  // Article errors
+  if (/\b(a|an|the)\b/i.test(original) && /\b(a|an|the)\b/i.test(correction)) {
+    if (original.replace(/\b(a|an|the)\b/gi, '') !== correction.replace(/\b(a|an|the)\b/gi, ''))
+      patterns.push('冠词');
+  }
+  // Tense errors
+  if (/(ed|ing|was|were|have|has|had|will)\b/i.test(original) || /(ed|ing|was|were|have|has|had|will)\b/i.test(correction))
+    patterns.push('时态');
+  // Preposition
+  if (/\b(in|on|at|for|to|of|with|by|from)\b/i.test(correction) && original.replace(/\b(in|on|at|for|to|of|with|by|from)\b/gi, '') === correction.replace(/\b(in|on|at|for|to|of|with|by|from)\b/gi, ''))
+    patterns.push('介词');
+  // Word order
+  const oWords = original.toLowerCase().split(/\s+/).sort().join(' ');
+  const cWords = correction.toLowerCase().split(/\s+/).sort().join(' ');
+  if (oWords === cWords && original !== correction) patterns.push('语序');
+  // Singular/plural
+  if (/(s|es)\b/i.test(original) !== /(s|es)\b/i.test(correction)) patterns.push('单复数');
+  // Pronunciation specific
+  if (original.length < 20 && !original.includes(' ')) patterns.push('发音');
+
+  return patterns.join(',') || '其他';
 }
 
 async function updateProgress(uid, fluency, accuracy, weak_areas, topic, duration) {
   const { data: prog } = await sb.from('progress').select('*').eq('user_id', uid).maybeSingle();
-  let p = prog || { user_id: uid, total_sessions: 0, total_minutes: 0, topics: [], fluency_trend: [], accuracy_trend: [], weak_areas: [], words_learned: 0, words_mastered: 0, errors_fixed: 0 };
+  let p = prog || {
+    user_id: uid, total_sessions: 0, total_minutes: 0, topics: [],
+    fluency_trend: [], accuracy_trend: [], weak_areas: [],
+    words_learned: 0, words_mastered: 0, errors_fixed: 0
+  };
   p.total_sessions += 1;
   p.total_minutes += duration;
   if (topic && !p.topics.includes(topic)) p.topics = [...p.topics, topic];
@@ -637,7 +1041,15 @@ async function loadSettings() {
   const { data: cfg } = await sb.from('user_config').select('*').eq('user_id', session.user.id).maybeSingle();
   document.getElementById('setting-name').value = cfg?.app_name || 'Voco';
 
-  const { data: prog } = await sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle();
+  // Load trends
+  const [{ data: prog }, { data: vocab }, { data: errors }] = await Promise.all([
+    sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle(),
+    sb.from('vocabulary').select('*'),
+    sb.from('errors').select('*')
+  ]);
+
+  const vList = vocab || [];
+  const eList = errors || [];
   const div = document.getElementById('settings-trends');
 
   if (prog && prog.fluency_trend?.length) {
@@ -646,15 +1058,12 @@ async function loadSettings() {
     const fDelta = getDelta(prog.fluency_trend);
     const aDelta = getDelta(prog.accuracy_trend);
 
-    // Donut chart for word distribution
-    const { data: vocab } = await sb.from('vocabulary').select('status,mastered');
-    const mastered = vocab.filter(v => v.status === 'mastered' || v.mastered).length;
-    const learning = vocab.filter(v => v.status === 'learning' || (!v.status && !v.mastered && (v.review_count || 0) > 0)).length;
-    const newly = vocab.length - mastered - learning;
-    const donutHTML = donutChartSVG(newly, learning, mastered, vocab.length);
+    const mastered = vList.filter(v => v.status === 'mastered' || v.mastered).length;
+    const learning = vList.filter(v => v.status === 'learning' || (!v.status && !v.mastered && (v.review_count || 0) > 0)).length;
+    const newly = vList.length - mastered - learning;
+    const donutHTML = donutChartSVG(newly, learning, mastered, vList.length);
 
-    // Bar chart for weekly activity
-    const weeks = getWeeklyCounts(vocab);
+    const weeks = getWeeklyCounts(vList);
 
     div.innerHTML = `
       <div class="settings-trend-item">
@@ -680,9 +1089,60 @@ async function loadSettings() {
         ${weeks}
       </div>
     `;
+
+    // Error pattern analysis
+    if (eList.length > 0) {
+      showErrorPatterns(eList);
+    } else {
+      document.getElementById('error-patterns-group').style.display = 'none';
+    }
   } else {
     div.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📈</div><div class="empty-state-title">导入日报后生成趋势</div><div class="empty-state-sub">流利度、准确度、词汇分布一目了然</div></div>';
+    document.getElementById('error-patterns-group').style.display = 'none';
   }
+}
+
+function showErrorPatterns(errors) {
+  document.getElementById('error-patterns-group').style.display = 'block';
+  const epDiv = document.getElementById('error-patterns');
+
+  // Count by pattern
+  const patternCount = {};
+  errors.forEach(e => {
+    const patterns = (e.error_pattern || '其他').split(',').map(s => s.trim()).filter(Boolean);
+    patterns.forEach(p => { patternCount[p] = (patternCount[p] || 0) + 1; });
+  });
+
+  const sorted = Object.entries(patternCount).sort((a, b) => b[1] - a[1]);
+  const max = sorted[0]?.[1] || 1;
+
+  // Count by type
+  const grammarCount = errors.filter(e => e.type === 'grammar').length;
+  const pronCount = errors.filter(e => e.type === 'pronunciation').length;
+
+  // Recent trend (last 10 errors or fewer)
+  const recent = errors.slice(-10);
+  const fixedCount = errors.filter(e => e.correct_in_review).length;
+  const fixRate = errors.length > 0 ? Math.round((fixedCount / errors.length) * 100) : 0;
+
+  epDiv.innerHTML = `
+    <div class="ep-summary">
+      <div class="ep-stat"><strong>${errors.length}</strong> 个错误</div>
+      <div class="ep-stat"><strong>${fixRate}%</strong> 已纠正</div>
+      <div class="ep-stat"><strong>${grammarCount}</strong> 语法 · <strong>${pronCount}</strong> 发音</div>
+    </div>
+    <div class="ep-patterns">
+      <div class="ep-label">高频错误模式</div>
+      ${sorted.map(([name, count]) => `
+        <div class="ep-row">
+          <span class="ep-name">${name}</span>
+          <div class="ep-bar-wrap"><div class="ep-bar" style="width:${(count/max)*100}%;"></div></div>
+          <span class="ep-count">${count}次</span>
+        </div>
+      `).join('')}
+    </div>
+    <div class="ep-tip">💡 建议优先练习 <strong>${sorted[0]?.[0] || '无'}</strong> 类型的错误</div>
+  `;
 }
 
 function donutChartSVG(newCount, learning, mastered, total) {
@@ -759,19 +1219,48 @@ function sparklineSVG(arr, color) {
 }
 
 // ═══════════════════════════════════════════════════════
+// Dark Mode Toggle
+// ═══════════════════════════════════════════════════════
+function initTheme() {
+  const saved = localStorage.getItem('voco-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = saved ? saved === 'dark' : prefersDark;
+  applyTheme(isDark);
+}
+
+function applyTheme(isDark) {
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.getElementById('theme-label').textContent = isDark ? '开' : '关';
+  // Update meta theme-color
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = isDark ? '#1E1E2E' : '#FBF7F0';
+  localStorage.setItem('voco-theme', isDark ? 'dark' : 'light');
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  applyTheme(!isDark);
+}
+
+// ═══════════════════════════════════════════════════════
 // Data Export
 // ═══════════════════════════════════════════════════════
 async function exportData() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
-  const [vocab, errors, patterns, progress, reports] = await Promise.all([
+  const [vocab, errors, patterns, progress, reports, topics] = await Promise.all([
     sb.from('vocabulary').select('*'),
     sb.from('errors').select('*'),
     sb.from('patterns').select('*'),
     sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle(),
     sb.from('reports').select('*'),
+    sb.from('topics').select('*'),
   ]);
-  const json = JSON.stringify({ vocabulary: vocab.data, errors: errors.data, patterns: patterns.data, progress: progress.data, reports: reports.data, exported_at: new Date().toISOString() }, null, 2);
+  const json = JSON.stringify({
+    vocabulary: vocab.data, errors: errors.data, patterns: patterns.data,
+    progress: progress.data, reports: reports.data, topics: topics.data,
+    exported_at: new Date().toISOString()
+  }, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -782,19 +1271,17 @@ async function exportData() {
 }
 
 // ═══════════════════════════════════════════════════════
-// Clipboard Detection (auto-import prompt)
+// Clipboard Detection
 // ═══════════════════════════════════════════════════════
 async function detectClipboard() {
   try {
     const text = await navigator.clipboard.readText();
-    if (text && text.includes('type: daily-report')) {
-      showToast('📋 检测到日报，已自动填入');
+    if (text && (text.includes('type: daily-report') || text.includes('type: topic-card') || text.includes('type: insight-report'))) {
+      showToast('📋 检测到 Voco 内容，已自动填入');
       document.getElementById('report-input').value = text;
-      // Auto-expand import card
-      const card = document.getElementById('import-card');
       const body = document.getElementById('import-body');
       body.style.display = 'block';
-      card.classList.add('open');
+      document.getElementById('import-card').classList.add('open');
     }
   } catch(e) { /* clipboard not available */ }
 }
@@ -805,12 +1292,10 @@ async function detectClipboard() {
 (function handleShareTarget() {
   const params = new URLSearchParams(window.location.search);
   const sharedText = params.get('text') || params.get('body') || params.get('title');
-  if (sharedText && sharedText.includes('type: daily-report')) {
-    // Shared from ChatGPT or other app
+  if (sharedText && (sharedText.includes('type: daily-report') || sharedText.includes('type: topic-card') || sharedText.includes('type: insight-report'))) {
     checkAuth().then(() => {
       setTimeout(async () => {
         await importReport(sharedText);
-        // Clean URL
         window.history.replaceState({}, '', '/');
       }, 500);
     });
@@ -836,13 +1321,13 @@ function showToast(msg) {
   const t = document.createElement('div');
   t.className = 'toast show';
   t.textContent = msg;
-  t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,0.15);';
+  t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:8px;font-size:14px;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,0.2);pointer-events:none;';
   document.body.appendChild(t);
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
 }
 
 // ═══════════════════════════════════════════════════════
-// Init
+// Init — bind all event listeners
 // ═══════════════════════════════════════════════════════
 document.getElementById('btn-login').addEventListener('click', signIn);
 document.getElementById('btn-login-email').addEventListener('click', sendMagicLink);
@@ -850,6 +1335,7 @@ document.getElementById('btn-logout').addEventListener('click', signOut);
 document.getElementById('btn-submit').addEventListener('click', () => importReport());
 document.getElementById('btn-save-name').addEventListener('click', saveConfig);
 document.getElementById('btn-export-data').addEventListener('click', exportData);
+document.getElementById('btn-logout-settings').addEventListener('click', signOut);
 
 // Import toggle
 document.getElementById('import-toggle').addEventListener('click', () => {
@@ -860,28 +1346,72 @@ document.getElementById('import-toggle').addEventListener('click', () => {
   card.classList.toggle('open', !open);
 });
 
-// GO button
+// Template buttons
+document.querySelectorAll('.tpl-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    copyTemplate(btn.dataset.tpl);
+    // Auto-expand import card
+    const body = document.getElementById('import-body');
+    body.style.display = 'block';
+    document.getElementById('import-card').classList.add('open');
+  });
+});
+
+// Topic selector → prep card
+document.getElementById('topic-select').addEventListener('change', function() {
+  showPrepCard(this.value);
+});
+
+// Topic GO button
 document.getElementById('topic-go-btn').addEventListener('click', () => {
-  const importCard = document.getElementById('import-card');
-  const importBody = document.getElementById('import-body');
-  importBody.style.display = 'block';
-  importCard.classList.add('open');
-  importCard.scrollIntoView({ behavior: 'smooth' });
-  document.getElementById('report-input').focus();
+  const topicId = document.getElementById('topic-select').value;
+  if (!topicId) {
+    showToast('请先选择一个话题');
+    return;
+  }
+  // Open import card for post-practice report
+  const body = document.getElementById('import-body');
+  body.style.display = 'block';
+  document.getElementById('import-card').classList.add('open');
+  showToast('🎯 开始和 ChatGPT 练习吧！');
+});
+
+// Prep card close
+document.getElementById('prep-close').addEventListener('click', () => {
+  document.getElementById('prep-card').style.display = 'none';
+  document.getElementById('topic-select').value = '';
 });
 
 // Library search
 document.getElementById('lib-search').addEventListener('input', () => renderLibContent());
 
-// Settings logout
-document.getElementById('btn-logout-settings').addEventListener('click', signOut);
+// Review mode tabs
+document.querySelectorAll('.review-mode-tab').forEach(btn => {
+  btn.addEventListener('click', () => switchReviewMode(btn.dataset.mode));
+});
 
-// Review buttons
+// Review buttons — flashcard
 document.getElementById('btn-reveal').addEventListener('click', flipCard);
 document.getElementById('btn-again').addEventListener('click', () => rateCard('again'));
 document.getElementById('btn-good').addEventListener('click', () => rateCard('good'));
 document.getElementById('btn-easy').addEventListener('click', () => rateCard('easy'));
-document.getElementById('btn-review-done').addEventListener('click', () => { document.querySelector('.tab-bar .tab[data-tab=home]').click(); });
+document.getElementById('btn-review-done').addEventListener('click', () => {
+  document.querySelector('.tab-bar .tab[data-tab=home]').click();
+});
+
+// Review buttons — shadow
+document.getElementById('btn-shadow-start').addEventListener('click', initShadowMode);
+document.getElementById('btn-shadow-play').addEventListener('click', speakShadowPhrase);
+document.getElementById('btn-shadow-next').addEventListener('click', nextShadowPhrase);
+document.getElementById('btn-shadow-repeat').addEventListener('click', () => speakShadowPhrase());
+document.getElementById('btn-shadow-done').addEventListener('click', restartShadow);
+
+// Theme toggle
+document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
+
+// Init theme
+initTheme();
 
 // Auth listener
 sb.auth.onAuthStateChange((event, session) => {

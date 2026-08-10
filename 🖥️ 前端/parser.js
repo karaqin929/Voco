@@ -1,4 +1,4 @@
-// Voco — Daily Report Parser (JS version)
+// Voco — Daily Report / Topic Card / Insight Parser (JS version)
 // Parses ChatGPT-generated Markdown reports
 
 function parseReport(text) {
@@ -18,7 +18,7 @@ function parseReport(text) {
 
   if (fmMatch) {
     body = fmMatch[2];
-    // Parse YAML-like frontmatter (simple key:value)
+    // Parse YAML-like frontmatter
     const fmText = fmMatch[1];
     for (const line of fmText.split('\n')) {
       const kv = line.match(/^(\w+):\s*(.*)/);
@@ -26,7 +26,21 @@ function parseReport(text) {
     }
   }
 
-  // Section parsers
+  const reportType = result.meta.type || 'daily-report';
+
+  if (reportType === 'topic-card') {
+    parseTopicCard(body, result);
+  } else if (reportType === 'insight-report') {
+    parseInsightReport(body, result);
+  } else {
+    // Default: daily-report
+    parseDailyReport(body, result);
+  }
+
+  return result;
+}
+
+function parseDailyReport(body, result) {
   const sections = body.split(/^##\s+/m).filter(Boolean);
 
   for (const section of sections) {
@@ -46,8 +60,37 @@ function parseReport(text) {
       result.summary = parseSummary(content);
     }
   }
+}
 
-  return result;
+function parseTopicCard(body, result) {
+  const sections = body.split(/^##\s+/m).filter(Boolean);
+
+  for (const section of sections) {
+    const lines = section.split('\n');
+    const header = lines[0].trim();
+    const content = lines.slice(1).join('\n');
+
+    if (header.includes('关键术语') || header.includes('生词') || header.includes('关键词')) {
+      result.vocabulary = parseVocabulary(content);
+    }
+  }
+}
+
+function parseInsightReport(body, result) {
+  // Just store raw content; structured analysis happens in settings UI
+  const sections = body.split(/^##\s+/m).filter(Boolean);
+  for (const section of sections) {
+    const lines = section.split('\n');
+    const header = lines[0].trim();
+    const content = lines.slice(1).join('\n');
+
+    if (header.includes('反复出现') || header.includes('问题')) {
+      result.summary.weak_areas = header;
+    }
+    if (header.includes('改进建议') || header.includes('建议')) {
+      result.summary.recommendation = content.trim();
+    }
+  }
 }
 
 function parseItems(text, fields) {
