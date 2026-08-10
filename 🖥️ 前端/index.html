@@ -43,67 +43,66 @@
   <!-- ── Tab: Home ────────────────────────────── -->
   <section id="tab-home" class="tab-content active">
 
-    <!-- Import Card with template buttons -->
-    <div class="import-card" id="import-card">
-      <div class="import-header" id="import-toggle">
-        <span>📥 导入</span>
-        <span class="import-chevron" id="import-chevron">›</span>
-      </div>
-      <div class="import-body" id="import-body" style="display:none;">
-        <div class="template-btns">
-          <button class="tpl-btn" data-tpl="report">📝 日报模板</button>
-          <button class="tpl-btn" data-tpl="topic">📋 话题卡模板</button>
-          <button class="tpl-btn" data-tpl="insight">🔍 弱点分析模板</button>
+    <!-- ═══ Daily Report (primary content, LingoTrace-style) ═══ -->
+    <div id="daily-report" class="daily-report" style="display:none;">
+      <div class="dr-header">
+        <div class="dr-topic-row">
+          <span class="dr-topic" id="dr-topic"></span>
         </div>
-        <textarea id="report-input" placeholder="将 ChatGPT 生成的内容粘贴到这里..."></textarea>
-        <button id="btn-submit" class="btn-primary">解析入库</button>
-        <div id="import-result"></div>
+        <div class="dr-meta-row">
+          <span class="dr-duration" id="dr-duration"></span>
+          <span class="dr-scores" id="dr-scores"></span>
+        </div>
       </div>
+      <div class="dr-section" id="dr-feedback-section" style="display:none;">
+        <div class="dr-section-title">🔧 Corrective Feedback</div>
+        <div id="dr-feedback"></div>
+      </div>
+      <div class="dr-section" id="dr-expressions-section" style="display:none;">
+        <div class="dr-section-title">✨ Better Expressions</div>
+        <div id="dr-expressions"></div>
+      </div>
+      <div class="dr-section" id="dr-vocab-section" style="display:none;">
+        <div class="dr-section-title">📝 Key Vocabulary</div>
+        <div id="dr-vocab"></div>
+      </div>
+      <div class="dr-summary" id="dr-summary"></div>
     </div>
 
-    <!-- Pre-Practice Card (hidden until topic selected) -->
-    <div class="prep-card" id="prep-card" style="display:none;">
-      <div class="prep-header">
-        <span class="prep-icon">🎯</span>
-        <div>
-          <div class="prep-title" id="prep-title"></div>
-          <div class="prep-sub" id="prep-sub"></div>
-        </div>
-        <button class="prep-close" id="prep-close">✕</button>
+    <!-- ═══ Topic Preview (shown when topic selected) ═══ -->
+    <div id="topic-preview" class="topic-preview" style="display:none;">
+      <div class="tp-back" id="tp-back">← 返回</div>
+      <div class="tp-header">
+        <div class="tp-title" id="tp-title"></div>
+        <div class="tp-desc" id="tp-desc"></div>
       </div>
-      <div class="prep-body">
-        <div class="prep-section">
-          <div class="prep-label">⚠️ 历史错误提醒</div>
-          <div id="prep-errors"></div>
-        </div>
-        <div class="prep-section">
-          <div class="prep-label">📝 相关词汇</div>
-          <div id="prep-vocab"></div>
-        </div>
-        <div class="prep-section">
-          <div class="prep-label">🎯 今日挑战</div>
-          <div id="prep-challenge"></div>
-        </div>
+      <div class="tp-section" id="tp-terms-section" style="display:none;">
+        <div class="tp-section-title">📋 Key Terms</div>
+        <div id="tp-terms"></div>
       </div>
+      <div class="tp-section" id="tp-questions-section" style="display:none;">
+        <div class="tp-section-title">❓ Discussion Questions</div>
+        <div id="tp-questions"></div>
+      </div>
+      <div class="tp-section" id="tp-expressions-section" style="display:none;">
+        <div class="tp-section-title">🗣️ Useful Expressions</div>
+        <div id="tp-expressions"></div>
+      </div>
+      <button class="tp-start-btn" id="tp-start-btn">🎯 Start Conversation with ChatGPT</button>
     </div>
 
-    <!-- Heatmap -->
-    <div class="calendar-header">
-      <span class="cal-month" id="cal-month-label"></span>
-      <div class="cal-legend">
-        <span class="cal-legend-dot" style="background:var(--cal-empty)"></span>少
-        <span class="cal-legend-dot" style="background:var(--cal-l1)"></span>
-        <span class="cal-legend-dot" style="background:var(--cal-l2)"></span>
-        <span class="cal-legend-dot" style="background:var(--cal-l3)"></span>
-        <span class="cal-legend-dot" style="background:var(--cal-l4)"></span>多
-      </div>
+    <!-- ═══ Topic picker + CTA (shown when no preview, no report) ═══ -->
+    <div id="home-cta">
+      <div class="hc-icon">💬</div>
+      <div class="hc-title">Ready to practice?</div>
+      <div class="hc-sub">Pick a topic and start your ChatGPT Live session</div>
+      <select class="topic-select" id="topic-select">
+        <option value="">选择话题...</option>
+      </select>
+      <button class="btn-primary" id="hc-go-btn" style="width:100%;margin-top:8px;">GO →</button>
     </div>
-    <div class="calendar-weekdays">
-      <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
-    </div>
-    <div id="calendar-grid" class="calendar-grid"></div>
 
-    <!-- Stats Grid -->
+    <!-- ═══ Stats ═══ -->
     <div class="stats-grid">
       <div class="stat-card sessions">
         <div class="stat-num" id="stat-sessions">0</div>
@@ -123,36 +122,26 @@
       </div>
     </div>
 
-    <!-- Topic Selector + CTA -->
-    <div class="topic-card" id="topic-cta">
-      <div class="topic-icon">💬</div>
-      <div class="topic-info">
-        <div class="topic-label">Ready to practice?</div>
-        <select class="topic-select" id="topic-select">
-          <option value="">选择话题...</option>
-        </select>
-        <div class="topic-sub" id="topic-sub"></div>
+    <!-- ═══ Import Card (collapsed by default) ═══ -->
+    <details class="import-card" id="import-card">
+      <summary class="import-header"><span>📥 导入日报</span></summary>
+      <div class="import-body">
+        <div class="template-btns">
+          <button class="tpl-btn" data-tpl="report">📝 日报模板</button>
+          <button class="tpl-btn" data-tpl="topic">📋 话题卡模板</button>
+          <button class="tpl-btn" data-tpl="insight">🔍 弱点分析模板</button>
+        </div>
+        <textarea id="report-input" rows="6" placeholder="将 ChatGPT 生成的内容粘贴到这里..."></textarea>
+        <button id="btn-submit" class="btn-primary">解析入库</button>
+        <div id="import-result"></div>
       </div>
-      <button class="topic-go" id="topic-go-btn">GO</button>
-    </div>
+    </details>
 
-    <!-- Duration -->
-    <div class="duration-bar" id="duration-bar" style="display:none;">
-      <span>⏱️ 总练习</span>
-      <span id="stat-duration">0 分钟</span>
-    </div>
-
-    <!-- Dual Cards -->
-    <div class="dual-cards">
-      <div class="dual-card">
-        <div class="dual-title">🔧 最近错误</div>
-        <div id="recent-errors"><div class="dual-empty">导入日报后自动显示</div></div>
-      </div>
-      <div class="dual-card">
-        <div class="dual-title">📝 待复习</div>
-        <div id="review-queue"><div class="dual-empty">导入日报后自动显示</div></div>
-      </div>
-    </div>
+    <!-- ═══ Heatmap ═══ -->
+    <details class="heatmap-toggle">
+      <summary id="cal-month-label">📅 练习热力图</summary>
+      <div id="calendar-grid" class="calendar-grid"></div>
+    </details>
   </section>
 
   <!-- ── Tab: Review ──────────────────────────── -->
