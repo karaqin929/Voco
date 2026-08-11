@@ -58,6 +58,12 @@ function parseDailyReport(body, result) {
       result.vocabulary = parseVocabulary(content);
     } else if (header.includes('表现总结') || header.includes('总结')) {
       result.summary = parseSummary(content);
+    } else if (header.includes('表现亮点')) {
+      result.summary.strengths = content.trim();
+    } else if (header.includes('AI 复盘评语') || header.includes('复盘评语')) {
+      result.summary.review = content.trim();
+    } else if (header.includes('下一步建议')) {
+      result.summary.next_suggestions = content.trim();
     }
   }
 }
@@ -143,10 +149,12 @@ function parseSummary(text) {
   const m1 = text.match(/流利度[：:]\s*(\d+)/);
   const m2 = text.match(/准确度[：:]\s*(\d+)/);
   const m3 = text.match(/需要加强[：:]\s*(.+)/);
+  const m4 = text.match(/自然度[：:]\s*(\d+)/);
 
   if (m1) summary.fluency = parseInt(m1[1]);
   if (m2) summary.accuracy = parseInt(m2[1]);
   if (m3) summary.weak_areas = m3[1].trim();
+  if (m4) summary.naturalness = parseInt(m4[1]);
 
   return summary;
 }

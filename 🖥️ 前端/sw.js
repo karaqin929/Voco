@@ -1,6 +1,6 @@
-// Voco Service Worker — stale-while-revalidate
-const CACHE = 'voco-v7';
-const FILES = ['/','/style.css','/app.js','/manifest.json','/supabase-client.js','/parser.js'];
+// Voco Service Worker — cache-first (instant load even when Render is cold)
+const CACHE = 'voco-v8';
+const FILES = ['/','/index.html','/style.css','/app.js','/manifest.json','/supabase-client.js','/parser.js'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -15,16 +15,23 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('/api/')) {
+  // Supabase API — always network
+  if (e.request.url.includes('supabase.co') || e.request.url.includes('/api/')) {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
-  // Network-first, fallback to cache
+
+  // App shell — cache-first: instant from cache, update cache in background
   e.respondWith(
-    fetch(e.request).then(res => {
-      const clone = res.clone();
-      caches.open(CACHE).then(c => c.put(e.request, clone));
-      return res;
-    }).catch(() => caches.match(e.request))
+    caches.match(e.request).then(cached => {
+      const networked = fetch(e.request).then(res => {
+        if (res && res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => cached);
+      return cached || networked;
+    })
   );
 });

@@ -8,11 +8,25 @@
   <meta name="theme-color" content="#FBF7F0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="/icon.svg">
-  <link rel="stylesheet" href="/style.css?v=5">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <link rel="stylesheet" href="/style.css?v=6">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* Minimal loading fallback to cover Render's black screen */
+    .voco-loader { display:flex; align-items:center; justify-content:center; min-height:100vh; min-height:100dvh; background:#FBF7F0; font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
+    .voco-loader-inner { text-align:center; }
+    .voco-loader-icon { font-size:64px; animation:vocobounce 1s infinite; }
+    .voco-loader-text { font-size:16px; color:#8C7E78; margin-top:12px; font-weight:500; }
+    @keyframes vocobounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+  </style>
 </head>
 <body>
+<div id="voco-loading" class="voco-loader">
+  <div class="voco-loader-inner">
+    <div class="voco-loader-icon">🐻</div>
+    <div class="voco-loader-text">Voco</div>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════ Login ═══════════════════════════════ -->
 <div id="login-screen" style="display:none;">
@@ -37,13 +51,13 @@
 <div id="app-main" style="display:none;">
   <header class="app-header">
     <span class="app-title">Voco</span>
-    <button id="btn-logout" class="btn-logout">退出</button>
+    <span class="app-header-actions"></span>
   </header>
 
-  <!-- ── Tab: Home ────────────────────────────── -->
+  <!-- ── Tab 1: Home ──────────────────────────── -->
   <section id="tab-home" class="tab-content active">
 
-    <!-- ═══ Greeting + Streak ═══ -->
+    <!-- ── Greeting ── -->
     <div id="home-greeting" class="home-greeting">
       <div class="greeting-left">
         <div class="greeting-text" id="greeting-text"></div>
@@ -52,229 +66,196 @@
       <div class="greeting-streak" id="greeting-streak"></div>
     </div>
 
-    <!-- ═══ Smart Task Cards ═══ -->
-    <div id="task-cards" class="task-cards"></div>
-
-    <!-- ═══ Daily Report (primary content, LingoTrace-style) ═══ -->
-    <div id="daily-report" class="daily-report" style="display:none;">
-      <div class="dr-header">
-        <div class="dr-topic-row">
-          <span class="dr-topic" id="dr-topic"></span>
-        </div>
-        <div class="dr-meta-row">
-          <span class="dr-duration" id="dr-duration"></span>
-          <span class="dr-scores" id="dr-scores"></span>
-        </div>
+    <!-- ── Zone 1: Overview (always visible) ── -->
+    <div id="home-overview" class="home-overview" style="display:none;">
+      <div class="ov-score-row">
+        <div class="ov-donut" id="ov-donut"></div>
+        <div class="ov-metrics" id="ov-metrics"></div>
       </div>
-      <div class="dr-section" id="dr-feedback-section" style="display:none;">
-        <div class="dr-section-title">🔧 Corrective Feedback</div>
-        <div id="dr-feedback"></div>
-      </div>
-      <div class="dr-section" id="dr-expressions-section" style="display:none;">
-        <div class="dr-section-title">✨ Better Expressions</div>
-        <div id="dr-expressions"></div>
-      </div>
-      <div class="dr-section" id="dr-vocab-section" style="display:none;">
-        <div class="dr-section-title">📝 Key Vocabulary</div>
-        <div id="dr-vocab"></div>
-      </div>
-      <div class="dr-summary" id="dr-summary"></div>
+      <div class="ov-stats" id="ov-stats"></div>
     </div>
 
-    <!-- ═══ Topic Preview (shown when topic selected) ═══ -->
-    <div id="topic-preview" class="topic-preview" style="display:none;">
-      <div class="tp-back" id="tp-back">← 返回</div>
-      <div class="tp-header">
-        <div class="tp-title" id="tp-title"></div>
-        <div class="tp-desc" id="tp-desc"></div>
+    <!-- ── Zone 2: Daily Quests (Duolingo-style) ── -->
+    <div id="home-quests" class="home-quests" style="display:none;">
+      <div class="quests-header">
+        <span>🎯 今日任务</span>
+        <span class="quests-progress-text" id="quests-progress-text">0/3</span>
       </div>
-      <div class="tp-section" id="tp-terms-section" style="display:none;">
-        <div class="tp-section-title">📋 Key Terms</div>
-        <div id="tp-terms"></div>
-      </div>
-      <div class="tp-section" id="tp-questions-section" style="display:none;">
-        <div class="tp-section-title">❓ Discussion Questions</div>
-        <div id="tp-questions"></div>
-      </div>
-      <div class="tp-section" id="tp-expressions-section" style="display:none;">
-        <div class="tp-section-title">🗣️ Useful Expressions</div>
-        <div id="tp-expressions"></div>
-      </div>
-      <button class="tp-start-btn" id="tp-start-btn">🎯 Start Conversation with ChatGPT</button>
+      <div class="quests-bar"><div class="quests-bar-fill" id="quests-bar-fill"></div></div>
+      <div class="quests-list" id="quests-list"></div>
     </div>
 
-    <!-- ═══ Guided Practice Flow (shown when no daily report) ═══ -->
+    <!-- ── Zone 3: Report Details (flat cards) ── -->
+    <div id="home-detail-cards" style="display:none;"></div>
+
+    <!-- ── Zone 4: Bear Heatmap ── -->
+    <div class="bear-heatmap-wrap">
+      <div class="bear-heatmap-label">📅 本月练习足迹</div>
+      <div class="bear-heatmap" id="bear-heatmap"></div>
+    </div>
+
+    <!-- ── Practice Flow (no report) ── -->
     <div id="practice-flow" class="practice-flow"></div>
 
-    <!-- ═══ Stats ═══ -->
+    <!-- ── Stats Grid ── -->
     <div class="stats-grid">
-      <div class="stat-card sessions">
-        <div class="stat-num" id="stat-sessions">0</div>
-        <div class="stat-label">次练习</div>
-      </div>
-      <div class="stat-card vocab">
-        <div class="stat-num" id="stat-vocab">0</div>
-        <div class="stat-label">个单词</div>
-      </div>
-      <div class="stat-card errors">
-        <div class="stat-num" id="stat-errors">0</div>
-        <div class="stat-label">条纠正</div>
-      </div>
-      <div class="stat-card streak">
-        <div class="stat-num" id="stat-streak">0</div>
-        <div class="stat-label">天坚持</div>
-      </div>
+      <div class="stat-card sessions"><div class="stat-num" id="stat-sessions">0</div><div class="stat-label">次练习</div></div>
+      <div class="stat-card vocab"><div class="stat-num" id="stat-vocab">0</div><div class="stat-label">个单词</div></div>
+      <div class="stat-card errors"><div class="stat-num" id="stat-errors">0</div><div class="stat-label">条纠正</div></div>
+      <div class="stat-card streak"><div class="stat-num" id="stat-streak">0</div><div class="stat-label">天坚持</div></div>
     </div>
-
-    <!-- ═══ Import Card (collapsed by default) ═══ -->
-    <details class="import-card" id="import-card">
-      <summary class="import-header"><span>📥 导入日报</span></summary>
-      <div class="import-body">
-        <div class="template-btns">
-          <button class="tpl-btn" data-tpl="report">📝 日报模板</button>
-          <button class="tpl-btn" data-tpl="topic">📋 话题卡模板</button>
-          <button class="tpl-btn" data-tpl="insight">🔍 弱点分析模板</button>
-        </div>
-        <textarea id="report-input" rows="6" placeholder="将 ChatGPT 生成的内容粘贴到这里..."></textarea>
-        <button id="btn-submit" class="btn-primary">解析入库</button>
-        <div id="import-result"></div>
-      </div>
-    </details>
-
-    <!-- ═══ Heatmap ═══ -->
-    <details class="heatmap-toggle">
-      <summary id="cal-month-label">📅 练习热力图</summary>
-      <div id="calendar-grid" class="calendar-grid"></div>
-    </details>
   </section>
 
-  <!-- ── Tab: Review ──────────────────────────── -->
-  <section id="tab-review" class="tab-content">
-    <!-- Mode toggle -->
-    <div class="review-mode-tabs" id="review-mode-tabs">
-      <button class="review-mode-tab active" data-mode="flashcard">🃏 单词卡</button>
-      <button class="review-mode-tab" data-mode="shadow">🎤 影子跟读</button>
+  <!-- ── Tab 2: Words ──────────────────────────── -->
+  <section id="tab-words" class="tab-content">
+    <!-- SRS Review entry -->
+    <div id="words-review-entry" class="words-review-entry" style="display:none;">
+      <div class="words-review-info">
+        <div class="words-review-icon">🃏</div>
+        <div class="words-review-text">
+          <div class="words-review-title">SM-2 间隔复习</div>
+          <div class="words-review-sub" id="words-review-sub">0 个单词待复习</div>
+        </div>
+      </div>
+      <button class="btn-primary" style="width:auto;padding:10px 20px;" id="btn-words-review-start">开始复习</button>
     </div>
 
-    <div id="review-container">
-      <!-- Empty state -->
-      <div class="review-empty" id="review-empty">
-        <div class="review-empty-icon">📝</div>
-        <div class="review-empty-title">准备复习</div>
-        <div class="review-empty-sub">导入日报后，待复习的单词会出现在这里</div>
+    <!-- Flashcard review (inline) -->
+    <div id="words-review-active" style="display:none;">
+      <div class="review-progress">
+        <span id="words-review-progress-text">1/10</span>
+        <div class="review-progress-bar"><div class="review-progress-fill" id="words-review-progress-fill"></div></div>
       </div>
-
-      <!-- Flashcard mode -->
-      <div id="flashcard-mode">
-        <div id="review-active" style="display:none;">
-          <div class="review-progress">
-            <span id="review-progress-text">1/10</span>
-            <div class="review-progress-bar"><div class="review-progress-fill" id="review-progress-fill"></div></div>
+      <div class="flashcard" id="words-flashcard">
+        <div class="flashcard-inner" id="words-flashcard-inner">
+          <div class="flashcard-front">
+            <div class="flashcard-word" id="fc-word"></div>
+            <div class="flashcard-phonetic" id="fc-phonetic"></div>
+            <div class="flashcard-hint">点击翻转查看释义</div>
           </div>
-          <div class="flashcard" id="flashcard">
-            <div class="flashcard-inner" id="flashcard-inner">
-              <div class="flashcard-front">
-                <div class="flashcard-word" id="fc-word"></div>
-                <div class="flashcard-phonetic" id="fc-phonetic"></div>
-                <div class="flashcard-hint">点击翻转查看释义</div>
-              </div>
-              <div class="flashcard-back">
-                <div class="flashcard-word" id="fc-word-back"></div>
-                <div class="flashcard-meaning" id="fc-meaning"></div>
-                <div class="flashcard-example" id="fc-example"></div>
-                <div class="flashcard-meta" id="fc-meta"></div>
-              </div>
-            </div>
-          </div>
-          <div class="review-actions" id="review-actions" style="display:none;">
-            <button class="review-btn again" id="btn-again">🔄 再来<br><small>10分钟后</small></button>
-            <button class="review-btn good" id="btn-good">👍 不错<br><small>按 SM-2</small></button>
-            <button class="review-btn easy" id="btn-easy">✅ 简单<br><small>延长间隔</small></button>
-          </div>
-          <button class="btn-primary" id="btn-reveal" style="margin-top:12px;">查看释义</button>
-        </div>
-      </div>
-
-      <!-- Shadow Speaking mode -->
-      <div id="shadow-mode" style="display:none;">
-        <div class="shadow-empty" id="shadow-empty">
-          <div class="shadow-empty-icon">🎤</div>
-          <div class="shadow-empty-title">影子跟读</div>
-          <div class="shadow-empty-sub">跟着 Voco 朗读地道表达，<br>练到能脱口而出</div>
-          <button class="btn-primary" id="btn-shadow-start" style="margin-top:12px;">开始练习</button>
-        </div>
-        <div id="shadow-active" style="display:none;">
-          <div class="shadow-progress" id="shadow-progress"></div>
-          <div class="shadow-card" id="shadow-card">
-            <div class="shadow-phrase" id="shadow-phrase"></div>
-            <div class="shadow-context" id="shadow-context"></div>
-          </div>
-          <div class="shadow-actions">
-            <button class="btn-primary" id="btn-shadow-play">🔊 播放</button>
-            <button class="btn-primary" id="btn-shadow-next" style="display:none;">下一个 →</button>
-            <button class="btn-small" id="btn-shadow-repeat">🔁 重播</button>
-          </div>
-          <div class="shadow-summary" id="shadow-summary" style="display:none;">
-            <div class="shadow-summary-icon">🎉</div>
-            <div class="shadow-summary-title">跟读完成！</div>
-            <button class="btn-primary" id="btn-shadow-done">再来一轮</button>
+          <div class="flashcard-back">
+            <div class="flashcard-word" id="fc-word-back"></div>
+            <div class="flashcard-meaning" id="fc-meaning"></div>
+            <div class="flashcard-example" id="fc-example"></div>
+            <div class="flashcard-meta" id="fc-meta"></div>
           </div>
         </div>
       </div>
-
-      <!-- Review summary -->
-      <div id="review-summary" style="display:none;">
+      <div class="review-actions" id="words-review-actions" style="display:none;">
+        <button class="review-btn again" id="btn-words-again">🔄 再来<br><small>10分钟后</small></button>
+        <button class="review-btn good" id="btn-words-good">👍 不错<br><small>按 SM-2</small></button>
+        <button class="review-btn easy" id="btn-words-easy">✅ 简单<br><small>延长间隔</small></button>
+      </div>
+      <button class="btn-primary" id="btn-words-reveal" style="margin-top:12px;">查看释义</button>
+      <div id="words-review-summary" style="display:none;" class="review-summary-done">
         <div class="review-summary-icon">🎉</div>
         <div class="review-summary-title">复习完成！</div>
-        <div class="review-summary-stats" id="review-summary-stats"></div>
-        <button class="btn-primary" id="btn-review-done">返回首页</button>
+        <div class="review-summary-stats" id="words-review-summary-stats"></div>
+        <button class="btn-primary" id="btn-words-review-done">返回单词库</button>
       </div>
     </div>
-  </section>
 
-  <!-- ── Tab: Library ──────────────────────────── -->
-  <section id="tab-library" class="tab-content">
+    <!-- Vocab list -->
     <div class="lib-search-wrap">
       <span class="lib-search-icon">🔍</span>
-      <input id="lib-search" class="lib-search" type="text" placeholder="搜索...">
+      <input id="words-search" class="lib-search" type="text" placeholder="搜索单词...">
     </div>
-    <div class="lib-tabs">
-      <button class="lib-tab active" data-lib="vocab">单词 <span class="lib-count" id="lib-count-vocab"></span></button>
-      <button class="lib-tab" data-lib="errors">纠错 <span class="lib-count" id="lib-count-errors"></span></button>
-      <button class="lib-tab" data-lib="patterns">句型 <span class="lib-count" id="lib-count-patterns"></span></button>
-      <button class="lib-tab" data-lib="topics">话题 <span class="lib-count" id="lib-count-topics"></span></button>
-    </div>
-    <div class="lib-subtabs" id="lib-subtabs" style="display:none;"></div>
-    <div id="library-content" class="loading">加载中...</div>
+    <div class="lib-subtabs" id="words-subtabs" style="display:none;"></div>
+    <div id="words-content" class="loading">加载中...</div>
   </section>
 
-  <!-- ── Tab: Settings ─────────────────────────── -->
-  <section id="tab-settings" class="tab-content">
+  <!-- ── Tab 3: Speak ──────────────────────────── -->
+  <section id="tab-speak" class="tab-content">
+    <!-- Quick actions -->
+    <div class="speak-actions" id="speak-actions">
+      <button class="speak-action-btn" id="btn-shadow-mode">🎤 影子跟读模式</button>
+    </div>
 
-    <div class="settings-group">
-      <div class="settings-group-label">👤 账号</div>
-      <div class="settings-item">
-        <span class="settings-item-label">用户名</span>
-        <input id="setting-username" class="settings-input" placeholder="你的昵称" />
+    <!-- Shadow speaking (inline) -->
+    <div id="speak-shadow" style="display:none;">
+      <div class="shadow-progress" id="speak-shadow-progress"></div>
+      <div class="shadow-card" id="speak-shadow-card">
+        <div class="shadow-phrase" id="speak-shadow-phrase"></div>
+        <div class="shadow-context" id="speak-shadow-context"></div>
       </div>
-      <div class="settings-item">
-        <span class="settings-item-label">邮箱</span>
-        <span class="settings-item-value" id="settings-email">---</span>
+      <div class="shadow-actions">
+        <button class="btn-primary" id="btn-speak-play">🔊 播放</button>
+        <button class="btn-primary" id="btn-speak-next" style="display:none;">下一个 →</button>
+        <button class="btn-small" id="btn-speak-repeat">🔁 重播</button>
       </div>
-      <div class="settings-item settings-item-danger" id="btn-logout-settings">
-        <span>退出登录</span>
-        <span class="settings-arrow">›</span>
+      <div class="speak-self-rate" id="speak-self-rate" style="display:none;">
+        <span class="self-rate-label">自评：</span>
+        <button class="self-rate-btn good" data-rate="good">👍 流利</button>
+        <button class="self-rate-btn ok" data-rate="ok">😐 一般</button>
+        <button class="self-rate-btn again" data-rate="again">🔄 再练</button>
+      </div>
+      <div class="shadow-summary" id="speak-shadow-summary" style="display:none;">
+        <div class="shadow-summary-icon">🎉</div>
+        <div class="shadow-summary-title">跟读完成！</div>
+        <button class="btn-primary" id="btn-speak-shadow-done">再来一轮</button>
       </div>
     </div>
 
-    <div class="settings-group">
-      <div class="settings-group-label">🎨 外观</div>
-      <div class="settings-item" id="btn-theme-toggle">
-        <span class="settings-item-label">深色模式</span>
-        <span class="settings-item-value" id="theme-label">关</span>
+    <!-- Expression list -->
+    <div class="lib-search-wrap">
+      <span class="lib-search-icon">🔍</span>
+      <input id="speak-search" class="lib-search" type="text" placeholder="搜索表达...">
+    </div>
+    <div class="lib-subtabs" id="speak-subtabs" style="display:none;"></div>
+    <div id="speak-content" class="loading">加载中...</div>
+  </section>
+
+  <!-- ── Tab 4: Me ─────────────────────────────── -->
+  <section id="tab-me" class="tab-content">
+    <!-- Profile card -->
+    <div class="me-profile">
+      <div class="me-avatar">🐻</div>
+      <div class="me-name" id="me-name">---</div>
+      <div class="me-stats-row">
+        <span class="me-stat" id="me-streak">🔥 0 天</span>
+        <span class="me-stat" id="me-level">⭐ Lv.1</span>
       </div>
-      <div class="settings-item" style="display:block;padding-bottom:12px;">
-        <span class="settings-item-label" style="display:block;margin-bottom:10px;">主题配色</span>
+      <div class="me-level-bar-wrap"><div class="me-level-bar-fill" id="me-level-bar-fill"></div></div>
+      <div class="me-level-hint" id="me-level-hint"></div>
+    </div>
+
+    <!-- Achievements -->
+    <div class="me-section">
+      <div class="me-section-title">🏆 成就徽章</div>
+      <div class="me-badges" id="me-badges">
+        <div class="me-badge locked"><span>🎯</span><small>首次练习</small></div>
+        <div class="me-badge locked"><span>🔥</span><small>7天坚持</small></div>
+        <div class="me-badge locked"><span>📚</span><small>掌握50词</small></div>
+        <div class="me-badge locked"><span>🔧</span><small>纠正20次</small></div>
+      </div>
+    </div>
+
+    <!-- Import -->
+    <div class="me-section">
+      <div class="me-section-title">📥 导入日报</div>
+      <div class="template-btns" style="margin-bottom:10px;">
+        <button class="tpl-btn" data-tpl="report">📝 日报模板</button>
+        <button class="tpl-btn" data-tpl="topic">📋 话题卡模板</button>
+        <button class="tpl-btn" data-tpl="insight">🔍 弱点分析模板</button>
+      </div>
+      <textarea id="report-input" rows="5" placeholder="将 ChatGPT 生成的内容粘贴到这里..."></textarea>
+      <button id="btn-submit" class="btn-primary">解析入库</button>
+      <div id="import-result"></div>
+    </div>
+
+    <!-- Settings -->
+    <div class="me-section">
+      <div class="me-section-title">⚙️ 设置</div>
+      <div class="me-settings-item">
+        <span>昵称</span>
+        <input id="setting-username" class="settings-input" placeholder="你的昵称" />
+      </div>
+      <div class="me-settings-item">
+        <span>邮箱</span>
+        <span class="settings-item-value" id="settings-email">---</span>
+      </div>
+      <div class="me-settings-item">
+        <span>主题配色</span>
         <div class="theme-picker" id="theme-picker">
           <div class="theme-option active" data-theme="warm">
             <div class="theme-swatch"><span style="background:#E07B5A"></span><span style="background:#8BADC5"></span><span style="background:#8CAF94"></span></div>
@@ -294,51 +275,53 @@
           </div>
         </div>
       </div>
-      <div class="settings-item">
-        <span class="settings-item-label">App 名称</span>
-        <input id="setting-name" class="settings-input" placeholder="Voco" />
+      <div class="me-settings-item">
+        <span>显示模式</span>
+        <div class="mode-toggle" id="mode-toggle">
+          <button class="mode-btn active" data-mode="light">☀️ 浅色</button>
+          <button class="mode-btn" data-mode="dark">🌙 夜间</button>
+          <button class="mode-btn" data-mode="eye-care">🛡️ 护眼</button>
+        </div>
       </div>
-      <div class="settings-item" id="btn-save-name">
-        <span>保存设置</span>
+    </div>
+
+    <div class="me-section">
+      <div class="me-section-title">📊 数据</div>
+      <div class="me-settings-item" id="btn-export-data">
+        <span>导出数据</span>
         <span class="settings-arrow">›</span>
       </div>
     </div>
 
-    <div class="settings-group">
-      <div class="settings-group-label">📊 数据</div>
-      <div class="settings-item" id="btn-export-data">
-        <span class="settings-item-label">导出数据</span>
-        <span class="settings-arrow">›</span>
-      </div>
-    </div>
-
-    <div class="settings-group">
-      <div class="settings-group-label">📈 学习趋势</div>
-      <div id="settings-trends"><div class="loading">加载中...</div></div>
-    </div>
-
-    <div class="settings-group" id="error-patterns-group" style="display:none;">
-      <div class="settings-group-label">🔍 错误模式分析</div>
+    <div class="me-section" id="error-patterns-group" style="display:none;">
+      <div class="me-section-title">🔍 错误模式分析</div>
       <div id="error-patterns"><div class="loading">加载中...</div></div>
+    </div>
+
+    <div class="me-section">
+      <div class="me-settings-item me-item-danger" id="btn-logout-me">
+        <span>退出登录</span>
+        <span class="settings-arrow">›</span>
+      </div>
     </div>
 
     <div class="settings-footer">
       <span>Voco</span>
-      <span class="settings-version">v2.0</span>
+      <span class="settings-version">v3.0</span>
     </div>
   </section>
 
   <!-- ── Tab Bar ──────────────────────────────── -->
   <nav class="tab-bar">
     <button class="tab active" data-tab="home">🏠 首页</button>
-    <button class="tab" data-tab="review">🔁 复习</button>
-    <button class="tab" data-tab="library">📚 词汇</button>
-    <button class="tab" data-tab="settings">⚙️ 设置</button>
+    <button class="tab" data-tab="words">📝 单词</button>
+    <button class="tab" data-tab="speak">🗣️ 口语</button>
+    <button class="tab" data-tab="me">👤 我的</button>
   </nav>
 </div>
 
-<script src="/supabase-client.js?v=5"></script>
-<script src="/parser.js?v=5"></script>
-<script src="/app.js?v=5"></script>
+<script src="/supabase-client.js?v=6"></script>
+<script src="/parser.js?v=6"></script>
+<script src="/app.js?v=6"></script>
 </body>
 </html>
