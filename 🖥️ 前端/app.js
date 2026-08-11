@@ -320,7 +320,7 @@ function renderQuests(todayReport, vocab, errors, reports, streak) {
   });
 }
 
-// ── Zone 3: Report Details (flat cards — 8 sections) ──
+// ── Zone 3: Report Details (5 cards — learning-flow order) ──
 function renderDetails(todayReport, vocab, errors, patterns, prog) {
   const container = document.getElementById('home-detail-cards');
   if (!todayReport || !isDailyReport(todayReport)) { container.style.display = 'none'; return; }
@@ -347,45 +347,29 @@ function renderDetails(todayReport, vocab, errors, patterns, prog) {
 
   const cards = [];
 
-  // Card 1: 今日对话主题
-  if (topic) {
-    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.05s" onclick="document.querySelector('.tab[data-tab=speak]').click()">
-      <div class="detail-card-title">💬 今日对话主题</div>
-      <div class="detail-card-text">${h(topic)}${duration ? ' · ⏱️ ' + duration + ' 分钟' : ''}</div>
-      <span class="detail-card-arrow">›</span>
+  // ── Card 1: 今日表现 (topic + strengths, no score repeat) ──
+  const parts = [];
+  if (topic) parts.push(`💬 ${h(topic)}${duration ? ' · ⏱️' + duration + '分钟' : ''}`);
+  if (strengths) parts.push(h(strengths.length > 120 ? strengths.slice(0,120) + '…' : strengths));
+  if (parts.length) {
+    const isLong = parts.join('<br>').length > 100;
+    cards.push(`<div class="detail-card${isLong ? ' has-arrow' : ''}" style="animation-delay:0.05s" id="card-performance">
+      <div class="detail-card-title">🌟 今日表现</div>
+      <div class="detail-card-text">${isLong ? '<span class="review-preview">' + parts.join('<br>').slice(0,100) + '…</span><span class="review-full" style="display:none">' + parts.join('<br>') + '</span>' : parts.join('<br>')}</div>
+      ${isLong ? '<span class="detail-card-arrow">›</span>' : ''}
     </div>`);
   }
 
-  // Card 2: 今日对话想法
-  if (thoughts) {
-    const isLongThought = thoughts.length > 80;
-    cards.push(`<div class="detail-card${isLongThought ? ' has-arrow' : ''}" style="animation-delay:0.08s" id="card-thoughts">
-      <div class="detail-card-title">💭 今日对话想法</div>
-      <div class="detail-card-text">${isLongThought ? '<span class="review-preview">' + h(thoughts.slice(0,80)) + '…</span><span class="review-full" style="display:none">' + h(thoughts) + '</span>' : h(thoughts)}</div>
-      ${isLongThought ? '<span class="detail-card-arrow">›</span>' : ''}
-    </div>`);
-  }
-
-  // Card 3: 今天做得好的地方
-  if (strengths) {
-    const isLongStr = strengths.length > 80;
-    cards.push(`<div class="detail-card${isLongStr ? ' has-arrow' : ''}" style="animation-delay:0.11s" id="card-strengths">
-      <div class="detail-card-title">🌟 今天做得好的地方</div>
-      <div class="detail-card-text">${isLongStr ? '<span class="review-preview">' + h(strengths.slice(0,80)) + '…</span><span class="review-full" style="display:none">' + h(strengths) + '</span>' : h(strengths)}</div>
-      ${isLongStr ? '<span class="detail-card-arrow">›</span>' : ''}
-    </div>`);
-  }
-
-  // Card 4: 今天需要提升
+  // ── Card 2: 需要巩固 (errors first — biggest learning lever) ──
   if (allErrors.length > 0) {
-    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.14s" id="card-improve">
-      <div class="detail-card-title">📈 今天需要提升 · ${allErrors.length} 项</div>
+    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.08s" id="card-improve">
+      <div class="detail-card-title">📈 需要巩固 · ${allErrors.length} 项</div>
       <div class="detail-card-text">${allErrors.slice(0,3).map(e => '• ' + h(e.original) + ' → ' + h(e.correction) + (e.rule ? ' (' + h(e.rule) + ')' : '')).join('<br>')}${allErrors.length > 3 ? '<br>…等' : ''}</div>
       <span class="detail-card-action" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=words]').click()">去复习 ›</span>
     </div>`);
   }
 
-  // Card 5: 今日新学内容汇总 — 4 sub-cards
+  // ── Card 3: 新学内容汇总 (4 sub-cards, clickable) ──
   const subItems = [
     { label: '新增单词', num: parsed.vocabulary.length, icon: '📝', tab: 'words' },
     { label: '地道表达', num: parsed.patterns.length, icon: '🗣️', tab: 'speak' },
@@ -402,34 +386,33 @@ function renderDetails(todayReport, vocab, errors, patterns, prog) {
       </div>
     `).join('');
 
-    cards.push(`<div class="detail-card" style="animation-delay:0.17s">
-      <div class="detail-card-title">📊 今日新学内容汇总</div>
+    cards.push(`<div class="detail-card" style="animation-delay:0.12s">
+      <div class="detail-card-title">📊 新学内容汇总</div>
       <div class="detail-sub-cards">${subCardsHTML}</div>
     </div>`);
   }
 
-  // Card 6: 整体效果复盘
-  if (review) {
-    const isLongReview = review.length > 80;
-    cards.push(`<div class="detail-card${isLongReview ? ' has-arrow' : ''}" style="animation-delay:0.20s" id="card-review">
-      <div class="detail-card-title">🧠 整体效果复盘</div>
-      <div class="detail-card-text">${isLongReview ? '<span class="review-preview">' + h(review.slice(0,80)) + '…</span><span class="review-full" style="display:none">' + h(review) + '</span>' : h(review)}</div>
-      ${isLongReview ? '<span class="detail-card-arrow">›</span>' : ''}
+  // ── Card 4: 复盘 & 建议 (review + thoughts + next, merged) ──
+  const reflectionParts = [];
+  if (review) reflectionParts.push(review);
+  if (thoughts) reflectionParts.push(thoughts);
+  const reflectionText = reflectionParts.join('\n\n');
+  const hasNext = !!nextSuggestions;
+
+  if (reflectionText || hasNext) {
+    const displayText = reflectionText || nextSuggestions;
+    const isLong = displayText.length > 100;
+    cards.push(`<div class="detail-card${isLong ? ' has-arrow' : ''}" style="animation-delay:0.16s" id="card-reflection">
+      <div class="detail-card-title">🧠 复盘 & 下次建议</div>
+      <div class="detail-card-text">${isLong ? '<span class="review-preview">' + h(displayText.slice(0,100)) + '…</span><span class="review-full" style="display:none">' + h(displayText) + '</span>' : h(displayText)}</div>
+      ${hasNext ? '<span class="detail-card-action" onclick="event.stopPropagation();document.querySelector(\'.tab[data-tab=me]\').click()">去练习 ›</span>' : ''}
+      ${isLong ? '<span class="detail-card-arrow">›</span>' : ''}
     </div>`);
   }
 
-  // Card 7: 下一次学习建议
-  if (nextSuggestions) {
-    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.23s" id="card-next">
-      <div class="detail-card-title">💪 下一次学习建议</div>
-      <div class="detail-card-text">${h(nextSuggestions)}</div>
-      <span class="detail-card-action" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=me]').click();setTimeout(()=>document.getElementById('practice-flow')?.scrollIntoView({behavior:'smooth'}),200)">去练习 ›</span>
-    </div>`);
-  }
-
-  // Card 8: 错误模式分析
+  // ── Card 5: 错误模式分析 ──
   if (topPatterns.length > 0) {
-    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.26s" onclick="document.querySelector('.tab[data-tab=me]').click();setTimeout(()=>document.getElementById('error-patterns-group').scrollIntoView({behavior:'smooth'}),200)">
+    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.20s" onclick="document.querySelector('.tab[data-tab=me]').click();setTimeout(()=>document.getElementById('error-patterns-group').scrollIntoView({behavior:'smooth'}),200)">
       <div class="detail-card-title">🔍 错误模式分析</div>
       <div class="detail-card-text">${topPatterns.map(([name, count]) => '• ' + name + ' ' + count + '次').join('<br>')}</div>
       <span class="detail-card-arrow">›</span>
@@ -439,7 +422,7 @@ function renderDetails(todayReport, vocab, errors, patterns, prog) {
   container.innerHTML = cards.join('');
 
   // Wire up expand/collapse for long text cards
-  ['card-thoughts', 'card-strengths', 'card-review'].forEach(id => {
+  ['card-performance', 'card-reflection'].forEach(id => {
     const card = document.getElementById(id);
     if (!card) return;
     const preview = card.querySelector('.review-preview');
