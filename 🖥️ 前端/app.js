@@ -320,7 +320,7 @@ function renderQuests(todayReport, vocab, errors, reports, streak) {
   });
 }
 
-// ── Zone 3: Report Details (collapsible) ──────────────
+// ── Zone 3: Report Details (flat cards — 8 sections) ──
 function renderDetails(todayReport, vocab, errors, patterns, prog) {
   const container = document.getElementById('home-detail-cards');
   if (!todayReport || !isDailyReport(todayReport)) { container.style.display = 'none'; return; }
@@ -328,16 +328,15 @@ function renderDetails(todayReport, vocab, errors, patterns, prog) {
 
   const parsed = parseReport(todayReport.content);
   const topic = parsed.meta.topic || '';
-  const fluency = parsed.summary.fluency || 0;
-  const accuracy = parsed.summary.accuracy || 0;
-  const natural = parsed.summary.naturalness || 0;
   const duration = parsed.meta.duration || (prog?.total_minutes || 0);
   const strengths = parsed.summary.strengths || '';
+  const thoughts = parsed.summary.thoughts || '';
   const review = parsed.summary.review || '';
   const nextSuggestions = parsed.summary.next_suggestions || '';
   const allErrors = [...(parsed.grammar || []), ...(parsed.pronunciation || [])];
+  const sentencePatterns = parsed.sentence_patterns || [];
 
-  // Error pattern summary for card
+  // Error pattern summary
   const errPatterns = {};
   (errors || []).forEach(e => {
     (e.error_pattern || '其他').split(',').map(s => s.trim()).filter(Boolean).forEach(p => {
@@ -348,70 +347,89 @@ function renderDetails(todayReport, vocab, errors, patterns, prog) {
 
   const cards = [];
 
-  // Card 1: Topic review → go to speak tab
+  // Card 1: 今日对话主题
   if (topic) {
     cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.05s" onclick="document.querySelector('.tab[data-tab=speak]').click()">
-      <div class="detail-card-title">💬 话题回顾</div>
+      <div class="detail-card-title">💬 今日对话主题</div>
       <div class="detail-card-text">${h(topic)}${duration ? ' · ⏱️ ' + duration + ' 分钟' : ''}</div>
       <span class="detail-card-arrow">›</span>
     </div>`);
   }
 
-  // Card 2: Performance → scroll to donut
-  cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.1s" onclick="document.getElementById('home-overview').scrollIntoView({behavior:'smooth'})">
-    <div class="detail-card-title">🌟 表现亮点</div>
-    <div class="detail-card-text">流利度 ${fluency}/10 · 准确度 ${accuracy}/10${natural ? ' · 自然度 ' + natural + '/10' : ''}${strengths ? '<br>' + h(strengths) : ''}</div>
-    <span class="detail-card-arrow">›</span>
-  </div>`);
+  // Card 2: 今日对话想法
+  if (thoughts) {
+    const isLongThought = thoughts.length > 80;
+    cards.push(`<div class="detail-card${isLongThought ? ' has-arrow' : ''}" style="animation-delay:0.08s" id="card-thoughts">
+      <div class="detail-card-title">💭 今日对话想法</div>
+      <div class="detail-card-text">${isLongThought ? '<span class="review-preview">' + h(thoughts.slice(0,80)) + '…</span><span class="review-full" style="display:none">' + h(thoughts) + '</span>' : h(thoughts)}</div>
+      ${isLongThought ? '<span class="detail-card-arrow">›</span>' : ''}
+    </div>`);
+  }
 
-  // Card 3: Needs improvement → go to words tab
+  // Card 3: 今天做得好的地方
+  if (strengths) {
+    const isLongStr = strengths.length > 80;
+    cards.push(`<div class="detail-card${isLongStr ? ' has-arrow' : ''}" style="animation-delay:0.11s" id="card-strengths">
+      <div class="detail-card-title">🌟 今天做得好的地方</div>
+      <div class="detail-card-text">${isLongStr ? '<span class="review-preview">' + h(strengths.slice(0,80)) + '…</span><span class="review-full" style="display:none">' + h(strengths) + '</span>' : h(strengths)}</div>
+      ${isLongStr ? '<span class="detail-card-arrow">›</span>' : ''}
+    </div>`);
+  }
+
+  // Card 4: 今天需要提升
   if (allErrors.length > 0) {
-    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.15s" onclick="document.querySelector('.tab[data-tab=words]').click()">
-      <div class="detail-card-title">📈 需要提升 · ${allErrors.length} 项</div>
+    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.14s" id="card-improve">
+      <div class="detail-card-title">📈 今天需要提升 · ${allErrors.length} 项</div>
       <div class="detail-card-text">${allErrors.slice(0,3).map(e => '• ' + h(e.original) + ' → ' + h(e.correction) + (e.rule ? ' (' + h(e.rule) + ')' : '')).join('<br>')}${allErrors.length > 3 ? '<br>…等' : ''}</div>
-      <span class="detail-card-arrow">›</span>
+      <span class="detail-card-action" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=words]').click()">去复习 ›</span>
     </div>`);
   }
 
-  // Card 4: Content summary (2-col sub-cards)
-  cards.push(`<div class="detail-card" style="animation-delay:0.2s">
-    <div class="detail-card-title">📊 今日收获</div>
-    <div class="detail-sub-cards">
-      <div class="detail-sub-card" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=words]').click()">
-        <div class="detail-sub-card-num">${parsed.vocabulary.length}</div>
-        <div class="detail-sub-card-label">新增单词</div>
-        <div class="detail-sub-card-arrow">查看 →</div>
-      </div>
-      <div class="detail-sub-card" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=speak]').click()">
-        <div class="detail-sub-card-num">${parsed.patterns.length}</div>
-        <div class="detail-sub-card-label">地道表达</div>
-        <div class="detail-sub-card-arrow">查看 →</div>
-      </div>
-    </div>
-  </div>`);
+  // Card 5: 今日新学内容汇总 — 4 sub-cards
+  const subItems = [
+    { label: '新增单词', num: parsed.vocabulary.length, icon: '📝', tab: 'words' },
+    { label: '地道表达', num: parsed.patterns.length, icon: '🗣️', tab: 'speak' },
+    { label: '核心句型', num: sentencePatterns.length, icon: '📐', tab: 'speak' },
+    { label: '重点纠错', num: allErrors.length, icon: '🔧', tab: 'words' },
+  ].filter(s => s.num > 0);
 
-  // Card 5: AI review → tap to expand/collapse long text
+  if (subItems.length > 0) {
+    const subCardsHTML = subItems.map(s => `
+      <div class="detail-sub-card" onclick="event.stopPropagation();showDetailModal('${s.label}', ${s.num}, '${s.tab}')">
+        <div class="detail-sub-card-num">${s.num}</div>
+        <div class="detail-sub-card-label">${s.icon} ${s.label}</div>
+        <div class="detail-sub-card-arrow">查看 →</div>
+      </div>
+    `).join('');
+
+    cards.push(`<div class="detail-card" style="animation-delay:0.17s">
+      <div class="detail-card-title">📊 今日新学内容汇总</div>
+      <div class="detail-sub-cards">${subCardsHTML}</div>
+    </div>`);
+  }
+
+  // Card 6: 整体效果复盘
   if (review) {
-    const isLong = review.length > 80;
-    cards.push(`<div class="detail-card${isLong ? ' has-arrow' : ''}" style="animation-delay:0.25s" ${isLong ? 'onclick="this.classList.toggle(\'expanded\')"' : ''}>
-      <div class="detail-card-title">🧠 AI 复盘评语</div>
-      <div class="detail-card-text">${isLong ? '<span class="review-preview">' + h(review.slice(0,80)) + '…</span><span class="review-full" style="display:none">' + h(review) + '</span>' : h(review)}</div>
-      ${isLong ? '<span class="detail-card-arrow">›</span>' : ''}
+    const isLongReview = review.length > 80;
+    cards.push(`<div class="detail-card${isLongReview ? ' has-arrow' : ''}" style="animation-delay:0.20s" id="card-review">
+      <div class="detail-card-title">🧠 整体效果复盘</div>
+      <div class="detail-card-text">${isLongReview ? '<span class="review-preview">' + h(review.slice(0,80)) + '…</span><span class="review-full" style="display:none">' + h(review) + '</span>' : h(review)}</div>
+      ${isLongReview ? '<span class="detail-card-arrow">›</span>' : ''}
     </div>`);
   }
 
-  // Card 6: Next suggestions → go to practice flow
+  // Card 7: 下一次学习建议
   if (nextSuggestions) {
-    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.3s" onclick="document.querySelector('.tab[data-tab=me]').click()">
-      <div class="detail-card-title">💪 下一步建议</div>
+    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.23s" id="card-next">
+      <div class="detail-card-title">💪 下一次学习建议</div>
       <div class="detail-card-text">${h(nextSuggestions)}</div>
-      <span class="detail-card-arrow">›</span>
+      <span class="detail-card-action" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=me]').click();setTimeout(()=>document.getElementById('practice-flow')?.scrollIntoView({behavior:'smooth'}),200)">去练习 ›</span>
     </div>`);
   }
 
-  // Card 7: Error pattern analysis → go to 我的 tab
+  // Card 8: 错误模式分析
   if (topPatterns.length > 0) {
-    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.35s" onclick="document.querySelector('.tab[data-tab=me]').click();setTimeout(()=>document.getElementById('error-patterns-group').scrollIntoView({behavior:'smooth'}),200)">
+    cards.push(`<div class="detail-card has-arrow" style="animation-delay:0.26s" onclick="document.querySelector('.tab[data-tab=me]').click();setTimeout(()=>document.getElementById('error-patterns-group').scrollIntoView({behavior:'smooth'}),200)">
       <div class="detail-card-title">🔍 错误模式分析</div>
       <div class="detail-card-text">${topPatterns.map(([name, count]) => '• ' + name + ' ' + count + '次').join('<br>')}</div>
       <span class="detail-card-arrow">›</span>
@@ -420,14 +438,15 @@ function renderDetails(todayReport, vocab, errors, patterns, prog) {
 
   container.innerHTML = cards.join('');
 
-  // Wire up review expand/collapse
-  const reviewCard = container.querySelector('.review-preview');
-  if (reviewCard) {
-    const card = reviewCard.closest('.detail-card');
+  // Wire up expand/collapse for long text cards
+  ['card-thoughts', 'card-strengths', 'card-review'].forEach(id => {
+    const card = document.getElementById(id);
+    if (!card) return;
+    const preview = card.querySelector('.review-preview');
+    const full = card.querySelector('.review-full');
+    const arrow = card.querySelector('.detail-card-arrow');
+    if (!preview || !full) return;
     card.addEventListener('click', function() {
-      const preview = this.querySelector('.review-preview');
-      const full = this.querySelector('.review-full');
-      const arrow = this.querySelector('.detail-card-arrow');
       if (preview.style.display !== 'none') {
         preview.style.display = 'none';
         full.style.display = 'block';
@@ -438,7 +457,7 @@ function renderDetails(todayReport, vocab, errors, patterns, prog) {
         if (arrow) arrow.textContent = '›';
       }
     });
-  }
+  });
 }
 
 function isDailyReport(report) {
@@ -448,6 +467,64 @@ function isDailyReport(report) {
     c.includes('## 语法纠正') || c.includes('## 发音纠正') ||
     c.includes('## 今日生词') || c.includes('## 表现总结') ||
     c.includes('## 地道表达');
+}
+
+// ── Detail Modal: show full list when sub-card clicked ──
+let _detailModalData = null;
+function showDetailModal(label, count, tab) {
+  const container = document.getElementById('home-detail-cards');
+  const reportEl = container?.previousElementSibling;
+  // Re-fetch parsed from today's report
+  const cards = document.getElementById('home-detail-cards');
+  if (!cards) return;
+  // Get data from the report already loaded
+  const { data: { session } } = sb.auth.getSession();
+  if (!session) return;
+  sb.from('reports').select('*').order('date', { ascending: false }).limit(1).then(({ data: reports }) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const report = (reports || []).find(r => r.date === today);
+    if (!report) return;
+    const parsed = parseReport(report.content);
+    let items = [];
+    if (label === '新增单词') items = parsed.vocabulary;
+    else if (label === '地道表达') items = parsed.patterns;
+    else if (label === '核心句型') items = parsed.sentence_patterns || [];
+    else if (label === '重点纠错') items = [...(parsed.grammar || []), ...(parsed.pronunciation || [])];
+
+    let html = '';
+    if (label === '新增单词') {
+      html = items.map(v => `<div class="dm-item"><strong>${h(v.word)}</strong> ${h(v.phonetic||'')}<br><span class="text-dim">${h(v.meaning||'')}${v.example ? ' · 💬 ' + h(v.example) : ''}</span></div>`).join('');
+    } else if (label === '地道表达') {
+      html = items.map(p => `<div class="dm-item"><strong>${h(p.better)}</strong><br><span class="text-dim">代替: ${h(p.original||'')}${p.scene ? ' · 🎬 ' + h(p.scene) : ''}</span></div>`).join('');
+    } else if (label === '核心句型') {
+      html = items.map(p => `<div class="dm-item"><strong>${h(p.pattern)}</strong>${p.example ? '<br><span class="text-dim">💬 ' + h(p.example) + '</span>' : ''}</div>`).join('');
+    } else if (label === '重点纠错') {
+      html = items.map(e => `<div class="dm-item"><span class="text-red">✗</span> ${h(e.original||'')}<br><span class="text-green">✓</span> ${h(e.correction||'')}${e.rule ? ' <span class="text-ultradim">(' + h(e.rule) + ')</span>' : ''}</div>`).join('');
+    }
+
+    if (!items.length) { showToast('暂无数据'); return; }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'detail-modal-overlay';
+    overlay.innerHTML = `<div class="detail-modal">
+      <div class="detail-modal-header">
+        <span>${label} · ${count} 项</span>
+        <button class="detail-modal-close">✕</button>
+      </div>
+      <div class="detail-modal-body">${html}</div>
+      <div class="detail-modal-footer">
+        <button class="btn-primary detail-modal-goto">去${tab === 'words' ? '单词' : '口语'}页查看 ›</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('.detail-modal-close').onclick = () => overlay.remove();
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('.detail-modal-goto').onclick = () => {
+      overlay.remove();
+      document.querySelector(`.tab[data-tab=${tab}]`).click();
+    };
+  }).catch(() => showToast('加载失败'));
 }
 
 // ── Zone 4: 🐻 Bear Heatmap ───────────────────────────
@@ -971,6 +1048,9 @@ duration: [分钟数]
 - [更自然] [更地道的说法]
 - [场景] [使用场景]
 
+## 核心句型
+- [句型模板] | [例句]
+
 ## 今日生词
 - word | /phonetic/ | 释义 | 例句
 
@@ -982,6 +1062,9 @@ duration: [分钟数]
 - 准确度: X/10
 - 自然度: X/10
 - 需要加强: [需要加强的方面]
+
+## 对话想法
+- [对今天对话内容的思考和感悟]
 
 ## AI 复盘评语
 - [整体评价和建议]

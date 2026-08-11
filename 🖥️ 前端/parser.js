@@ -7,6 +7,7 @@ function parseReport(text) {
     pronunciation: [],
     grammar: [],
     patterns: [],
+    sentence_patterns: [],
     vocabulary: [],
     summary: {},
     raw: text,
@@ -54,6 +55,8 @@ function parseDailyReport(body, result) {
       result.pronunciation = parseItems(content, ['问题', '纠正']);
     } else if (header.includes('地道表达')) {
       result.patterns = parseItems(content, ['我说', '更自然', '场景']);
+    } else if (header.includes('核心句型')) {
+      result.sentence_patterns = parseSentencePatterns(content);
     } else if (header.includes('今日生词') || header.includes('生词')) {
       result.vocabulary = parseVocabulary(content);
     } else if (header.includes('表现总结') || header.includes('总结')) {
@@ -64,8 +67,27 @@ function parseDailyReport(body, result) {
       result.summary.review = content.trim();
     } else if (header.includes('下一步建议')) {
       result.summary.next_suggestions = content.trim();
+    } else if (header.includes('对话想法') || header.includes('今日心得')) {
+      result.summary.thoughts = content.trim();
     }
   }
+}
+
+function parseSentencePatterns(text) {
+  const patterns = [];
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const trimmed = line.replace(/^[-*]\s*/, '').trim();
+    if (!trimmed) continue;
+    // Format: pattern | example  OR  pattern - example
+    const parts = trimmed.split(/\s*\|\s*/);
+    if (parts.length >= 2) {
+      patterns.push({ pattern: parts[0], example: parts.slice(1).join(' | ') });
+    } else {
+      patterns.push({ pattern: trimmed, example: '' });
+    }
+  }
+  return patterns;
 }
 
 function parseTopicCard(body, result) {
