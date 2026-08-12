@@ -1103,6 +1103,7 @@ async function loadMe() {
   if (!session) return;
 
   document.getElementById('settings-email').textContent = session.user.email || '---';
+  document.getElementById('me-subtitle').textContent = session.user.email || '';
 
   const { data: cfg } = await sb.from('user_config').select('*').eq('user_id', session.user.id).maybeSingle();
   const username = cfg?.user_name || localStorage.getItem('voco-username') || '';
