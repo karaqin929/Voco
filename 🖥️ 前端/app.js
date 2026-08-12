@@ -18,6 +18,46 @@ document.querySelectorAll('.tab-bar .tab').forEach(btn => {
   });
 });
 
+// ── Smart Filter / Routing ────────────────────────────
+let _activeFilter = null;
+let _activeFilterLabel = '';
+
+// Read filter from URL on page load
+(function initFilterFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  _activeFilter = params.get('filter') || null;
+  if (_activeFilter) _activeFilterLabel = _activeFilter;
+})();
+
+function navigateToTab(tab, filter, label) {
+  if (filter) {
+    _activeFilter = filter;
+    _activeFilterLabel = label || filter;
+    window.history.replaceState({}, '', `/?tab=${tab}&filter=${encodeURIComponent(filter)}`);
+  } else {
+    _activeFilter = null;
+    _activeFilterLabel = '';
+    window.history.replaceState({}, '', '/');
+  }
+  document.querySelector(`.tab[data-tab=${tab}]`).click();
+}
+
+function clearFilter() {
+  _activeFilter = null;
+  _activeFilterLabel = '';
+  window.history.replaceState({}, '', '/');
+}
+
+// Handle browser back/forward
+window.addEventListener('popstate', () => {
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get('tab') || 'home';
+  const filter = params.get('filter') || null;
+  _activeFilter = filter;
+  _activeFilterLabel = filter || '';
+  document.querySelector(`.tab[data-tab=${tab}]`).click();
+});
+
 // ── Auth ──────────────────────────────────────────────
 let _authChecked = false;
 async function checkAuth() {
@@ -149,9 +189,9 @@ const mockDashboardData = {
     overallReview: "本次练习围绕个人成长展开，用户能够表达较复杂的观点，在描述抽象概念时展现了较好的语言组织能力。整体流利度有明显提升，但在语法细节和连接词使用上仍有优化空间。建议在下次练习中刻意关注时态一致性和逻辑连接词的运用。"
   },
   contentCards: [
-    { icon: 'pen-line', num: 4, label: '新学单词', tab: 'words', btn: '复习今日单词' },
-    { icon: 'ruler', num: 10, label: '核心句型', tab: 'speak', btn: '练习句型' },
-    { icon: 'wrench', num: 2, label: '重点纠错', tab: 'words', btn: '查看纠错' }
+    { icon: 'pen-line', num: 4, label: '新学单词', tab: 'words', btn: '复习今日单词', filter: 'today', filterLabel: '今日新词' },
+    { icon: 'ruler', num: 10, label: '核心句型', tab: 'speak', btn: '练习句型', filter: '句型', filterLabel: '核心句型' },
+    { icon: 'wrench', num: 2, label: '重点纠错', tab: 'words', btn: '查看纠错', filter: 'errors', filterLabel: '高频错词' }
   ],
   todos: [
     { text: '复习 5 个今日新单词', done: false, action: '去复习', tab: 'words' },
@@ -159,6 +199,20 @@ const mockDashboardData = {
     { text: '导入今日 ChatGPT 日报', done: true }
   ]
 };
+
+// ── Mock Patterns (for speak page demo) ─────────────────
+const mockPatterns = [
+  { id:'mp1', better:"If I were you, I'd give it a shot.", original:'If I am you, I will try.', scene:'给朋友提建议', source_topic:'条件句', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp2', better:'Had I known earlier, I would have come.', original:'If I knew earlier, I come.', scene:'表达遗憾', source_topic:'条件句', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp3', better:'I have been practicing for about three months now.', original:'I am practicing for three months.', scene:'描述持续时长', source_topic:'完成时', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp4', better:"I've been meaning to ask you about that.", original:'I want to ask you that.', scene:'正式对话开场', source_topic:'完成时', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp5', better:'However, I still struggle with pronunciation sometimes.', original:'But I still difficult with pronunciation.', scene:'使用逻辑连接词', source_topic:'连接词', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp6', better:'The more you practice, the more fluent you become.', original:'You practice more, you become more fluent.', scene:'做比较', source_topic:'比较级', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp7', better:'It depends on the context and who you\'re talking to.', original:'It depend context and who you talk.', scene:'解释细微差别', source_topic:'主谓一致', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp8', better:'I went to the store to pick up some groceries.', original:'I go to store pick up grocery.', scene:'日常叙述', source_topic:'过去时', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp9', better:'Could you tell me where the nearest subway station is?', original:'Where is subway?', scene:'礼貌问路', source_topic:'句型', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp10', better:"I'd rather stay home than go out in this weather.", original:'I prefer stay home than go out.', scene:'表达偏好', source_topic:'句型', date_added: new Date().toISOString().slice(0,10) },
+];
 
 let _homeLoading = false;
 async function loadHome() {
@@ -416,7 +470,7 @@ function showImprovementDetail(idx) {
       <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-bg)] rounded-xl">${hf(im.detail)}</div>
       <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">建议</div>
       <div class="text-sm text-[var(--c-text-dim)] leading-relaxed mb-3">在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。</div>
-      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="document.querySelector('.tab[data-tab=words]').click();this.closest('.fixed').remove()">去单词本复习相关词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>
+      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateToTab('words','errors','高频错词');this.closest('.fixed').remove()">去单词本复习相关词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -433,6 +487,14 @@ function showNextStepDetail(idx) {
   const isSpeak = /连接词|时态|语法|句型|对话|口语|表达/.test(ns.step);
   const targetTab = isVocab ? 'words' : 'speak';
   const targetLabel = isVocab ? '去单词本练习' : '去口语页练习';
+  // Derive filter from step text keywords
+  let targetFilter = ''; let targetFilterLabel = '';
+  if (isVocab) { targetFilter = 'today'; targetFilterLabel = '今日新词'; }
+  else if (/连接词|过渡词|however|therefore|moreover/i.test(ns.step)) { targetFilter = '连接词'; targetFilterLabel = '连接词'; }
+  else if (/过去时|完成时|进行时|时态/i.test(ns.step)) { targetFilter = '过去时'; targetFilterLabel = '时态'; }
+  else if (/条件|if|would|could|虚拟/i.test(ns.step)) { targetFilter = '条件句'; targetFilterLabel = '条件句'; }
+  else if (/比较|more.*than|the more/i.test(ns.step)) { targetFilter = '比较级'; targetFilterLabel = '比较级'; }
+  else { targetFilter = '句型'; targetFilterLabel = '句型练习'; }
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
   modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
@@ -444,7 +506,7 @@ function showNextStepDetail(idx) {
     <div class="px-5 py-4 overflow-y-auto">
       <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-primary-light)] rounded-xl">${h(ns.step)}</div>
       <div class="text-xs text-[var(--c-text-dim)] leading-relaxed mb-4">${icon('lightbulb','w-3.5 h-3.5 text-amber-500 inline-block mr-1')} 下次与 ChatGPT 进行口语练习时，将这条建议作为重点练习目标。练习结束后导入日报，系统会自动追踪你的进步。</div>
-      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="document.querySelector('.tab[data-tab=${targetTab}]').click();this.closest('.fixed').remove()">${targetLabel} ${icon('arrow-right','w-3.5 h-3.5')}</button>
+      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateToTab('${targetTab}','${targetFilter}','${targetFilterLabel}');this.closest('.fixed').remove()">${targetLabel} ${icon('arrow-right','w-3.5 h-3.5')}</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -457,14 +519,14 @@ function renderContentCards(todayReport, vocab, errors, patterns) {
     const p = parseReport(todayReport.content);
     const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
     cards = [
-      {icon:'pen-line',num:p.vocabulary.length,label:'新学单词',tab:'words',btn:'复习今日单词'},
-      {icon:'ruler',num:(p.sentence_patterns||[]).length,label:'核心句型',tab:'speak',btn:'练习句型'},
-      {icon:'wrench',num:allErr.length,label:'重点纠错',tab:'words',btn:'查看纠错'}
+      {icon:'pen-line',num:p.vocabulary.length,label:'新学单词',tab:'words',btn:'复习今日单词',filter:'today',filterLabel:'今日新词'},
+      {icon:'ruler',num:(p.sentence_patterns||[]).length,label:'核心句型',tab:'speak',btn:'练习句型',filter:p.meta.topic||'句型',filterLabel:p.meta.topic||'句型练习'},
+      {icon:'wrench',num:allErr.length,label:'重点纠错',tab:'words',btn:'查看纠错',filter:'errors',filterLabel:'高频错词'}
     ].filter(c=>c.num>0);
   }
   if(!cards.length){ container.innerHTML=''; return; }
   container.innerHTML = cards.map(c=>`
-    <div class="flex-1 bg-[var(--c-surface)] rounded-2xl px-2.5 py-3.5 text-center cursor-pointer transition-all duration-150 border border-[var(--c-border-light)] active:scale-[0.96] active:bg-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" onclick="document.querySelector('.tab[data-tab=${c.tab}]').click()">
+    <div class="flex-1 bg-[var(--c-surface)] rounded-2xl px-2.5 py-3.5 text-center cursor-pointer transition-all duration-150 border border-[var(--c-border-light)] active:scale-[0.96] active:bg-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" onclick="navigateToTab('${c.tab}','${c.filter||''}','${c.filterLabel||''}')">
       <div class="flex justify-center mb-1">${icon(c.icon,'w-[22px] h-[22px] text-[var(--c-primary)]')}</div>
       <div class="text-[22px] font-extrabold text-[var(--c-primary)]">${c.num}</div>
       <div class="text-[11px] text-[var(--c-text-dim)] mt-0.5">${c.label}</div>
@@ -482,8 +544,8 @@ function renderTodoList(todayReport, vocab, errors, reports, streak) {
   const reviewedToday = (vocab||[]).filter(v=>v.last_reviewed_at&&v.last_reviewed_at.slice(0,10)===today).length;
   todos = [
     {text:'导入今日日报',sub:hasTodayReport?'已完成':'把 ChatGPT 练习报告粘贴进来',done:hasTodayReport,action:hasTodayReport?null:()=>{showImportDialog();},tab:null},
-    {text:'复习 5 个单词',sub:reviewedToday>=5?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/5`,done:reviewedToday>=5,action:()=>{document.querySelector('.tab[data-tab=words]').click();},tab:'words'},
-    {text:'完成一次口语练习',sub:hasTodayReport?'今天练习过了！':'打开 ChatGPT 开口说英语',done:hasTodayReport,action:hasTodayReport?null:()=>{document.querySelector('.tab[data-tab=speak]').click();},tab:'speak'}
+    {text:'复习 5 个单词',sub:reviewedToday>=5?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/5`,done:reviewedToday>=5,action:()=>{navigateToTab('words','today','今日新词');},tab:'words'},
+    {text:'完成一次口语练习',sub:hasTodayReport?'今天练习过了！':'打开 ChatGPT 开口说英语',done:hasTodayReport,action:hasTodayReport?null:()=>{navigateToTab('speak');},tab:'speak'}
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -770,7 +832,12 @@ async function loadWords() {
 
   document.getElementById('words-content').innerHTML = LoadingState();
 
-  const { data: vocab } = await sb.from('vocabulary').select('*').order('created_at', { ascending: false });
+  const [{ data: vocab }, { data: errors }] = await Promise.all([
+    sb.from('vocabulary').select('*').order('created_at', { ascending: false }),
+    sb.from('errors').select('*')
+  ]);
+  _errorsAll = errors || [];
+
   // Deduplicate by word — keep most recent entry (first in desc order)
   const seen = new Map();
   _wordsAll = (vocab || []).filter(v => {
@@ -796,12 +863,72 @@ async function loadWords() {
     entry.style.display = 'none';
   }
 
-  // Vocab list
-  renderVocabList(_wordsAll);
+  // Determine active filter from URL/state
+  const mode = _activeFilter || 'all';
+  _wordsFilter = mode;
+  renderWordsSubTabs(mode);
+  renderVocabList(getFilteredVocab(_wordsAll, mode));
 }
 
 // ── Words list ─────────────────────────────────────────
 let _wordsAll = [];
+let _errorsAll = [];
+let _wordsFilter = 'all';
+
+// ── Words sub-tab helpers ────────────────────────────
+function renderWordsSubTabs(activeMode) {
+  const el = document.getElementById('words-subtabs');
+  el.style.display = 'flex';
+  const today = new Date().toISOString().slice(0,10);
+  const todayCount = _wordsAll.filter(v => v.date_added === today).length;
+  // Cross-reference errors with vocab
+  const errWords = new Set();
+  _errorsAll.forEach(e => {
+    const text = ((e.original||'') + ' ' + (e.correction||'')).toLowerCase();
+    _wordsAll.forEach(v => { if (text.includes(v.word.toLowerCase())) errWords.add(v.word.toLowerCase()); });
+  });
+  const errorCount = errWords.size;
+  const tabs = [
+    { key:'all', label:'全部词库', count:_wordsAll.length },
+    { key:'today', label:'今日新词', count:todayCount },
+    { key:'errors', label:'高频错词', count:errorCount },
+  ];
+  el.innerHTML = tabs.map(t =>
+    `<span class="lib-subtab${t.key===activeMode?' active':''}" data-words-filter="${t.key}" onclick="switchWordsView('${t.key}')">${t.label}<small style="opacity:0.6;margin-left:3px">${t.count}</small></span>`
+  ).join('');
+}
+
+function switchWordsView(mode) {
+  _wordsFilter = mode;
+  if (mode === 'all') {
+    clearFilter();
+  } else {
+    const labels = { today:'今日新词', errors:'高频错词' };
+    navigateToTab('words', mode, labels[mode]||mode);
+    return; // navigateToTab already triggers tab click → loadWords
+  }
+  renderWordsSubTabs('all');
+  renderVocabList(_wordsAll);
+}
+
+function getFilteredVocab(items, mode) {
+  const today = new Date().toISOString().slice(0,10);
+  if (mode === 'today') return items.filter(v => v.date_added === today);
+  if (mode === 'errors') {
+    const errWords = new Set();
+    _errorsAll.forEach(e => {
+      const text = ((e.original||'') + ' ' + (e.correction||'')).toLowerCase();
+      items.forEach(v => { if (text.includes(v.word.toLowerCase())) errWords.add(v.word.toLowerCase()); });
+    });
+    return items.filter(v => errWords.has(v.word.toLowerCase()));
+  }
+  return items;
+}
+
+function clearWordsFilter() {
+  _wordsFilter = 'all';
+  document.getElementById('words-subtabs').style.display = 'none';
+}
 function renderVocabList(items) {
   const container = document.getElementById('words-content');
   const q = (document.getElementById('words-search')?.value || '').trim().toLowerCase();
@@ -991,8 +1118,23 @@ async function markMastered(id) {
 async function loadSpeak() {
   document.getElementById('speak-content').innerHTML = LoadingState();
   const { data: patterns } = await sb.from('patterns').select('*').order('created_at', { ascending: false });
-  _speakAll = patterns || [];
-  renderSpeakList(_speakAll);
+  _speakAll = (patterns && patterns.length) ? patterns : mockPatterns;
+
+  // Apply filter from URL or global state
+  if (_activeFilter) {
+    const label = decodeURIComponent(_activeFilterLabel || _activeFilter);
+    showSpeakFilterBar(label);
+    const q = _activeFilter.toLowerCase();
+    const filtered = _speakAll.filter(p =>
+      (p.source_topic || '').toLowerCase().includes(q) ||
+      (p.better || '').toLowerCase().includes(q) ||
+      (p.scene || '').toLowerCase().includes(q)
+    );
+    renderSpeakFocused(filtered, _activeFilter);
+  } else {
+    hideSpeakFilterBar();
+    renderSpeakList(_speakAll);
+  }
 }
 
 let _speakAll = [];
@@ -1018,6 +1160,57 @@ function renderSpeakList(items) {
       </div>
     </div>
   `).join('');
+}
+
+// ── Speak Focus Mode ──────────────────────────────────
+function showSpeakFilterBar(label) {
+  const bar = document.getElementById('speak-filter-bar');
+  document.getElementById('speak-filter-label').textContent = `正在专注练习：${label}`;
+  bar.classList.remove('hidden');
+  // Hide search bar in focus mode
+  const searchWrap = document.querySelector('#tab-speak .lib-search-wrap');
+  if (searchWrap) searchWrap.style.display = 'none';
+  refreshIcons(bar);
+}
+
+function hideSpeakFilterBar() {
+  const bar = document.getElementById('speak-filter-bar');
+  if (bar) bar.classList.add('hidden');
+  const searchWrap = document.querySelector('#tab-speak .lib-search-wrap');
+  if (searchWrap) searchWrap.style.display = '';
+}
+
+function clearSpeakFilter() {
+  _activeFilter = null;
+  _activeFilterLabel = '';
+  window.history.replaceState({}, '', '/');
+  loadSpeak();
+}
+
+function renderSpeakFocused(items, filterKey) {
+  const container = document.getElementById('speak-content');
+  if (!items.length) {
+    container.innerHTML = EmptyState({ message: `没有"${filterKey}"相关的表达`, size: 80 });
+    return;
+  }
+
+  container.innerHTML = items.map((p, i) => `
+    <div class="bg-[var(--c-surface)] rounded-2xl p-5 mb-4 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${i*0.04}s;box-shadow:var(--c-shadow-sm)">
+      <div class="font-[Georgia,serif] text-[21px] italic text-[var(--c-text)] leading-[1.6] mb-3">${h(p.better)}</div>
+      <div class="text-[13px] text-[var(--c-text-dim)] mb-1">代替：${h(p.original)}</div>
+      ${p.scene ? `<div class="text-[12px] text-[var(--c-text-ultradim)] mb-3">🎬 ${h(p.scene)}</div>` : '<div class="mb-3"></div>'}
+      ${p.source_topic ? `<span class="inline-block px-2.5 py-0.5 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-[10px] font-medium mb-3">${h(p.source_topic)}</span>` : ''}
+      <div class="flex gap-3 pt-3 border-t border-[var(--c-border-light)]">
+        <button class="flex-1 inline-flex items-center justify-center gap-1.5 py-3 bg-[var(--c-blue-light)] text-[var(--c-blue)] border-0 rounded-xl text-[13px] font-semibold cursor-pointer active:scale-[0.97] transition-transform" onclick="speakWord('${h(p.better).replace(/'/g, "\\'")}');event.stopPropagation()">
+          ${icon('volume-2','w-4 h-4')} 听发音
+        </button>
+        <button class="flex-[1.5] inline-flex items-center justify-center gap-1.5 py-3 bg-[var(--c-primary)] text-white border-0 rounded-xl text-[13px] font-bold cursor-pointer active:scale-[0.97] transition-transform" onclick="startShadowFromSpeak();event.stopPropagation()">
+          ${icon('mic','w-4 h-4')} 跟读
+        </button>
+      </div>
+    </div>
+  `).join('');
+  refreshIcons(container);
 }
 
 // ── Shadow Speaking ────────────────────────────────────
@@ -1849,7 +2042,7 @@ document.querySelectorAll('#font-size-toggle button').forEach(b => {
 });
 
 // Search
-document.getElementById('words-search')?.addEventListener('input', () => renderVocabList(_wordsAll));
+document.getElementById('words-search')?.addEventListener('input', () => renderVocabList(getFilteredVocab(_wordsAll, _wordsFilter)));
 document.getElementById('speak-search')?.addEventListener('input', () => renderSpeakList(_speakAll));
 
 // Words SRS review

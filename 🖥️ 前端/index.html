@@ -240,7 +240,7 @@
       <span class="lib-search-icon">🔍</span>
       <input id="words-search" class="lib-search" type="text" placeholder="搜索单词...">
     </div>
-    <div class="lib-subtabs" id="words-subtabs" style="display:none;"></div>
+    <div class="lib-subtabs" id="words-subtabs"></div>
     <div id="words-content" class="loading">加载中...</div>
   </section>
 
@@ -282,6 +282,17 @@
       <input id="speak-search" class="lib-search" type="text" placeholder="搜索表达...">
     </div>
     <div class="lib-subtabs" id="speak-subtabs" style="display:none;"></div>
+
+    <!-- Focus mode filter bar (hidden by default, shown when filter active) -->
+    <div id="speak-filter-bar" class="hidden flex items-center justify-between bg-[var(--c-primary-light)] rounded-2xl px-4 py-2.5 mb-3 border-l-[3px] border-l-[var(--c-primary)]">
+      <span class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--c-text)]">
+        <i data-lucide="target" class="w-4 h-4 text-[var(--c-primary)]"></i>
+        <span id="speak-filter-label">专注模式</span>
+      </span>
+      <button onclick="clearSpeakFilter()" class="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--c-primary)] bg-transparent border border-[var(--c-primary)] rounded-full px-3 py-1 cursor-pointer hover:bg-[var(--c-primary)]/10 transition-colors">
+        <i data-lucide="x" class="w-3 h-3"></i> 退出专注
+      </button>
+    </div>
     <div id="speak-content" class="loading">加载中...</div>
   </section>
 
