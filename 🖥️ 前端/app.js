@@ -10,6 +10,13 @@ document.querySelectorAll('.tab-bar .tab').forEach(btn => {
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
 
+    // Clear global filter on manual tab switches (not programmatic navigateToTab)
+    if (!_navigatingViaProgram) {
+      _activeFilter = null;
+      _activeFilterLabel = '';
+      if (window.location.search) window.history.replaceState({}, '', '/');
+    }
+
     const t = btn.dataset.tab;
     if (t === 'home') loadHome();
     else if (t === 'words') loadWords();
@@ -21,6 +28,7 @@ document.querySelectorAll('.tab-bar .tab').forEach(btn => {
 // ── Smart Filter / Routing ────────────────────────────
 let _activeFilter = null;
 let _activeFilterLabel = '';
+let _navigatingViaProgram = false;  // guards against state pollution from programmatic tab switches
 
 // Read filter from URL on page load
 (function initFilterFromURL() {
@@ -39,7 +47,9 @@ function navigateToTab(tab, filter, label) {
     _activeFilterLabel = '';
     window.history.replaceState({}, '', '/');
   }
+  _navigatingViaProgram = true;
   document.querySelector(`.tab[data-tab=${tab}]`).click();
+  _navigatingViaProgram = false;
 }
 
 function clearFilter() {
@@ -55,7 +65,9 @@ window.addEventListener('popstate', () => {
   const filter = params.get('filter') || null;
   _activeFilter = filter;
   _activeFilterLabel = filter || '';
+  _navigatingViaProgram = true;
   document.querySelector(`.tab[data-tab=${tab}]`).click();
+  _navigatingViaProgram = false;
 });
 
 // ── Auth ──────────────────────────────────────────────
@@ -997,15 +1009,14 @@ function renderWordsSubTabs(activeMode) {
 
 function switchWordsView(mode) {
   _wordsFilter = mode;
+  // Update URL without touching global _activeFilter (state isolation)
   if (mode === 'all') {
-    clearFilter();
+    window.history.replaceState({}, '', '/?tab=words');
   } else {
-    const labels = { today:'今日新词', errors:'高频错词' };
-    navigateToTab('words', mode, labels[mode]||mode);
-    return; // navigateToTab already triggers tab click → loadWords
+    window.history.replaceState({}, '', `/?tab=words&wordsView=${mode}`);
   }
-  renderWordsSubTabs('all');
-  renderVocabList(_wordsAll);
+  renderWordsSubTabs(mode);
+  renderVocabList(getFilteredVocab(_wordsAll, mode));
 }
 
 function getFilteredVocab(items, mode) {
