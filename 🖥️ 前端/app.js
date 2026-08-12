@@ -95,7 +95,7 @@ const ICO_MIC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" str
 const ICO_REPEAT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>';
 
 // ═══════════════════════════════════════════════════════
-// TAB 1: HOME (v4.0 Dashboard — 5 Blocks)
+// TAB 1: HOME (v4.0.1 Dashboard — 5 Blocks)
 // ═══════════════════════════════════════════════════════
 async function loadHome() {
   const { data: { session } } = await sb.auth.getSession();
@@ -407,6 +407,8 @@ function calcStreak(dates) {
 
 // ── Zone 3: Report Details (5 cards — learning-flow order) ──
 function renderDetails(todayReport, vocab, errors, patterns, prog) {
+  // [deprecated v4.0] replaced by 5-block dashboard (renderMetricsGrid + renderInsights + renderSummaryCards)
+  return;
   const container = document.getElementById('home-detail-cards');
   if (!todayReport || !isDailyReport(todayReport)) { container.style.display = 'none'; return; }
   container.style.display = 'block';
@@ -537,9 +539,11 @@ function isDailyReport(report) {
     c.includes('## 地道表达');
 }
 
-// ── Detail Modal: show full list when sub-card clicked ──
-let _detailModalData = null;
+// ── Detail Modal [deprecated v4.0] ──
+let _detailModalData = null; // [deprecated v4.0]
 function showDetailModal(label, count, tab) {
+  // [deprecated v4.0] detail modal system replaced by 5-block dashboard + tab navigation
+  return;
   const container = document.getElementById('home-detail-cards');
   const reportEl = container?.previousElementSibling;
   // Re-fetch parsed from today's report
@@ -597,6 +601,8 @@ function showDetailModal(label, count, tab) {
 
 // ── Zone 4: 🐻 Bear Heatmap ───────────────────────────
 function renderBearHeatmap(vocab, reports) {
+  // [deprecated v4.0] full heatmap replaced by header mini-bears (renderHeaderBears)
+  return;
   const container = document.getElementById('bear-heatmap');
   const dateScore = {};
 
@@ -1247,7 +1253,7 @@ async function importDailyReport(parsed) {
     }
   }
 
-  document.getElementById('import-result').innerHTML =
+  document.getElementById('dialog-import-result').innerHTML =
     `<span class="toast-success">✅ 入库完成！单词 ${parsed.vocabulary.length} · 纠错 ${allErrors.length} · 句型 ${parsed.patterns.length}</span>`;
 }
 
@@ -1267,7 +1273,7 @@ async function importTopicCard(parsed) {
       example: v.example || '', date_added: new Date().toISOString().slice(0, 10), source_topic: title, status: 'new'
     })));
   }
-  document.getElementById('import-result').innerHTML = `<span class="toast-success">✅ 话题「${h(title)}」已添加！词汇 ${parsed.vocabulary.length} 个</span>`;
+  document.getElementById('dialog-import-result').innerHTML = `<span class="toast-success">✅ 话题「${h(title)}」已添加！词汇 ${parsed.vocabulary.length} 个</span>`;
 }
 
 async function importInsightReport(parsed) {
@@ -1275,7 +1281,7 @@ async function importInsightReport(parsed) {
   await sb.from('reports').upsert({
     user_id: session.user.id, date: new Date().toISOString().slice(0, 10), content: parsed.raw
   }, { onConflict: 'user_id,date' });
-  document.getElementById('import-result').innerHTML = '<span class="toast-success">✅ 分析报告已保存！</span>';
+  document.getElementById('dialog-import-result').innerHTML = '<span class="toast-success">✅ 分析报告已保存！</span>';
 }
 
 function detectErrorPattern(original, correction) {
@@ -1451,11 +1457,13 @@ function speakWord(text) {
 }
 
 // ═══════════════════════════════════════════════════════
-// Practice Flow
+// Practice Flow [deprecated v4.0 — replaced by import dialog + tab-based navigation]
 // ═══════════════════════════════════════════════════════
 let _flowStep = 0;
 
 function renderFlowStep() {
+  // [deprecated v4.0]
+  return;
   const steps = ['选择话题', '练习准备', '开始练习', '导入报告'];
   const flowContainer = document.getElementById('practice-flow');
   if (!flowContainer) return;
@@ -1545,14 +1553,14 @@ function renderFlowStep() {
   }
 }
 
-async function loadTopicsForFlow() {
+async function loadTopicsForFlow() { return; // [deprecated v4.0]
   const { data: topics } = await sb.from('topics').select('*').order('created_at', { ascending: false });
   const sel = document.getElementById('flow-topic-select');
   if (!sel) return;
   sel.innerHTML = '<option value="">选择话题...</option>' + (topics || []).map(t => `<option value="${t.id}">${h(t.title)}</option>`).join('');
 }
 
-async function showFlowPreview(topicId) {
+async function showFlowPreview(topicId) { return; // [deprecated v4.0]
   const { data: topic } = await sb.from('topics').select('*').eq('id', topicId).single();
   if (!topic) return;
   const { data: vocab } = await sb.from('vocabulary').select('*').or(`source_topic.ilike.%${topic.title}%`);
@@ -1566,7 +1574,7 @@ async function showFlowPreview(topicId) {
     <div style="margin-top:12px;font-size:13px;color:var(--primary);">💪 用英语描述你与 "${h(topic.title)}" 相关的经历</div>`;
 }
 
-function renderCompletion() {
+function renderCompletion() { return; // [deprecated v4.0]
   const flowContainer = document.getElementById('practice-flow');
   if (!flowContainer) return;
   flowContainer.innerHTML = `
@@ -1700,5 +1708,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=24');
+  navigator.serviceWorker.register('/sw.js?v=25');
 }
