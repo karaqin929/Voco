@@ -269,6 +269,14 @@ def bear_default():
 def bear_active():
     return FileResponse(os.path.join(FRONTEND_DIR, "bear-active.png"))
 
+@app.get("/bear-head-active.png")
+def bear_head_active():
+    return FileResponse(os.path.join(FRONTEND_DIR, "bear-head-active.png"))
+
+@app.get("/bear-head-default.png")
+def bear_head_default():
+    return FileResponse(os.path.join(FRONTEND_DIR, "bear-head-default.png"))
+
 @app.get("/icon.png")
 def icon_png():
     return FileResponse(os.path.join(FRONTEND_DIR, "icon.png"))
