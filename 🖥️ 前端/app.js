@@ -528,7 +528,7 @@ function renderBearHeatmap(vocab, reports) {
 
   container.innerHTML = days.map(d => `
     <div class="bear-day" title="${d.date}${d.active ? ' · 已练习' : ''}" onclick="showBearDay('${d.date}',${d.active})">
-      <img class="bear-img" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" loading="lazy"
+      <img class="bear-img${d.active ? '' : ' bear-img-default'}" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" loading="lazy"
         onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=display:flex;align-items:center;justify-content:center;width:36px;height:36px;min-width:36px;min-height:36px;border-radius:50%;background:var(--border-light);font-size:18px>${d.active ? '🐻' : '🌱'}</span>')" />
       <span class="bear-date">${d.month}/${d.day}</span>
     </div>
@@ -1559,5 +1559,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=17');
+  navigator.serviceWorker.register('/sw.js?v=18');
 }
