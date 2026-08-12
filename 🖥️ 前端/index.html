@@ -11,7 +11,8 @@
   <link rel="apple-touch-icon" href="/icon.png">
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=25">
+  <link rel="preload" href="/bear-head-active.png" as="image">
+  <link rel="stylesheet" href="/style.css?v=26">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     /* Splash screen — covers Render cold-start / white-screen gap */
@@ -203,7 +204,7 @@
     <!-- Profile card -->
     <div class="me-profile">
       <div class="me-avatar">
-        <img class="me-avatar-img" src="/bear-default.png" alt="avatar"
+        <img class="me-avatar-img" src="/bear-head-active.png" alt="avatar"
           onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=me-avatar-fallback>🐻</span>')">
       </div>
       <div class="me-name" id="me-name">---</div>
@@ -294,7 +295,7 @@
 
     <div class="settings-footer">
       <span>Voco</span>
-      <span class="settings-version">v4.0.1</span>
+      <span class="settings-version">v4.0.2</span>
     </div>
   </section>
 
@@ -329,8 +330,8 @@
   </nav>
 </div>
 
-<script src="/supabase-client.js?v=25"></script>
-<script src="/parser.js?v=25"></script>
-<script src="/app.js?v=25"></script>
+<script src="/supabase-client.js?v=26"></script>
+<script src="/parser.js?v=26"></script>
+<script src="/app.js?v=26"></script>
 </body>
 </html>
