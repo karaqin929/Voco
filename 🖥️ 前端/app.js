@@ -192,8 +192,8 @@ async function loadHome() {
   renderHeaderBears(vList, rList, _viewDate);
   renderHistoryBanner(activeReport, activeDate);
 
-  // Section 2: Quote
-  renderQuoteCard();
+  // Section 2: Streak / Check-in Card
+  renderStreakCard(streak, todayReport, vList, rList);
 
   // Section 3: Metrics
   renderMetricsOverview(activeReport, vList, eList, pList, prog);
@@ -256,18 +256,71 @@ function showBearDay(date, active) {
   _viewDate = date; loadHome();
 }
 
-// ── Section 2: Quote Card ───────────────────────────────
-function renderQuoteCard() {
-  const q = mockDashboardData.quote;
+// ── Section 2: Streak / Check-in Card ───────────────────
+function renderStreakCard(streak, todayReport, vocab, reports) {
   const el = document.getElementById('home-quote');
+  const today = new Date().toISOString().slice(0,10);
+  const hasToday = !!todayReport;
+
+  // 7-day bear strip (Mon–Sun of current week)
+  const dateScore = {};
+  (vocab||[]).forEach(v => { if(v.date_added) dateScore[v.date_added] = (dateScore[v.date_added]||0)+2; });
+  (reports||[]).forEach(r => { if(r.date && isDailyReport(r)) dateScore[r.date] = (dateScore[r.date]||0)+5; });
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // days back to Monday
+  const monday = new Date(now); monday.setDate(monday.getDate() + mondayOffset);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday); d.setDate(d.getDate() + i);
+    const ds = d.toISOString().slice(0,10);
+    days.push({ date: ds, month: d.getMonth()+1, day: d.getDate(), active: !!dateScore[ds], isToday: ds === today });
+  }
+
+  // Motivational message based on streak
+  const quotes = [
+    { min: 30, text: '太厉害了！一个月不间断打卡！' },
+    { min: 14, text: '两周打卡，习惯正在养成！' },
+    { min: 7, text: '一周了！说英语越来越自然了' },
+    { min: 3, text: '坚持就是胜利，小熊为你骄傲！' },
+    { min: 1, text: '好的开始是成功的一半！' },
+    { min: 0, text: '今天开始也不晚，小熊在等你 🐻' },
+  ];
+  const msg = quotes.find(q => streak >= q.min)?.text || quotes[quotes.length-1].text;
+
   el.innerHTML = `
-    <div class="flex justify-between items-start mb-2">
-      <span class="inline-flex items-center gap-1 text-[10px] font-semibold tracking-wider text-[var(--c-text-ultradim)] uppercase">${icon('book-open','w-3 h-3')} ${q.category} · 每日发音短句</span>
-      <span class="text-[var(--c-text-ultradim)] cursor-pointer" onclick="renderQuoteCard()" title="换一句">${icon('refresh-cw','w-3.5 h-3.5')}</span>
+    <div class="flex justify-between items-start mb-3">
+      <span class="inline-flex items-center gap-1.5">
+        <span class="text-xl leading-none">🐻</span>
+        <span class="text-[10px] font-semibold tracking-wider text-[var(--c-text-ultradim)] uppercase">${hasToday ? '今日已打卡' : '本周打卡日历'}</span>
+        ${streak > 0 ? `<span class="inline-flex items-center gap-0.5 text-[11px] font-bold text-emerald-500 ml-1">${icon('flame','w-3.5 h-3.5')}${streak}天</span>` : ''}
+      </span>
+      ${hasToday
+        ? `<span class="inline-flex items-center gap-1 text-[11px] text-emerald-500 font-semibold">${icon('check-circle-2','w-3.5 h-3.5')}已打卡</span>`
+        : `<span onclick="showImportDialog()" class="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--c-primary)] cursor-pointer hover:opacity-80 transition-opacity">${icon('upload','w-3.5 h-3.5')}去打卡</span>`
+      }
     </div>
-    <div class="font-[Georgia,serif] text-lg italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(q.en)}"</div>
-    <div class="text-[13px] text-[var(--c-text-dim)] mb-0.5">${h(q.zh)}</div>
-    <div class="text-[11px] text-[var(--c-text-ultradim)]">— ${h(q.author)}</div>`;
+
+    <!-- 7-day bear strip -->
+    <div class="flex justify-between items-end mb-3 px-1">
+      ${days.map(d => `
+        <div class="flex flex-col items-center gap-1 ${d.isToday ? 'relative' : ''}" style="min-width:34px">
+          ${d.isToday ? '<div class="absolute -top-1 left-1/2 -translate-x-1/2 w-[38px] h-[38px] rounded-xl bg-[var(--c-primary-light)] -z-0"></div>' : ''}
+          <span class="text-[22px] leading-none ${d.active ? '' : 'grayscale opacity-40'} relative z-10">${d.active ? '🐻' : '🌱'}</span>
+          <span class="text-[9px] ${d.isToday ? 'text-[var(--c-primary)] font-bold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Status + motivational -->
+    <div class="flex items-center gap-2 pt-2 border-t border-[var(--c-border-light)]">
+      <span class="text-[13px] ${hasToday ? 'text-[var(--c-text-dim)]' : 'text-amber-500'}">
+        ${hasToday
+          ? `${icon('sparkles','w-3.5 h-3.5 inline text-amber-400')} ${msg}`
+          : `${icon('alert-circle','w-3.5 h-3.5 inline')} 别忘了导入今天的日报哦～`
+        }
+      </span>
+    </div>`;
   refreshIcons(el);
 }
 
@@ -282,10 +335,10 @@ function renderMetricsOverview(todayReport, vocab, errors, patterns, prog) {
     return;
   }
   const parsed = parseReport(todayReport.content);
-  const fluency = parsed.summary.fluency||0;
-  const accuracy = parsed.summary.accuracy||0;
-  const natural = parsed.summary.naturalness||Math.round(fluency*0.8)||0;
-  const vocabScore = Math.min(parsed.vocabulary.length*2,10);
+  const fluency = Math.min((parsed.summary.fluency||0) * 10, 100);
+  const accuracy = Math.min((parsed.summary.accuracy||0) * 10, 100);
+  const natural = Math.min((parsed.summary.naturalness||Math.round((parsed.summary.fluency||0)*0.8)) * 10, 100);
+  const vocabScore = Math.min(parsed.vocabulary.length * 20, 100);
   const overall = Math.round((fluency+accuracy+natural+vocabScore)/4);
   const duration = parsed.meta.duration||(prog?.total_minutes||0);
   const speakTime = Math.round(duration*0.6);
@@ -327,8 +380,8 @@ function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natur
 }
 
 function metricsDonut(score) {
-  const r=34,cx=44,cy=44,sw=8,circ=2*Math.PI*r,len=(score/10)*circ;
-  const color=score>=7?'var(--c-green)':score>=4?'var(--c-orange)':'var(--c-red)';
+  const r=34,cx=44,cy=44,sw=8,circ=2*Math.PI*r,len=(score/100)*circ;
+  const color=score>=70?'var(--c-green)':score>=40?'var(--c-orange)':'var(--c-red)';
   return `<svg viewBox="0 0 88 88" width="88" height="88"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--c-border-light)" stroke-width="${sw}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${len} ${circ-len}" stroke-dashoffset="0" transform="rotate(-90 44 44)" stroke-linecap="round"/></svg><div class="absolute inset-0 flex items-center justify-center text-[26px] font-extrabold text-[var(--c-text)]">${score}</div>`;
 }
 
@@ -363,7 +416,7 @@ function renderInsightsSection(todayReport) {
   // Card E: Next Steps — contextual action per suggestion
   html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 下一次学习建议</div>${d.nextSteps.map((ns,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0 cursor-pointer active:bg-[var(--c-border-light)] -mx-4 px-4 transition-colors" onclick="showNextStepDetail(${i})"><div class="flex items-start gap-2.5 flex-1 min-w-0"><div class="w-[22px] h-[22px] rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] text-xs font-bold flex items-center justify-center shrink-0">${i+1}</div><div class="text-[13px] text-[var(--c-text)] leading-[1.5] line-clamp-2">${h(ns.step)}</div></div><div class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 rounded-2xl whitespace-nowrap transition-all duration-150">${h(ns.action)} ${icon('arrow-right','w-3 h-3')}</div></div>`).join('')}`);
   // Card F: Overall Review — system font, same as rest of dashboard
-  html += cardBg(0.18, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2">${icon('brain','w-3.5 h-3.5')} AI 陪练复盘</div><div class="text-[15px] text-[var(--c-text)] leading-[1.8]">${h(d.overallReview)}</div>`);
+  html += cardBg(0.18, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2">${icon('brain','w-3.5 h-3.5')} AI 陪练复盘</div><div class="text-[15px] text-[var(--c-text)] leading-[1.8]">${hf(d.overallReview)}</div>`);
 
   container.innerHTML = html;
   refreshIcons(container);
@@ -387,7 +440,7 @@ function showImprovementDetail(idx) {
     </div>
     <div class="px-5 py-4 overflow-y-auto">
       <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">问题详情</div>
-      <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-bg)] rounded-xl">${h(im.detail)}</div>
+      <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-bg)] rounded-xl">${hf(im.detail)}</div>
       <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">建议</div>
       <div class="text-sm text-[var(--c-text-dim)] leading-relaxed mb-3">在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。</div>
       <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="document.querySelector('.tab[data-tab=words]').click();this.closest('.fixed').remove()">去单词本复习相关词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>
@@ -745,7 +798,14 @@ async function loadWords() {
   document.getElementById('words-content').innerHTML = LoadingState();
 
   const { data: vocab } = await sb.from('vocabulary').select('*').order('created_at', { ascending: false });
-  _wordsAll = vocab || [];
+  // Deduplicate by word — keep most recent entry (first in desc order)
+  const seen = new Map();
+  _wordsAll = (vocab || []).filter(v => {
+    const key = (v.word || '').toLowerCase().trim();
+    if (seen.has(key)) return false;
+    seen.set(key, true);
+    return true;
+  });
 
   // SRS review entry
   const dueCount = _wordsAll.filter(v => {
@@ -1751,6 +1811,7 @@ function LoadingState({ message = 'Voco小熊正一路小跑赶来...', size = 8
 // Helpers
 // ═══════════════════════════════════════════════════════
 function h(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function hf(s) { return h(s).replace(/\n/g, '<br>'); }
 
 // ── Lucide Icon Helper (data-lucide → SVG via CDN) ──────
 function icon(name, cls = '') {
