@@ -19,7 +19,10 @@ document.querySelectorAll('.tab-bar .tab').forEach(btn => {
 });
 
 // ── Auth ──────────────────────────────────────────────
+let _authChecked = false;
 async function checkAuth() {
+  if (_authChecked) return; // prevent double-fire from onAuthStateChange + manual call
+  _authChecked = true;
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     document.getElementById('login-screen').style.display = 'none';
@@ -33,6 +36,7 @@ async function checkAuth() {
     document.getElementById('app-main').style.display = 'none';
     document.getElementById('voco-loading').style.display = 'none';
   }
+  _authChecked = false;
 }
 
 async function signIn() {
@@ -59,7 +63,7 @@ async function sendMagicLink() {
   }
 }
 
-async function signOut() { await sb.auth.signOut(); checkAuth(); }
+async function signOut() { _authChecked = false; await sb.auth.signOut(); checkAuth(); }
 
 // ── Config ─────────────────────────────────────────────
 let APP_NAME = 'Voco';
@@ -86,7 +90,14 @@ document.getElementById('setting-username').addEventListener('input', function()
       await sb.from('user_config').upsert({ user_id: session.user.id, user_name: val }, { onConflict: 'user_id' });
     }
   }, 800);
-  loadHome(); // refresh greeting in real-time
+  // Only update greeting text inline — don't reload entire dashboard
+  const name = val || '';
+  const el = document.getElementById('greeting-text');
+  if (el) {
+    const hour = new Date().getHours();
+    let g; if (hour < 6) g = '夜深了'; else if (hour < 12) g = '早上好'; else if (hour < 14) g = '中午好'; else if (hour < 18) g = '下午好'; else g = '晚上好';
+    el.textContent = name ? `${g}，${name}！` : `${g}！`;
+  }
 });
 
 // ── Icon SVGs (Feather-style, inherit currentColor) ──────
@@ -149,9 +160,12 @@ const mockDashboardData = {
   ]
 };
 
+let _homeLoading = false;
 async function loadHome() {
+  if (_homeLoading) return;
+  _homeLoading = true;
   const { data: { session } } = await sb.auth.getSession();
-  if (!session) return;
+  if (!session) { _homeLoading = false; return; }
 
   const [{ data: vocab }, { data: errors }, { data: prog }, { data: reports }, { data: patterns }] = await Promise.all([
     sb.from('vocabulary').select('*'),
@@ -190,6 +204,7 @@ async function loadHome() {
   // Section 5: Content Cards + Todos
   renderContentCards(activeReport, vList, eList, pList);
   renderTodoList(todayReport, vList, eList, rList, streak);
+  _homeLoading = false;
 }
 
 // ── Section 1: Header ───────────────────────────────────
@@ -1685,10 +1700,20 @@ function h(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 function icon(name, cls = '') {
   return `<i data-lucide="${name}" class="${cls}"></i>`;
 }
+let _iconsTimer = null;
+let _iconsPending = new Set();
 function refreshIcons(el) {
-  if (typeof lucide !== 'undefined' && lucide.createIcons) {
-    lucide.createIcons({ root: el });
-  }
+  if (typeof lucide === 'undefined' || !lucide.createIcons) return;
+  if (el) _iconsPending.add(el);
+  clearTimeout(_iconsTimer);
+  _iconsTimer = setTimeout(() => {
+    if (_iconsPending.size) {
+      _iconsPending.forEach(e => lucide.createIcons({ root: e }));
+      _iconsPending.clear();
+    } else {
+      lucide.createIcons();
+    }
+  }, 32);
 }
 
 function showToast(msg) {
