@@ -291,7 +291,7 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
   el.innerHTML = `
     <div class="flex justify-between items-start mb-3">
       <span class="inline-flex items-center gap-1.5">
-        <span class="text-xl leading-none">🐻</span>
+        <img src="/bear-head-active.png" class="w-7 h-7 object-contain" alt="bear" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-xl>🐻</span>')" />
         <span class="text-[10px] font-semibold tracking-wider text-[var(--c-text-ultradim)] uppercase">${hasToday ? '今日已打卡' : '本周打卡日历'}</span>
         ${streak > 0 ? `<span class="inline-flex items-center gap-0.5 text-[11px] font-bold text-emerald-500 ml-1">${icon('flame','w-3.5 h-3.5')}${streak}天</span>` : ''}
       </span>
@@ -306,7 +306,7 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
       ${days.map(d => `
         <div class="flex flex-col items-center gap-1 ${d.isToday ? 'relative' : ''}" style="min-width:34px">
           ${d.isToday ? '<div class="absolute -top-1 left-1/2 -translate-x-1/2 w-[38px] h-[38px] rounded-xl bg-[var(--c-primary-light)] -z-0"></div>' : ''}
-          <span class="text-[22px] leading-none ${d.active ? '' : 'grayscale opacity-40'} relative z-10">${d.active ? '🐻' : '🌱'}</span>
+          <img class="w-[26px] h-[26px] object-contain ${d.active ? '' : 'grayscale opacity-40'} relative z-10" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? 'active' : 'inactive'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-[22px]>${d.active ? '🐻' : '🌱'}</span>')" />
           <span class="text-[9px] ${d.isToday ? 'text-[var(--c-primary)] font-bold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
         </div>
       `).join('')}
