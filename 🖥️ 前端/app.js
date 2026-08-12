@@ -549,6 +549,8 @@ async function loadWords() {
   if (!session) return;
   const today = new Date().toISOString().slice(0, 10);
 
+  document.getElementById('words-content').innerHTML = LoadingState();
+
   const { data: vocab } = await sb.from('vocabulary').select('*').order('created_at', { ascending: false });
   _wordsAll = vocab || [];
 
@@ -581,7 +583,7 @@ function renderVocabList(items) {
   if (q) filtered = items.filter(v => [v.word, v.phonetic, v.meaning, v.example].some(f => f && f.toLowerCase().includes(q)));
 
   if (!filtered.length) {
-    container.innerHTML = `<div class="empty-state" style="text-align:center;padding:40px 0;color:var(--text-ultradim);">📝 暂无单词${q ? '，试试其他关键词' : ''}</div>`;
+    container.innerHTML = EmptyState({ message: q ? `没有找到"${q}"相关的单词` : '今天没有要复习的单词哦，去休息一下吧～', size: 80 });
     return;
   }
 
@@ -749,6 +751,7 @@ async function markMastered(id) {
 // TAB 3: SPEAK
 // ═══════════════════════════════════════════════════════
 async function loadSpeak() {
+  document.getElementById('speak-content').innerHTML = LoadingState();
   const { data: patterns } = await sb.from('patterns').select('*').order('created_at', { ascending: false });
   _speakAll = patterns || [];
   renderSpeakList(_speakAll);
@@ -762,7 +765,7 @@ function renderSpeakList(items) {
   if (q) filtered = items.filter(p => [p.better, p.original, p.scene].some(f => f && f.toLowerCase().includes(q)));
 
   if (!filtered.length) {
-    container.innerHTML = `<div class="empty-state" style="text-align:center;padding:40px 0;color:var(--text-ultradim);">🗣️ 暂无表达${q ? '，试试其他关键词' : ''}</div>`;
+    container.innerHTML = EmptyState({ message: q ? `没有找到"${q}"相关的表达` : '暂无地道表达，去导入日报吧～', size: 80 });
     return;
   }
 
@@ -1463,6 +1466,25 @@ async function detectClipboard() {
 })();
 
 // ═══════════════════════════════════════════════════════
+// Global Components: EmptyState & LoadingState
+// ═══════════════════════════════════════════════════════
+function EmptyState({ message = '暂无数据', size = 96 } = {}) {
+  return `<div class="state-empty">
+    <img class="state-img" src="/bear-default.png" alt="💤" style="width:${size}px;height:${size}px"
+      onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=state-fallback style=font-size:${size>80?48:32}px>💤</span>')" />
+    <p class="state-text">${h(message)}</p>
+  </div>`;
+}
+
+function LoadingState({ message = 'Voco 正在努力加载...', size = 80 } = {}) {
+  return `<div class="state-loading">
+    <img class="state-img animate-pulse" src="/bear-default.png" alt="⏳" style="width:${size}px;height:${size}px"
+      onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=state-fallback style=font-size:${size>80?48:32}px>⏳</span>')" />
+    <p class="state-text">${h(message)}</p>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════
 function h(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -1537,5 +1559,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=12');
+  navigator.serviceWorker.register('/sw.js?v=13');
 }
