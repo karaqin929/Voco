@@ -1481,7 +1481,7 @@ function EmptyState({ message = '暂无数据', size = 96 } = {}) {
   </div>`;
 }
 
-function LoadingState({ message = 'Voco 正在努力加载...', size = 80 } = {}) {
+function LoadingState({ message = 'Voco 马上到～', size = 80 } = {}) {
   return `<div class="state-loading">
     <img class="state-img animate-pulse" src="/bear-default.png" alt="⏳" style="width:${size}px;height:${size}px"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=state-fallback style=font-size:${size>80?48:32}px>⏳</span>')" />
@@ -1564,5 +1564,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=21');
+  navigator.serviceWorker.register('/sw.js?v=22');
 }
