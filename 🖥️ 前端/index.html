@@ -12,7 +12,98 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=29">
+  <link rel="stylesheet" href="/style.css?v=40">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={corePlugins:{preflight:false}}</script>
+  <style>
+    /* ═══ Voco v5.0 Design Tokens — 5 Morandi Themes × 3 Modes ═══ */
+    :root,[data-theme="warm"]{
+      --c-bg:#FBF6F4;--c-surface:#FFFFFF;--c-primary:#C4A0A0;--c-primary-light:#F2E6E5;
+      --c-blue:#9AAEB8;--c-blue-light:#EAF0F4;--c-green:#A8B5A0;--c-green-light:#EEF2EC;
+      --c-orange:#C8B0A0;--c-orange-light:#F8F0EA;--c-red:#C49898;
+      --c-text:#3E3535;--c-text-dim:#8C7C7C;--c-text-ultradim:#BFB0B0;
+      --c-border:#EDE4E0;--c-border-light:#F5F0EC;
+      --c-shadow-sm:0 1px 3px rgba(100,60,60,0.04);--c-shadow:0 2px 12px rgba(100,60,60,0.06);
+    }
+    [data-theme="warm"][data-mode="dark"]{
+      --c-bg:#221E1E;--c-surface:#2E2828;--c-primary:#D4B4B4;--c-primary-light:#382C2C;
+      --c-blue:#A8BCC8;--c-blue-light:#2A3035;--c-green:#B4C0AC;--c-green-light:#2C322A;
+      --c-orange:#D4BCAC;--c-orange-light:#383028;--c-red:#D4A8A8;
+      --c-text:#EAE0E0;--c-text-dim:#A89898;--c-text-ultradim:#706060;
+      --c-border:#3C3434;--c-border-light:#322C2C;
+      --c-shadow-sm:0 1px 3px rgba(0,0,0,0.2);--c-shadow:0 2px 12px rgba(0,0,0,0.25);
+    }
+    [data-theme="beach"]{
+      --c-bg:#EDF2EC;--c-surface:#FCFDFB;--c-primary:#8BA08A;--c-primary-light:#E2EBE0;
+      --c-blue:#90A4A8;--c-blue-light:#E6EEF0;--c-green:#8AA888;--c-green-light:#E6F0E4;
+      --c-orange:#BCA490;--c-orange-light:#F6F0E8;--c-red:#BC9490;
+      --c-text:#384036;--c-text-dim:#788876;--c-text-ultradim:#ACB4A8;
+      --c-border:#DCE4D8;--c-border-light:#ECF2E8;
+      --c-shadow-sm:0 1px 3px rgba(50,60,40,0.04);--c-shadow:0 2px 12px rgba(50,60,40,0.06);
+    }
+    [data-theme="beach"][data-mode="dark"]{
+      --c-bg:#1C221A;--c-surface:#262C24;--c-primary:#A4B8A4;--c-primary-light:#2A3028;
+      --c-blue:#A4B4B8;--c-blue-light:#283030;--c-green:#9CB898;--c-green-light:#283426;
+      --c-orange:#C8B4A4;--c-orange-light:#343028;--c-red:#C8A8A0;
+      --c-text:#E4E8E0;--c-text-dim:#9CA898;--c-text-ultradim:#646C60;
+      --c-border:#32382E;--c-border-light:#2A3026;
+      --c-shadow-sm:0 1px 3px rgba(0,0,0,0.2);--c-shadow:0 2px 12px rgba(0,0,0,0.25);
+    }
+    [data-theme="ocean"]{
+      --c-bg:#EEF1F5;--c-surface:#FBFCFE;--c-primary:#8898B0;--c-primary-light:#E2E8F0;
+      --c-blue:#8698B4;--c-blue-light:#E4EAF2;--c-green:#90A898;--c-green-light:#E8F0EA;
+      --c-orange:#B8A898;--c-orange-light:#F6F2EA;--c-red:#B89498;
+      --c-text:#384048;--c-text-dim:#788088;--c-text-ultradim:#A8B0B8;
+      --c-border:#DCE2E8;--c-border-light:#ECEFF2;
+      --c-shadow-sm:0 1px 3px rgba(40,50,65,0.04);--c-shadow:0 2px 12px rgba(40,50,65,0.06);
+    }
+    [data-theme="ocean"][data-mode="dark"]{
+      --c-bg:#1C2028;--c-surface:#262A34;--c-primary:#A4B0C4;--c-primary-light:#2A3038;
+      --c-blue:#9AACCC;--c-blue-light:#282E38;--c-green:#A4B8A8;--c-green-light:#28342C;
+      --c-orange:#C8B8A8;--c-orange-light:#34302C;--c-red:#C8A8A8;
+      --c-text:#E2E6EC;--c-text-dim:#98A0AC;--c-text-ultradim:#606870;
+      --c-border:#323842;--c-border-light:#2A2E36;
+      --c-shadow-sm:0 1px 3px rgba(0,0,0,0.2);--c-shadow:0 2px 12px rgba(0,0,0,0.25);
+    }
+    [data-theme="ice"]{
+      --c-bg:#F5F0EA;--c-surface:#FDFBF7;--c-primary:#B4A090;--c-primary-light:#EDE4DA;
+      --c-blue:#94A4A8;--c-blue-light:#E8EEF0;--c-green:#9CAC98;--c-green-light:#EAF0E8;
+      --c-orange:#C0A490;--c-orange-light:#F6F0E8;--c-red:#BC948C;
+      --c-text:#3E3830;--c-text-dim:#887C70;--c-text-ultradim:#B8B0A8;
+      --c-border:#E5DED4;--c-border-light:#F0EBE2;
+      --c-shadow-sm:0 1px 3px rgba(80,55,30,0.04);--c-shadow:0 2px 12px rgba(80,55,30,0.06);
+    }
+    [data-theme="ice"][data-mode="dark"]{
+      --c-bg:#241E18;--c-surface:#302822;--c-primary:#C8B8A8;--c-primary-light:#383028;
+      --c-blue:#A8B4B8;--c-blue-light:#2A3032;--c-green:#ACBCA8;--c-green-light:#2C342A;
+      --c-orange:#D0B8A4;--c-orange-light:#383028;--c-red:#CCA498;
+      --c-text:#E8E2D8;--c-text-dim:#A8A098;--c-text-ultradim:#706860;
+      --c-border:#3C342C;--c-border-light:#322C24;
+      --c-shadow-sm:0 1px 3px rgba(0,0,0,0.2);--c-shadow:0 2px 12px rgba(0,0,0,0.25);
+    }
+    [data-theme="forest"]{
+      --c-bg:#EDF0EA;--c-surface:#FAFBF8;--c-primary:#7D8B74;--c-primary-light:#E0E6DA;
+      --c-blue:#84988C;--c-blue-light:#E4ECE6;--c-green:#7A9472;--c-green-light:#E2ECE0;
+      --c-orange:#B4A088;--c-orange-light:#F4EEE4;--c-red:#B08884;
+      --c-text:#384034;--c-text-dim:#788474;--c-text-ultradim:#A8B0A4;
+      --c-border:#D8E0D0;--c-border-light:#E8EEE2;
+      --c-shadow-sm:0 1px 3px rgba(40,55,30,0.04);--c-shadow:0 2px 12px rgba(40,55,30,0.06);
+    }
+    [data-theme="forest"][data-mode="dark"]{
+      --c-bg:#1A2218;--c-surface:#242C22;--c-primary:#9CAA94;--c-primary-light:#283026;
+      --c-blue:#9AAAA0;--c-blue-light:#262E28;--c-green:#90A488;--c-green-light:#243022;
+      --c-orange:#C0B098;--c-orange-light:#302C24;--c-red:#C09C98;
+      --c-text:#E0E6DC;--c-text-dim:#98A494;--c-text-ultradim:#606C5C;
+      --c-border:#30382C;--c-border-light:#283024;
+      --c-shadow-sm:0 1px 3px rgba(0,0,0,0.2);--c-shadow:0 2px 12px rgba(0,0,0,0.25);
+    }
+    /* Eye-care mode — soft sage tint */
+    [data-mode="eye-care"]{--c-bg:#E5EBE0;--c-surface:#F0F4EC;}
+    /* Base resets (minimal — Tailwind handles the rest) */
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;background:var(--c-bg);color:var(--c-text);min-height:100vh;min-height:100dvh;padding-bottom:80px;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;}
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     /* Splash screen — covers Render cold-start / white-screen gap */
@@ -60,46 +151,38 @@
     <span class="app-header-actions"></span>
   </header>
 
-  <!-- ── Tab 1: Home (Dashboard v4.2) ──────────────────────────── -->
+  <!-- ── Tab 1: Home (Dashboard v5.0 Tailwind) ──────────────── -->
   <section id="tab-home" class="tab-content active">
 
-    <!-- Block 1: Header Status Bar — greeting + mini bear heatmap -->
-    <div id="home-header" class="home-header-bar">
-      <div class="home-header-left">
-        <div class="greeting-text" id="greeting-text"></div>
-        <div class="greeting-date" id="greeting-date"></div>
+    <!-- Section 1: Header — date, greeting, status, bear strip -->
+    <div class="flex justify-between items-start pb-4 mb-1">
+      <div class="flex flex-col gap-0.5 min-w-0">
+        <div class="text-xs text-[var(--c-text-ultradim)]" id="greeting-date"></div>
+        <div class="text-2xl font-bold text-[var(--c-text)] tracking-[-0.3px]" id="greeting-text"></div>
+        <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+          <span class="w-1.5 h-1.5 rounded-full bg-[var(--c-green)] shrink-0"></span>
+          <span class="text-[11px] text-[var(--c-text-dim)]" id="home-status-text"></span>
+          <button class="text-[11px] text-[var(--c-blue)] font-medium ml-1 cursor-pointer bg-transparent border-0 p-0" onclick="showImportDialog()">查看日报 ›</button>
+        </div>
       </div>
-      <div class="home-header-right" id="header-bears"></div>
+      <div class="flex items-center gap-[3px] overflow-x-auto max-w-[55%] shrink-0 pt-0.5" id="header-bears"></div>
     </div>
 
-    <!-- History Banner (visible when viewing past date) -->
-    <div id="home-history-banner" class="home-history-banner" style="display:none;"></div>
+    <!-- History Banner -->
+    <div id="home-history-banner" class="hidden"></div>
 
-    <!-- Block 2: Metrics & Data Grid -->
-    <div id="home-metrics" class="metrics-grid" style="display:none;">
-      <div class="metrics-score-row">
-        <div class="metrics-donut" id="metrics-donut"></div>
-        <div class="metrics-duration" id="metrics-duration"></div>
-      </div>
-      <div class="metrics-bars" id="metrics-bars"></div>
-      <div class="metrics-pills" id="metrics-pills"></div>
-    </div>
+    <!-- Section 2: Daily Quote Card -->
+    <div id="home-quote" class="bg-[var(--c-surface)] rounded-2xl p-5 mb-3 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)"></div>
 
-    <!-- Block 3: Daily Insights & Quotes -->
-    <div id="home-insights" style="display:none;"></div>
+    <!-- Section 3: Metrics Overview -->
+    <div id="home-metrics" class="bg-[var(--c-surface)] rounded-2xl p-5 mb-3 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)"></div>
 
-    <!-- Block 4: Content Summary Cards -->
-    <div id="home-summary-cards" class="summary-cards" style="display:none;"></div>
+    <!-- Section 4: Insights (Cards A-F) -->
+    <div id="home-insights"></div>
 
-    <!-- Block 5: Action Center (Todoist-style) -->
-    <div id="home-quests" class="home-quests">
-      <div class="quests-header">
-        <span>✅ 今日待办</span>
-        <span class="quests-progress-text" id="quests-progress-text">0/3</span>
-      </div>
-      <div class="quests-bar"><div class="quests-bar-fill" id="quests-bar-fill"></div></div>
-      <div class="quests-list" id="quests-list"></div>
-    </div>
+    <!-- Section 5: Content Cards + Todo List -->
+    <div class="flex gap-2 mb-3" id="home-summary-cards"></div>
+    <div id="home-quests" class="bg-[var(--c-surface)] rounded-2xl p-5 mb-3 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)"></div>
 
   </section>
 
@@ -202,139 +285,185 @@
     <div id="speak-content" class="loading">加载中...</div>
   </section>
 
-  <!-- ── Tab 4: Me ─────────────────────────────── -->
+  <!-- ── Tab 4: Me (v5.0 Tailwind — Grouped List) ─────── -->
   <section id="tab-me" class="tab-content">
-    <!-- Profile card -->
-    <div class="me-profile">
-      <div class="me-avatar">
-        <img class="me-avatar-img" src="/bear-head-active.png" alt="avatar"
-          onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=me-avatar-fallback>🐻</span>')">
+
+    <!-- Profile Header Card -->
+    <div class="text-center py-5 px-4 mb-4 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
+      <div class="mb-2"><img class="w-20 h-20 rounded-full object-contain mx-auto" src="/bear-head-active.png" alt="avatar" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-6xl>🐻</span>')"></div>
+      <div class="text-xl font-bold text-[var(--c-text)] mb-0.5" id="me-name">---</div>
+      <div class="text-xs text-[var(--c-text-ultradim)] mb-2">访客模式</div>
+      <div class="flex justify-center gap-4 mb-2">
+        <span class="inline-flex items-center gap-1 text-sm font-semibold text-[var(--c-text)]" id="me-streak"><i data-lucide="flame" class="w-4 h-4 text-[var(--c-orange)]"></i> 0 天</span>
+        <span class="inline-flex items-center gap-1 text-sm font-semibold text-[var(--c-text)]" id="me-level"><i data-lucide="star" class="w-4 h-4 text-[var(--c-orange)]"></i> Lv.1</span>
       </div>
-      <div class="me-name" id="me-name">---</div>
-      <div class="me-stats-row">
-        <span class="me-stat" id="me-streak">🔥 0 天</span>
-        <span class="me-stat" id="me-level">⭐ Lv.1</span>
-      </div>
-      <div class="me-level-bar-wrap"><div class="me-level-bar-fill" id="me-level-bar-fill"></div></div>
-      <div class="me-level-hint" id="me-level-hint"></div>
+      <div class="h-1.5 bg-[var(--c-border-light)] rounded-full max-w-[200px] mx-auto mb-1 overflow-hidden"><div class="h-full bg-[var(--c-orange)] rounded-full transition-all duration-500" id="me-level-bar-fill" style="width:0%"></div></div>
+      <div class="text-[11px] text-[var(--c-text-ultradim)]" id="me-level-hint"></div>
     </div>
 
     <!-- Achievements -->
-    <div class="me-section">
-      <div class="me-section-title">🏆 成就徽章</div>
-      <div class="me-badges" id="me-badges">
-        <div class="me-badge locked"><span>🎯</span><small>首次练习</small></div>
-        <div class="me-badge locked"><span>🔥</span><small>7天坚持</small></div>
-        <div class="me-badge locked"><span>📚</span><small>掌握50词</small></div>
-        <div class="me-badge locked"><span>🔧</span><small>纠正20次</small></div>
+    <div class="mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="trophy" class="w-3.5 h-3.5"></i> 成就徽章</div>
+      <div class="flex gap-2 flex-wrap" id="me-badges">
+        <div class="flex flex-col items-center gap-1 px-3 py-3 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] min-w-[70px] opacity-40 grayscale-[0.8]"><i data-lucide="target" class="w-8 h-8"></i><small class="text-[10px] text-[var(--c-text-dim)]">首次练习</small></div>
+        <div class="flex flex-col items-center gap-1 px-3 py-3 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] min-w-[70px] opacity-40 grayscale-[0.8]"><i data-lucide="flame" class="w-8 h-8"></i><small class="text-[10px] text-[var(--c-text-dim)]">7天坚持</small></div>
+        <div class="flex flex-col items-center gap-1 px-3 py-3 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] min-w-[70px] opacity-40 grayscale-[0.8]"><i data-lucide="book-open" class="w-8 h-8"></i><small class="text-[10px] text-[var(--c-text-dim)]">掌握50词</small></div>
+        <div class="flex flex-col items-center gap-1 px-3 py-3 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] min-w-[70px] opacity-40 grayscale-[0.8]"><i data-lucide="wrench" class="w-8 h-8"></i><small class="text-[10px] text-[var(--c-text-dim)]">纠正20次</small></div>
       </div>
     </div>
 
-    <!-- Settings -->
-    <div class="me-section">
-      <div class="me-section-title">⚙️ 设置</div>
-      <div class="me-settings-item">
-        <span>昵称</span>
-        <input id="setting-username" class="settings-input" placeholder="你的昵称" />
-      </div>
-      <div class="me-settings-item">
-        <span>邮箱</span>
-        <span class="settings-item-value" id="settings-email">---</span>
-      </div>
-      <div class="me-settings-item">
-        <span>主题配色</span>
-        <div class="theme-picker" id="theme-picker">
-          <div class="theme-option active" data-theme="warm">
-            <div class="theme-swatch"><span style="background:#C4A0A0"></span><span style="background:#9AAEB8"></span><span style="background:#A8B5A0"></span></div>
-            <div class="theme-name">🌹 烟粉玫瑰</div>
+    <!-- Group: Data Import -->
+    <div class="mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="download" class="w-3.5 h-3.5"></i> 数据导入</div>
+      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] overflow-hidden" style="box-shadow:var(--c-shadow-sm)">
+        <div class="flex justify-between items-center px-4 py-3.5 cursor-pointer transition-colors active:bg-[var(--c-border-light)]" onclick="showImportDialog()">
+          <div class="flex flex-col gap-0.5">
+            <span class="text-sm text-[var(--c-text)]"><i data-lucide="download" class="w-4 h-4"></i> ChatGPT 日报导入</span>
+            <span class="text-[11px] text-[var(--c-text-ultradim)]" id="home-last-sync">最近同步: --</span>
           </div>
-          <div class="theme-option" data-theme="beach">
-            <div class="theme-swatch"><span style="background:#8BA08A"></span><span style="background:#90A4A8"></span><span style="background:#8AA888"></span></div>
-            <div class="theme-name">🌿 雾绿薄荷</div>
-          </div>
-          <div class="theme-option" data-theme="ocean">
-            <div class="theme-swatch"><span style="background:#8898B0"></span><span style="background:#8698B4"></span><span style="background:#90A898"></span></div>
-            <div class="theme-name">🌫️ 灰蓝暮色</div>
-          </div>
-          <div class="theme-option" data-theme="ice">
-            <div class="theme-swatch"><span style="background:#B4A090"></span><span style="background:#94A4A8"></span><span style="background:#9CAC98"></span></div>
-            <div class="theme-name">🪵 暖杏陶土</div>
-          </div>
-        </div>
-      </div>
-      <div class="me-settings-item">
-        <span>显示模式</span>
-        <div class="mode-toggle" id="mode-toggle">
-          <button class="mode-btn active" data-mode="light">☀️ 浅色</button>
-          <button class="mode-btn" data-mode="dark">🌙 夜间</button>
-          <button class="mode-btn" data-mode="eye-care">🛡️ 护眼</button>
+          <span class="text-lg text-[var(--c-text-ultradim)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></span>
         </div>
       </div>
     </div>
 
-    <div class="me-section">
-      <div class="me-section-title">📊 数据</div>
-      <div class="me-settings-item" id="btn-export-data">
-        <span>导出数据</span>
-        <span class="settings-arrow">›</span>
-      </div>
-      <div class="me-settings-item" id="btn-import-json">
-        <span>导入数据</span>
-        <span class="settings-arrow">›</span>
+    <!-- Group: Theme & Appearance -->
+    <div class="mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="palette" class="w-3.5 h-3.5"></i> 主题与界面</div>
+      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] overflow-hidden" style="box-shadow:var(--c-shadow-sm)">
+        <div class="px-4 py-3">
+          <span class="text-xs text-[var(--c-text-dim)]">配色方案</span>
+          <div class="flex gap-2.5 mt-2 mb-1" id="theme-picker">
+            <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-[var(--c-border)] transition-all active:scale-90 flex items-center justify-center text-white text-xs font-bold" data-theme="warm" style="background:#C4A0A0" title="烟粉玫瑰">A</button>
+            <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent transition-all active:scale-90" data-theme="beach" style="background:#8BA08A" title="雾绿薄荷"></button>
+            <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent transition-all active:scale-90" data-theme="ocean" style="background:#8898B0" title="灰蓝暮色"></button>
+            <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent transition-all active:scale-90" data-theme="ice" style="background:#B4A090" title="暖杏陶土"></button>
+            <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent transition-all active:scale-90" data-theme="forest" style="background:#7D8B74" title="森系苔绿"></button>
+          </div>
+        </div>
+        <div class="flex justify-between items-center px-4 py-3 border-t border-[var(--c-border-light)]">
+          <span class="text-xs text-[var(--c-text-dim)]">显示模式</span>
+          <div class="flex gap-0.5 bg-[var(--c-bg)] rounded-full p-0.5" id="mode-toggle">
+            <button class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-[var(--c-text-dim)] cursor-pointer transition-all border-0 bg-transparent active" data-mode="light"><i data-lucide="sun" class="w-3.5 h-3.5"></i> 浅色</button>
+            <button class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-[var(--c-text-dim)] cursor-pointer transition-all border-0 bg-transparent" data-mode="dark"><i data-lucide="moon" class="w-3.5 h-3.5"></i> 夜间</button>
+            <button class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-[var(--c-text-dim)] cursor-pointer transition-all border-0 bg-transparent" data-mode="eye-care"><i data-lucide="shield" class="w-3.5 h-3.5"></i> 护眼</button>
+          </div>
+        </div>
+        <div class="flex justify-between items-center px-4 py-3 border-t border-[var(--c-border-light)]">
+          <span class="text-xs text-[var(--c-text-dim)]">文字大小</span>
+          <div class="flex gap-0.5 bg-[var(--c-bg)] rounded-full p-0.5" id="font-size-toggle">
+            <button class="px-3 py-1.5 rounded-full text-xs font-medium text-[var(--c-text-dim)] cursor-pointer transition-all border-0 bg-transparent active" data-size="normal">标准</button>
+            <button class="px-3 py-1.5 rounded-full text-xs font-medium text-[var(--c-text-dim)] cursor-pointer transition-all border-0 bg-transparent" data-size="medium">中</button>
+            <button class="px-3 py-1.5 rounded-full text-xs font-medium text-[var(--c-text-dim)] cursor-pointer transition-all border-0 bg-transparent" data-size="large">大</button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="me-section" id="error-patterns-group" style="display:none;">
-      <div class="me-section-title">🔍 错误模式分析</div>
-      <div id="error-patterns"><div class="loading">加载中...</div></div>
-    </div>
-
-    <div class="me-section">
-      <div class="me-settings-item me-item-danger" id="btn-logout-me">
-        <span>退出登录</span>
-        <span class="settings-arrow">›</span>
+    <!-- Group: Learning Goals -->
+    <div class="mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="target" class="w-3.5 h-3.5"></i> 学习目标</div>
+      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] overflow-hidden" style="box-shadow:var(--c-shadow-sm)">
+        <div class="flex justify-between items-center px-4 py-3.5">
+          <span class="text-sm text-[var(--c-text)]">每日目标时长</span>
+          <select class="bg-[var(--c-bg)] text-[var(--c-text)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-sm font-medium outline-none focus:border-[var(--c-primary)]" id="goal-duration">
+            <option>15 分钟</option><option selected>30 分钟</option><option>45 分钟</option><option>60 分钟</option>
+          </select>
+        </div>
+        <div class="flex justify-between items-center px-4 py-3.5 border-t border-[var(--c-border-light)]">
+          <span class="text-sm text-[var(--c-text)]">每日提醒时间</span>
+          <select class="bg-[var(--c-bg)] text-[var(--c-text)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-sm font-medium outline-none focus:border-[var(--c-primary)]" id="goal-reminder">
+            <option>08:00</option><option>12:00</option><option selected>20:00</option><option>22:00</option>
+          </select>
+        </div>
       </div>
     </div>
 
-    <div class="settings-footer">
+    <!-- Group: Data Management -->
+    <div class="mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="database" class="w-3.5 h-3.5"></i> 数据管理</div>
+      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] overflow-hidden" style="box-shadow:var(--c-shadow-sm)">
+        <div class="flex justify-between items-center px-4 py-3.5 cursor-pointer transition-colors active:bg-[var(--c-border-light)]" id="btn-export-data">
+          <span class="text-sm text-[var(--c-text)]"><i data-lucide="upload" class="w-4 h-4"></i> 导出学习数据 (JSON)</span>
+          <span class="text-lg text-[var(--c-text-ultradim)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></span>
+        </div>
+        <div class="flex justify-between items-center px-4 py-3.5 border-t border-[var(--c-border-light)] cursor-pointer transition-colors active:bg-[var(--c-border-light)]" id="btn-import-json">
+          <span class="text-sm text-[var(--c-text)]"><i data-lucide="download" class="w-4 h-4"></i> 导入数据</span>
+          <span class="text-lg text-[var(--c-text-ultradim)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></span>
+        </div>
+        <div class="flex justify-between items-center px-4 py-3.5 border-t border-[var(--c-border-light)] cursor-pointer transition-colors active:bg-[var(--c-border-light)]" onclick="document.getElementById('login-screen').style.display='flex';document.getElementById('app-main').style.display='none'">
+          <span class="text-sm text-[var(--c-text)]"><i data-lucide="eye" class="w-4 h-4"></i> 预览登录页</span>
+          <span class="text-lg text-[var(--c-text-ultradim)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group: Account -->
+    <div class="mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="user" class="w-3.5 h-3.5"></i> 账户</div>
+      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] overflow-hidden" style="box-shadow:var(--c-shadow-sm)">
+        <div class="flex justify-between items-center px-4 py-3.5">
+          <span class="text-sm text-[var(--c-text)]">昵称</span>
+          <input id="setting-username" class="w-[120px] px-2.5 py-1.5 bg-[var(--c-bg)] text-[var(--c-text)] border border-[var(--c-border)] rounded-lg text-sm text-right outline-none focus:border-[var(--c-primary)]" placeholder="你的昵称">
+        </div>
+        <div class="flex justify-between items-center px-4 py-3.5 border-t border-[var(--c-border-light)]">
+          <span class="text-sm text-[var(--c-text)]">邮箱</span>
+          <span class="text-sm text-[var(--c-text-dim)]" id="settings-email">---</span>
+        </div>
+        <div class="flex justify-between items-center px-4 py-3.5 border-t border-[var(--c-border-light)] cursor-pointer transition-colors active:bg-[var(--c-border-light)]" id="btn-logout-me">
+          <span class="text-sm text-[var(--c-red)]">退出登录</span>
+          <span class="text-lg text-[var(--c-text-ultradim)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Patterns -->
+    <div id="error-patterns-group" class="hidden mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="search" class="w-3.5 h-3.5"></i> 错误模式分析</div>
+      <div class="bg-[var(--c-surface)] rounded-2xl p-4 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" id="error-patterns"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center py-6 text-sm text-[var(--c-text-ultradim)]">
       <span>Voco</span>
-      <span class="settings-version">v4.2</span>
+      <span class="ml-1.5 opacity-50">v5.0</span>
     </div>
+
   </section>
 
-  <!-- ── Import Dialog (global, from Home task center) ── -->
-  <div id="import-dialog" class="import-dialog-overlay" style="display:none;">
-    <div class="import-dialog-card">
-      <div class="import-dialog-header">
-        <span>📥 导入日报</span>
-        <button class="import-dialog-close" onclick="hideImportDialog()">✕</button>
+  <!-- ── Import Dialog (Tailwind bottom sheet) ── -->
+  <div id="import-dialog" class="fixed inset-0 bg-black/40 z-[300] flex items-end justify-center hidden">
+    <div class="bg-[var(--c-surface)] rounded-t-[20px] w-full max-w-[480px] max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
+      <div class="flex justify-between items-center px-[18px] py-4 border-b border-[var(--c-border-light)] text-sm font-bold text-[var(--c-text)]">
+        <span class="inline-flex items-center gap-1"><i data-lucide="download" class="w-4 h-4"></i> 导入日报</span>
+        <button class="w-[30px] h-[30px] rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-base cursor-pointer flex items-center justify-center" onclick="hideImportDialog()">✕</button>
       </div>
-      <div class="import-dialog-body">
-        <div class="template-btns" style="margin-bottom:10px;">
-          <button class="tpl-btn" data-tpl="report">📝 日报模板</button>
-          <button class="tpl-btn" data-tpl="topic">📋 话题卡模板</button>
-          <button class="tpl-btn" data-tpl="insight">🔍 弱点分析模板</button>
+      <div class="flex-1 overflow-y-auto px-[18px] py-3.5">
+        <div class="flex gap-1.5 mb-2.5 flex-wrap">
+          <button class="flex-1 min-w-[90px] px-1.5 py-2 bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg text-xs text-[var(--c-text-dim)] cursor-pointer transition-all active:bg-[var(--c-primary-light)] active:text-[var(--c-primary)] active:border-[var(--c-primary)] text-center whitespace-nowrap" data-tpl="report" onclick="copyTemplate('report')"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> 日报模板</button>
+          <button class="flex-1 min-w-[90px] px-1.5 py-2 bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg text-xs text-[var(--c-text-dim)] cursor-pointer transition-all active:bg-[var(--c-primary-light)] active:text-[var(--c-primary)] active:border-[var(--c-primary)] text-center whitespace-nowrap" data-tpl="topic" onclick="copyTemplate('topic')"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> 话题卡模板</button>
+          <button class="flex-1 min-w-[90px] px-1.5 py-2 bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg text-xs text-[var(--c-text-dim)] cursor-pointer transition-all active:bg-[var(--c-primary-light)] active:text-[var(--c-primary)] active:border-[var(--c-primary)] text-center whitespace-nowrap" data-tpl="insight" onclick="copyTemplate('insight')"><i data-lucide="search" class="w-3.5 h-3.5"></i> 弱点分析模板</button>
         </div>
-        <textarea id="dialog-report-input" rows="5" placeholder="将 ChatGPT 生成的内容粘贴到这里..."></textarea>
+        <textarea id="dialog-report-input" rows="5" placeholder="将 ChatGPT 生成的内容粘贴到这里..." class="w-full min-h-[140px] bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-border)] rounded-2xl p-3.5 text-sm leading-relaxed resize-y mb-2.5 outline-none focus:border-[var(--c-primary)] focus:shadow-[0_0_0_3px_var(--c-primary-light)] placeholder:text-[var(--c-text-ultradim)]"></textarea>
       </div>
-      <div class="import-dialog-footer">
-        <button id="btn-dialog-submit" class="btn-primary">解析入库</button>
-        <div id="dialog-import-result" style="margin-top:8px;"></div>
+      <div class="px-[18px] pb-5 pt-3">
+        <button id="btn-dialog-submit" class="w-full py-3.5 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-[15px] font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="importReport()">解析入库</button>
+        <div id="dialog-import-result" class="mt-2"></div>
       </div>
     </div>
   </div>
 
   <!-- ── Tab Bar ──────────────────────────────── -->
   <nav class="tab-bar">
-    <button class="tab active" data-tab="home">🏠 首页</button>
-    <button class="tab" data-tab="words">📝 单词</button>
-    <button class="tab" data-tab="speak">🗣️ 口语</button>
-    <button class="tab" data-tab="me">👤 我的</button>
+    <button class="tab active inline-flex items-center justify-center gap-1" data-tab="home"><i data-lucide="home" class="w-4 h-4"></i> 首页</button>
+    <button class="tab inline-flex items-center justify-center gap-1" data-tab="words"><i data-lucide="book-open" class="w-4 h-4"></i> 单词</button>
+    <button class="tab inline-flex items-center justify-center gap-1" data-tab="speak"><i data-lucide="mic" class="w-4 h-4"></i> 口语</button>
+    <button class="tab inline-flex items-center justify-center gap-1" data-tab="me"><i data-lucide="user" class="w-4 h-4"></i> 我的</button>
   </nav>
 </div>
 
-<script src="/supabase-client.js?v=29"></script>
-<script src="/parser.js?v=29"></script>
-<script src="/app.js?v=29"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
+<script src="/supabase-client.js?v=40"></script>
+<script src="/parser.js?v=40"></script>
+<script src="/app.js?v=40"></script>
 </body>
 </html>

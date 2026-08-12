@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v4.2 — 5-Block Dashboard + History + 4-Card Insights
+// Voco v5.0 — Tailwind Dashboard + Grouped-List Settings
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -95,27 +95,57 @@ const ICO_MIC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" str
 const ICO_REPEAT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>';
 
 // ═══════════════════════════════════════════════════════
-// TAB 1: HOME (v4.2 Dashboard — 5 Blocks + History + 4-Card Insights)
+// TAB 1: HOME (v5.0 Dashboard — Tailwind-only, 5 sections)
 // ═══════════════════════════════════════════════════════
 let _viewDate = null; // null=today, else 'YYYY-MM-DD' for history view
 
-// ── Mock Insights Data (fallback when no daily report exists) ──
-const mockInsightsData = {
-  overallReview: "本次练习围绕个人成长展开，用户能够表达较复杂的观点，在描述抽象概念时展现了较好的语言组织能力。整体流利度有明显提升，但在语法细节和连接词使用上仍有优化空间。建议在下次练习中刻意关注时态一致性和逻辑连接词的运用。",
-  strengths: [
-    "能够表达抽象观点，如'个人成长需要时间沉淀'",
-    "面对表达困难时，能主动替换近义词汇绕过障碍",
-    "语音语调自然，停顿位置合理，语速适中"
+// ── Mock Dashboard Data (powers all cards when no real report) ──
+const mockDashboardData = {
+  user: { name: 'kk' },
+  status: { hasReport: true, lastSync: '2026-08-12 18:30' },
+  quote: {
+    en: "The limits of my language mean the limits of my world.",
+    zh: "语言的边界，就是世界的边界。",
+    author: "Ludwig Wittgenstein",
+    category: "PHILOSOPHY"
+  },
+  metrics: {
+    overall: 78, fluency: 75, grammar: 72, vocab: 80, natural: 82,
+    speakMin: 18, totalMin: 30,
+    topics: 3, newWords: 4, expressions: 10, corrections: 2
+  },
+  insights: {
+    topics: ['personal growth', 'daily routines', 'future plans'],
+    thoughts: {
+      en: "Personal growth requires patience and time — there's no shortcut to becoming a better version of yourself.",
+      zh: "个人成长需要时间和耐心——成为更好的自己，没有捷径可走。"
+    },
+    strengths: [
+      '能够表达抽象观点，如"个人成长需要时间沉淀"',
+      '遇到表达困难时，能主动替换近义词汇绕过障碍',
+      '语音语调自然，停顿位置合理，语速适中'
+    ],
+    improvements: [
+      { issue: '过去时态与完成时混淆', detail: "'I have went' → 应为 'I have gone'", action: '查看纠错', tab: 'words' },
+      { issue: '缺少逻辑连接词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '复习句型', tab: 'speak' },
+      { issue: '冠词遗漏', detail: "'I went to store' → 应为 'I went to the store'", action: '查看纠错', tab: 'words' }
+    ],
+    nextSteps: [
+      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '去练习', tab: 'speak' },
+      { step: '刻意练习过去时态与现在完成时的区分', action: '去练习', tab: 'speak' },
+      { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words' }
+    ],
+    overallReview: "本次练习围绕个人成长展开，用户能够表达较复杂的观点，在描述抽象概念时展现了较好的语言组织能力。整体流利度有明显提升，但在语法细节和连接词使用上仍有优化空间。建议在下次练习中刻意关注时态一致性和逻辑连接词的运用。"
+  },
+  contentCards: [
+    { icon: 'pen-line', num: 4, label: '新学单词', tab: 'words', btn: '复习今日单词' },
+    { icon: 'ruler', num: 10, label: '核心句型', tab: 'speak', btn: '练习句型' },
+    { icon: 'wrench', num: 2, label: '重点纠错', tab: 'words', btn: '查看纠错' }
   ],
-  improvements: [
-    { issue: "过去时态与完成时混淆", detail: "'I have went' → 应为 'I have gone'", action: "查看纠错", target: "words" },
-    { issue: "缺少逻辑连接词", detail: "多处句子之间缺乏 however / therefore 等过渡词", action: "复习句型", target: "speak" },
-    { issue: "冠词遗漏", detail: "'I went to store' → 应为 'I went to the store'", action: "查看纠错", target: "words" }
-  ],
-  nextSteps: [
-    { step: "练习使用更复杂的连接词（however, therefore, moreover）", action: "去练习", target: "speak" },
-    { step: "刻意练习过去时态与现在完成时的区分", action: "去练习", target: "speak" },
-    { step: "尝试在下次对话中使用至少 3 个本周新学单词", action: "去练习", target: "words" }
+  todos: [
+    { text: '复习 5 个今日新单词', done: false, action: '去复习', tab: 'words' },
+    { text: '完成影子跟读练习', done: false, action: '开始练习', tab: 'speak' },
+    { text: '导入今日 ChatGPT 日报', done: true }
   ]
 };
 
@@ -123,319 +153,281 @@ async function loadHome() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
 
-  const [{ data: vocab }, { data: errors }, { data: prog }, { data: reports }, { data: patterns }, { data: topics }] = await Promise.all([
+  const [{ data: vocab }, { data: errors }, { data: prog }, { data: reports }, { data: patterns }] = await Promise.all([
     sb.from('vocabulary').select('*'),
     sb.from('errors').select('*'),
     sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle(),
     sb.from('reports').select('*').order('date', { ascending: false }).limit(90),
-    sb.from('patterns').select('*'),
-    sb.from('topics').select('*').order('created_at', { ascending: false })
+    sb.from('patterns').select('*')
   ]);
 
   const vList = vocab || [];
   const eList = errors || [];
   const pList = patterns || [];
-  const tList = topics || [];
   const rList = reports || [];
   const today = new Date().toISOString().slice(0, 10);
 
-  // Determine which date's report to show
   const activeDate = _viewDate || today;
   const activeReport = rList.find(r => r.date === activeDate);
   const todayReport = rList.find(r => r.date === today);
 
-  // Block 1: Header bar (greeting + mini bears)
+  // Section 1: Header
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
-  renderGreeting(streak, vList);
+  renderGreeting(streak, vList, rList);
   renderHeaderBears(vList, rList, _viewDate);
-
-  // History banner
   renderHistoryBanner(activeReport, activeDate);
 
-  // Block 2: Metrics grid
-  renderMetricsGrid(activeReport, vList, eList, pList, prog);
+  // Section 2: Quote
+  renderQuoteCard();
 
-  // Block 3: Insights
-  renderInsights(activeReport, vList, eList, pList, prog);
+  // Section 3: Metrics
+  renderMetricsOverview(activeReport, vList, eList, pList, prog);
 
-  // Block 4: Summary cards
-  renderSummaryCards(activeReport, vList, eList, pList);
+  // Section 4: Insights (Cards A-F)
+  renderInsightsSection(activeReport);
 
-  // Block 5: Action center (always today's quests, not historical)
-  renderQuests(todayReport, vList, eList, rList, streak);
+  // Section 5: Content Cards + Todos
+  renderContentCards(activeReport, vList, eList, pList);
+  renderTodoList(todayReport, vList, eList, rList, streak);
 }
 
-// ── Greeting (Block 1 left) ─────────────────────────────
-function renderGreeting(streak, vocabList) {
+// ── Section 1: Header ───────────────────────────────────
+function renderGreeting(streak, vocabList, reports) {
   const hour = new Date().getHours();
-  let greeting;
-  if (hour < 6) greeting = '夜深了';
-  else if (hour < 12) greeting = '早上好';
-  else if (hour < 14) greeting = '中午好';
-  else if (hour < 18) greeting = '下午好';
-  else greeting = '晚上好';
-
+  let g; if (hour < 6) g = '夜深了'; else if (hour < 12) g = '早上好'; else if (hour < 14) g = '中午好'; else if (hour < 18) g = '下午好'; else g = '晚上好';
   const name = localStorage.getItem('voco-username') || '';
-  document.getElementById('greeting-text').textContent = name ? `👋 ${greeting}，${name}！` : `👋 ${greeting}！`;
-
+  document.getElementById('greeting-text').textContent = name ? `${g}，${name}！` : `${g}！`;
   const now = new Date();
-  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  document.getElementById('greeting-date').textContent =
-    `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`;
+  const wd = ['周日','周一','周二','周三','周四','周五','周六'];
+  document.getElementById('greeting-date').textContent = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${wd[now.getDay()]}`;
+
+  const today = new Date().toISOString().slice(0,10);
+  const hasToday = (reports||[]).some(r => r.date === today && isDailyReport(r));
+  const st = document.getElementById('home-status-text');
+  if (st) st.innerHTML = hasToday ? '已导入 ChatGPT 学习记录' : '今天还没有导入日报';
 }
 
-// ── Header Mini Bears (Block 1 right) ──────────────────
 function renderHeaderBears(vocab, reports, viewDate) {
   const container = document.getElementById('header-bears');
   const dateScore = {};
-  (vocab || []).forEach(v => { if (v.date_added) dateScore[v.date_added] = (dateScore[v.date_added] || 0) + 2; });
-  (reports || []).forEach(r => { if (r.date && isDailyReport(r)) dateScore[r.date] = (dateScore[r.date] || 0) + 5; });
-
+  (vocab||[]).forEach(v => { if(v.date_added) dateScore[v.date_added] = (dateScore[v.date_added]||0)+2; });
+  (reports||[]).forEach(r => { if(r.date && isDailyReport(r)) dateScore[r.date] = (dateScore[r.date]||0)+5; });
   const today = new Date();
   const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today); d.setDate(d.getDate() - i);
-    days.push({ date: d.toISOString().slice(0, 10), day: d.getDate(), month: d.getMonth() + 1, active: !!dateScore[d.toISOString().slice(0, 10)] });
-  }
-
+  for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); days.push({date:d.toISOString().slice(0,10), day:d.getDate(), month:d.getMonth()+1, active:!!dateScore[d.toISOString().slice(0,10)]}); }
   container.innerHTML = days.map(d => `
-    <div class="header-mini-bear${d.date === viewDate ? ' selected' : ''}" title="${d.date}${d.active ? ' · 已练习' : ''}" onclick="showBearDay('${d.date}',${d.active})">
-      <img class="header-mini-bear-img" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}"
-        onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=display:flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:14px>${d.active ? '🐻' : '🌱'}</span>')" />
-      <span class="header-mini-date">${d.month}/${d.day}</span>
+    <div class="flex flex-col items-center gap-px shrink-0 cursor-pointer w-8" onclick="showBearDay('${d.date}',${d.active})">
+      <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===viewDate?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active?'/bear-active.png':'/bear-default.png'}" alt="${d.active?'🐻':'🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active?'🐻':'🌱'}</span>')" />
+      <span class="text-[8px] text-[var(--c-text-ultradim)] whitespace-nowrap text-center">${d.month}/${d.day}</span>
     </div>
   `).join('');
 }
 
-// ── Block 2: Metrics Grid ──────────────────────────────
-function renderMetricsGrid(todayReport, vocab, errors, patterns, prog) {
+function renderHistoryBanner(report, viewDate) {
+  const banner = document.getElementById('home-history-banner');
+  if(!banner) return;
+  if(!viewDate){ banner.className='hidden'; return; }
+  if(!report){ banner.className='hidden'; showToast(viewDate+' · 该日期无日报数据'); _viewDate=null; loadHome(); return; }
+  const d = new Date(viewDate+'T00:00:00');
+  const wd = ['周日','周一','周二','周三','周四','周五','周六'];
+  banner.innerHTML = `<span class="inline-flex items-center gap-1">${icon('calendar','w-3.5 h-3.5')} 正在查看 ${viewDate} ${wd[d.getDay()]} 的数据</span> <a onclick="_viewDate=null;loadHome();" class="inline-flex items-center gap-1 cursor-pointer text-[var(--c-blue)] font-semibold">回到今天 ${icon('arrow-right','w-3 h-3')}</a>`;
+  banner.className = 'flex justify-between items-center px-3.5 py-2 mb-2.5 text-[13px] text-[var(--c-text)] bg-[var(--c-primary-light)] rounded-2xl border-l-[3px] border-l-[var(--c-primary)]';
+  refreshIcons(banner);
+}
+
+function showBearDay(date, active) {
+  if(!active){ showToast(date+' · 未打卡，无日报数据'); return; }
+  _viewDate = date; loadHome();
+}
+
+// ── Section 2: Quote Card ───────────────────────────────
+function renderQuoteCard() {
+  const q = mockDashboardData.quote;
+  const el = document.getElementById('home-quote');
+  el.innerHTML = `
+    <div class="flex justify-between items-start mb-2">
+      <span class="inline-flex items-center gap-1 text-[10px] font-semibold tracking-wider text-[var(--c-text-ultradim)] uppercase">${icon('book-open','w-3 h-3')} ${q.category} · 每日发音短句</span>
+      <span class="text-[var(--c-text-ultradim)] cursor-pointer" onclick="renderQuoteCard()" title="换一句">${icon('refresh-cw','w-3.5 h-3.5')}</span>
+    </div>
+    <div class="font-[Georgia,serif] text-lg italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(q.en)}"</div>
+    <div class="text-[13px] text-[var(--c-text-dim)] mb-0.5">${h(q.zh)}</div>
+    <div class="text-[11px] text-[var(--c-text-ultradim)]">— ${h(q.author)}</div>`;
+  refreshIcons(el);
+}
+
+// ── Section 3: Metrics Overview ─────────────────────────
+function renderMetricsOverview(todayReport, vocab, errors, patterns, prog) {
   const grid = document.getElementById('home-metrics');
-  if (!todayReport || !isDailyReport(todayReport)) { grid.style.display = 'none'; return; }
-  grid.style.display = 'block';
-
+  if(!todayReport || !isDailyReport(todayReport)) {
+    // Show mock data when no report
+    const m = mockDashboardData.metrics;
+    grid.innerHTML = metricsHTML(m.overall, m.speakMin, m.totalMin, m.fluency, m.grammar, m.vocab, m.natural, m.topics, m.newWords, m.expressions, m.corrections);
+    refreshIcons(grid);
+    return;
+  }
   const parsed = parseReport(todayReport.content);
-  const fluency = parsed.summary.fluency || 0;
-  const accuracy = parsed.summary.accuracy || 0;
-  const natural = parsed.summary.naturalness || Math.round(fluency * 0.8) || 0;
-  const vocabScore = Math.min(parsed.vocabulary.length * 2, 10);
-  const overall = Math.round((fluency + accuracy + natural + vocabScore) / 4);
-  const duration = parsed.meta.duration || (prog?.total_minutes || 0);
-  const speakTime = Math.round(duration * 0.6);
+  const fluency = parsed.summary.fluency||0;
+  const accuracy = parsed.summary.accuracy||0;
+  const natural = parsed.summary.naturalness||Math.round(fluency*0.8)||0;
+  const vocabScore = Math.min(parsed.vocabulary.length*2,10);
+  const overall = Math.round((fluency+accuracy+natural+vocabScore)/4);
+  const duration = parsed.meta.duration||(prog?.total_minutes||0);
+  const speakTime = Math.round(duration*0.6);
+  const topics = prog?.topics?.length||mockDashboardData.metrics.topics;
+  const newWords = parsed.vocabulary.length;
+  const expressions = parsed.patterns.length;
+  const corrections = (parsed.grammar||[]).length+(parsed.pronunciation||[]).length;
+  grid.innerHTML = metricsHTML(overall, speakTime, duration, fluency, accuracy, vocabScore, natural, topics, newWords, expressions, corrections);
+  refreshIcons(grid);
+}
 
-  // Donut
-  document.getElementById('metrics-donut').innerHTML = metricsDonut(overall);
-
-  // Duration
-  document.getElementById('metrics-duration').innerHTML = `
-    <div class="metrics-duration-value">🗣️ ${speakTime || '--'}m / 共 ${duration || '--'}m</div>
-    <div class="metrics-duration-label">开口时长 / 总时长</div>
-  `;
-
-  // 4-dimension bars
-  const bars = [
-    { label: '流利度', score: fluency, cls: 'fluency' },
-    { label: '语法', score: accuracy, cls: 'grammar' },
-    { label: '词汇', score: vocabScore, cls: 'vocab' },
-    { label: '自然度', score: natural, cls: 'natural' },
-  ];
-  document.getElementById('metrics-bars').innerHTML = bars.map(b =>
-    `<div class="metrics-bar-row">
-      <span class="metrics-bar-label">${b.label}</span>
-      <div class="metrics-bar-track"><div class="metrics-bar-fill ${b.cls}" style="width:${(b.score/10)*100}%"></div></div>
-      <span class="metrics-bar-score">${b.score}/10</span>
-    </div>`
-  ).join('');
-
-  // Pills
-  document.getElementById('metrics-pills').innerHTML = [
-    `<div class="metrics-pill"><strong>💬 ${prog?.topics?.length || 0}</strong> 个话题</div>`,
-    `<div class="metrics-pill"><strong>📝 ${parsed.vocabulary.length}</strong> 个新词</div>`,
-    `<div class="metrics-pill"><strong>🗣️ ${parsed.patterns.length}</strong> 个表达</div>`,
-    `<div class="metrics-pill"><strong>🔧 ${(parsed.grammar||[]).length + (parsed.pronunciation||[]).length}</strong> 项纠正</div>`,
-  ].join('');
+function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natural, topics, newWords, expressions, corrections) {
+  return `
+    <div class="flex items-center gap-5 mb-4">
+      <div class="relative shrink-0 w-[88px] h-[88px]">${metricsDonut(overall)}</div>
+      <div class="flex flex-col gap-0.5">
+        <div class="text-xl font-bold text-[var(--c-text)] flex items-center gap-1">${icon('mic','w-[18px] h-[18px] text-[var(--c-primary)]')} ${speakMin||'--'}m / 共 ${totalMin||'--'}m</div>
+        <div class="text-xs text-[var(--c-text-dim)]">开口时长 / 总时长</div>
+      </div>
+    </div>
+    <div class="flex flex-col gap-2 mb-3.5">${[
+      {l:'流利度',s:fluency,c:'var(--c-primary)'},
+      {l:'语法',s:grammar,c:'var(--c-blue)'},
+      {l:'词汇',s:vocab,c:'var(--c-green)'},
+      {l:'自然度',s:natural,c:'var(--c-orange)'}
+    ].map(b=>`
+      <div class="flex items-center gap-2">
+        <span class="w-14 shrink-0 text-[11px] text-[var(--c-text-dim)] text-right">${b.l}</span>
+        <div class="flex-1 h-[5px] bg-[var(--c-border-light)] rounded-sm overflow-hidden"><div class="h-full rounded-sm transition-all duration-[0.6s]" style="width:${(b.s/10)*100}%;background:${b.c}"></div></div>
+        <span class="w-7 shrink-0 text-xs font-bold text-[var(--c-text)] text-right">${b.s}/10</span>
+      </div>`).join('')}
+    </div>
+    <div class="flex gap-1.5 flex-wrap pt-3 border-t border-[var(--c-border-light)]">
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[11px] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-[15px] text-[var(--c-text)] font-bold">${icon('message-circle','w-3.5 h-3.5')} ${topics}</strong>个话题</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[11px] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-[15px] text-[var(--c-text)] font-bold">${icon('pen-line','w-3.5 h-3.5')} ${newWords}</strong>个新词</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[11px] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-[15px] text-[var(--c-text)] font-bold">${icon('message-square-text','w-3.5 h-3.5')} ${expressions}</strong>个表达</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[11px] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-[15px] text-[var(--c-text)] font-bold">${icon('wrench','w-3.5 h-3.5')} ${corrections}</strong>项纠正</div>
+    </div>`;
 }
 
 function metricsDonut(score) {
-  const r = 34, cx = 44, cy = 44, sw = 8, circ = 2 * Math.PI * r;
-  const len = (score / 10) * circ;
-  const color = score >= 7 ? 'var(--green)' : score >= 4 ? 'var(--orange)' : 'var(--red)';
-  return `<svg viewBox="0 0 88 88" width="88" height="88">
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border-light)" stroke-width="${sw}"/>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
-      stroke-dasharray="${len} ${circ - len}" stroke-dashoffset="0" transform="rotate(-90 44 44)" stroke-linecap="round"/>
-  </svg><div class="metrics-donut-score">${score}</div>`;
+  const r=34,cx=44,cy=44,sw=8,circ=2*Math.PI*r,len=(score/10)*circ;
+  const color=score>=7?'var(--c-green)':score>=4?'var(--c-orange)':'var(--c-red)';
+  return `<svg viewBox="0 0 88 88" width="88" height="88"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--c-border-light)" stroke-width="${sw}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${len} ${circ-len}" stroke-dashoffset="0" transform="rotate(-90 44 44)" stroke-linecap="round"/></svg><div class="absolute inset-0 flex items-center justify-center text-[26px] font-extrabold text-[var(--c-text)]">${score}</div>`;
 }
 
-// ── Block 3: Daily Insights (4 interactive cards) ──────
-function renderInsights(todayReport, vocab, errors, patterns, prog) {
+// ── Section 4: Insights (Cards A-F) ─────────────────────
+function renderInsightsSection(todayReport) {
   const container = document.getElementById('home-insights');
-  container.style.display = 'block';
-
-  // Merge real data with mock fallback
-  let data = {
-    overallReview: mockInsightsData.overallReview,
-    strengths: [...mockInsightsData.strengths],
-    improvements: [...mockInsightsData.improvements],
-    nextSteps: [...mockInsightsData.nextSteps]
-  };
-
-  if (todayReport && isDailyReport(todayReport)) {
-    const parsed = parseReport(todayReport.content);
-    const s = parsed.summary;
-    if (s.review || s.thoughts) data.overallReview = (s.review || '') + (s.thoughts ? '\n\n' + s.thoughts : '') || data.overallReview;
-    if (s.strengths) {
-      const lines = s.strengths.split('\n').filter(Boolean).map(l => l.replace(/^[-•*]\s*/, ''));
-      if (lines.length) data.strengths = lines;
-    }
-    // Map real errors into improvements
-    const allErrors = [...(parsed.grammar || []), ...(parsed.pronunciation || [])];
-    if (allErrors.length) {
-      data.improvements = allErrors.slice(0, 3).map(e => ({
-        issue: e.rule || e.type || '表达纠正',
-        detail: (e.original || '') + ' → ' + (e.correction || ''),
-        action: '查看纠错', target: 'words'
-      }));
-    }
-    if (s.next_suggestions) {
-      const steps = s.next_suggestions.split('\n').filter(Boolean).map(l => l.replace(/^[-•*\d]+[\.\、]\s*/, ''));
-      if (steps.length) data.nextSteps = steps.slice(0, 3).map(step => ({ step, action: '去练习', target: 'speak' }));
-    }
+  // Merge real data with mock
+  let d = JSON.parse(JSON.stringify(mockDashboardData.insights));
+  if(todayReport && isDailyReport(todayReport)){
+    const p = parseReport(todayReport.content);
+    if(p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
+    if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
+    if(p.summary.strengths){ const lines = p.summary.strengths.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*]\s*/,'')); if(lines.length) d.strengths = lines; }
+    const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
+    if(allErr.length) d.improvements = allErr.slice(0,3).map(e=>({issue:e.rule||e.type||'表达纠正',detail:(e.original||'')+' → '+(e.correction||''),action:'查看纠错',tab:'words'}));
+    if(p.summary.next_suggestions){ const steps = p.summary.next_suggestions.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*\d]+[\.\、]\s*/,'')); if(steps.length) d.nextSteps = steps.slice(0,3).map(s=>({step:s,action:'去练习',tab:'speak'})); }
   }
+  const card = (delay,html) => `<div class="bg-[var(--c-surface)] rounded-2xl p-4 mb-2.5 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s;box-shadow:var(--c-shadow-sm)">${html}</div>`;
+  const cardBg = (delay,html) => `<div class="bg-[var(--c-bg)] rounded-2xl p-4 mb-2.5 border-l-[3px] border-l-[var(--c-primary)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s">${html}</div>`;
 
   let html = '';
-
-  // ── Card A: 💬 ChatGPT Overall Review ──
-  html += `<div class="insight-review-card" style="animation-delay:0.03s">
-    <div class="ir-title">🧠 AI 陪练复盘</div>
-    <div class="ir-body">${h(data.overallReview)}</div>
-  </div>`;
-
-  // ── Card B: ✅ Strengths ──
-  html += `<div class="insight-strength-card" style="animation-delay:0.06s">
-    <div class="is-title">✅ 今天做得很棒的地方</div>
-    ${data.strengths.map(s => `<div class="insight-strength-item"><span class="is-check">✓</span><span>${h(s)}</span></div>`).join('')}
-  </div>`;
-
-  // ── Card C: ⚠️ Improvements (left-right, interactive) ──
-  html += `<div class="insight-improve-card" style="animation-delay:0.09s">
-    <div class="ii-title">⚠️ 今天需要提升</div>
-    ${data.improvements.map(im => `
-      <div class="insight-improve-row">
-        <div class="ii-left">
-          <div class="ii-issue">${h(im.issue)}</div>
-          <div class="ii-detail">${h(im.detail)}</div>
-        </div>
-        <button class="insight-improve-btn" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=${im.target}]').click()">${h(im.action)} →</button>
-      </div>
-    `).join('')}
-  </div>`;
-
-  // ── Card D: 🎯 Next Steps (numbered, interactive) ──
-  html += `<div class="insight-next-card" style="animation-delay:0.12s">
-    <div class="in-title">🎯 下一次学习建议</div>
-    ${data.nextSteps.map((ns, i) => `
-      <div class="insight-next-row">
-        <div class="in-left">
-          <div class="in-num">${i + 1}</div>
-          <div class="in-step">${h(ns.step)}</div>
-        </div>
-        <button class="insight-next-btn" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=${ns.target}]').click()">${h(ns.action)} →</button>
-      </div>
-    `).join('')}
-  </div>`;
+  // Card A: Topics
+  html += card(0.03, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('message-circle','w-3.5 h-3.5')} 今日对话主题</div><div class="flex gap-2 flex-wrap">${d.topics.map(t=>`<span class="px-3 py-1 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-xs font-medium">#${h(t)}</span>`).join('')}</div>`);
+  // Card B: Thoughts
+  html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div><div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(d.thoughts.en)}"</div><div class="text-[13px] text-[var(--c-text-dim)]">${h(d.thoughts.zh)}</div>`);
+  // Card C: Strengths
+  html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} 今天做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
+  // Card D: Improvements
+  html += card(0.12, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} 今天需要提升</div>${d.improvements.map(im=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0"><div class="flex-1 min-w-0"><div class="text-[13px] font-semibold text-[var(--c-text)]">${h(im.issue)}</div><div class="text-[11px] text-[var(--c-text-ultradim)] mt-0.5">${h(im.detail)}</div></div><button class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-blue)] bg-transparent border border-[var(--c-blue)] rounded-2xl cursor-pointer whitespace-nowrap transition-all duration-150 active:bg-[var(--c-blue)] active:text-white" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=${im.tab}]').click()">${h(im.action)} ${icon('arrow-right','w-3 h-3')}</button></div>`).join('')}`);
+  // Card E: Next Steps
+  html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 下一次学习建议</div>${d.nextSteps.map((ns,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0"><div class="flex items-start gap-2.5 flex-1 min-w-0"><div class="w-[22px] h-[22px] rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] text-xs font-bold flex items-center justify-center shrink-0">${i+1}</div><div class="text-[13px] text-[var(--c-text)] leading-[1.5]">${h(ns.step)}</div></div><button class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 rounded-2xl cursor-pointer whitespace-nowrap transition-all duration-150 active:bg-[var(--c-primary)] active:text-white" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=${ns.tab}]').click()">${h(ns.action)} ${icon('arrow-right','w-3 h-3')}</button></div>`).join('')}`);
+  // Card F: Overall Review
+  html += cardBg(0.18, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2">${icon('brain','w-3.5 h-3.5')} AI 陪练复盘</div><div class="font-[Georgia,serif] text-[15px] text-[var(--c-text)] leading-[1.8]">${h(d.overallReview)}</div>`);
 
   container.innerHTML = html;
+  refreshIcons(container);
 }
 
-// ── Block 4: Content Summary Cards ─────────────────────
-function renderSummaryCards(todayReport, vocab, errors, patterns) {
+// ── Section 5: Content Cards + Todos ────────────────────
+function renderContentCards(todayReport, vocab, errors, patterns) {
   const container = document.getElementById('home-summary-cards');
-  if (!todayReport || !isDailyReport(todayReport)) { container.style.display = 'none'; return; }
-  container.style.display = 'flex';
-
-  const parsed = parseReport(todayReport.content);
-  const allErrors = [...(parsed.grammar || []), ...(parsed.pronunciation || [])];
-  const sentencePatterns = parsed.sentence_patterns || [];
-
-  const cards = [
-    { icon: '📝', num: parsed.vocabulary.length, label: '新学单词', link: 'words', linkText: '去复习' },
-    { icon: '📐', num: sentencePatterns.length, label: '核心句型', link: 'speak', linkText: '去复习' },
-    { icon: '🔧', num: allErrors.length, label: '重点纠错', link: 'words', linkText: '查看' },
-  ].filter(c => c.num > 0);
-
-  if (!cards.length) { container.style.display = 'none'; return; }
-
-  container.innerHTML = cards.map(c => `
-    <div class="summary-card" onclick="document.querySelector('.tab[data-tab=${c.link}]').click()">
-      <div class="summary-card-icon">${c.icon}</div>
-      <div class="summary-card-num">${c.num}</div>
-      <div class="summary-card-label">${c.label}</div>
-      <div class="summary-card-link">${c.linkText} →</div>
+  let cards = mockDashboardData.contentCards;
+  if(todayReport && isDailyReport(todayReport)){
+    const p = parseReport(todayReport.content);
+    const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
+    cards = [
+      {icon:'pen-line',num:p.vocabulary.length,label:'新学单词',tab:'words',btn:'复习今日单词'},
+      {icon:'ruler',num:(p.sentence_patterns||[]).length,label:'核心句型',tab:'speak',btn:'练习句型'},
+      {icon:'wrench',num:allErr.length,label:'重点纠错',tab:'words',btn:'查看纠错'}
+    ].filter(c=>c.num>0);
+  }
+  if(!cards.length){ container.innerHTML=''; return; }
+  container.innerHTML = cards.map(c=>`
+    <div class="flex-1 bg-[var(--c-surface)] rounded-2xl px-2.5 py-3.5 text-center cursor-pointer transition-all duration-150 border border-[var(--c-border-light)] active:scale-[0.96] active:bg-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" onclick="document.querySelector('.tab[data-tab=${c.tab}]').click()">
+      <div class="flex justify-center mb-1">${icon(c.icon,'w-[22px] h-[22px] text-[var(--c-primary)]')}</div>
+      <div class="text-[22px] font-extrabold text-[var(--c-primary)]">${c.num}</div>
+      <div class="text-[11px] text-[var(--c-text-dim)] mt-0.5">${c.label}</div>
+      <div class="inline-flex items-center gap-0.5 text-[11px] text-[var(--c-blue)] mt-1.5 font-medium">${c.btn} ${icon('arrow-right','w-3 h-3')}</div>
     </div>
   `).join('');
+  refreshIcons(container);
 }
 
-// ── Block 5: Action Center (Todoist-style) ────────────
-function renderQuests(todayReport, vocab, errors, reports, streak) {
-  const today = new Date().toISOString().slice(0, 10);
-  const quests = [];
-
-  // Quest 1: Import today's report → opens dialog
+function renderTodoList(todayReport, vocab, errors, reports, streak) {
+  const today = new Date().toISOString().slice(0,10);
+  let todos = JSON.parse(JSON.stringify(mockDashboardData.todos));
+  // Merge real state
   const hasTodayReport = todayReport && isDailyReport(todayReport);
-  quests.push({
-    id: 'q1', icon: '📥', title: '导入今日日报', sub: hasTodayReport ? '已完成 ✓' : '把 ChatGPT 练习报告粘贴进来',
-    done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); }
-  });
-
-  // Quest 2: Review words
-  const reviewedToday = (vocab || []).filter(v => v.last_reviewed_at && v.last_reviewed_at.slice(0,10) === today).length;
-  quests.push({
-    id: 'q2', icon: '🃏', title: '复习 5 个单词', sub: reviewedToday >= 5 ? `已复习 ${reviewedToday} 个` : `今日进度: ${reviewedToday}/5`,
-    done: reviewedToday >= 5, action: () => { document.querySelector('.tab[data-tab=words]').click(); }
-  });
-
-  // Quest 3: Practice speaking
-  quests.push({
-    id: 'q3', icon: '🎤', title: '完成一次口语练习', sub: hasTodayReport ? '今天练习过了！' : '打开 ChatGPT 开口说英语',
-    done: hasTodayReport, action: hasTodayReport ? null : () => { document.querySelector('.tab[data-tab=speak]').click(); }
-  });
-
-  const done = quests.filter(q => q.done).length;
-  document.getElementById('home-quests').style.display = 'block';
-  document.getElementById('quests-progress-text').textContent = `${done}/3`;
-  document.getElementById('quests-bar-fill').style.width = `${(done/3)*100}%`;
-
-  document.getElementById('quests-list').innerHTML = quests.map(q => `
-    <div class="quest-item ${q.done ? 'done' : ''}" data-action="${q.action ? '1' : '0'}">
-      <div class="quest-check">${q.done ? '✓' : ''}</div>
-      <div class="quest-info">
-        <div class="quest-title">${q.icon} ${q.title}</div>
-        <div class="quest-sub">${q.sub}</div>
+  const reviewedToday = (vocab||[]).filter(v=>v.last_reviewed_at&&v.last_reviewed_at.slice(0,10)===today).length;
+  todos = [
+    {text:'导入今日日报',sub:hasTodayReport?'已完成':'把 ChatGPT 练习报告粘贴进来',done:hasTodayReport,action:hasTodayReport?null:()=>{showImportDialog();},tab:null},
+    {text:'复习 5 个单词',sub:reviewedToday>=5?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/5`,done:reviewedToday>=5,action:()=>{document.querySelector('.tab[data-tab=words]').click();},tab:'words'},
+    {text:'完成一次口语练习',sub:hasTodayReport?'今天练习过了！':'打开 ChatGPT 开口说英语',done:hasTodayReport,action:hasTodayReport?null:()=>{document.querySelector('.tab[data-tab=speak]').click();},tab:'speak'}
+  ];
+  const done = todos.filter(q=>q.done).length;
+  const container = document.getElementById('home-quests');
+  container.innerHTML = `
+    <div class="flex justify-between items-center mb-2"><span class="inline-flex items-center gap-1.5 text-[15px] font-bold text-[var(--c-text)]">${icon('list-todo','w-[18px] h-[18px]')} 今日待办</span><span class="text-[13px] text-[var(--c-primary)] font-semibold">${done}/3</span></div>
+    <div class="h-1.5 bg-[var(--c-border-light)] rounded-full overflow-hidden mb-3"><div class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-400" style="width:${(done/3)*100}%"></div></div>
+    <div class="flex flex-col gap-1.5">${todos.map((q,i)=>`
+      <div class="flex items-center gap-2.5 px-3.5 py-3 bg-[var(--c-bg)] rounded-lg cursor-pointer transition-all duration-200 border-l-[3px] ${q.done?'border-l-transparent opacity-55':'border-l-[var(--c-blue)]'} active:scale-[0.98]" data-todo-idx="${i}">
+        <div class="shrink-0">${q.done?icon('check-circle','w-[22px] h-[22px] text-emerald-500'):icon('circle','w-[22px] h-[22px] text-[var(--c-border)]')}</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-[13px] font-semibold text-[var(--c-text)] ${q.done?'line-through':''}">${q.text}</div>
+          <div class="text-[11px] text-[var(--c-text-dim)]">${q.sub||''}</div>
+        </div>
+        ${q.action&&!q.done?icon('chevron-right','w-5 h-5 text-[var(--c-text-ultradim)] shrink-0'):''}
       </div>
-      ${q.action && !q.done ? '<span class="quest-arrow">›</span>' : ''}
-    </div>
-  `).join('');
-
-  document.querySelectorAll('.quest-item').forEach(item => {
-    item.addEventListener('click', function() {
-      if (this.dataset.action === '1') {
-        const idx = [...this.parentNode.children].indexOf(this);
-        const q = quests[idx];
-        if (q && q.action) q.action();
-      }
+    `).join('')}</div>`;
+  refreshIcons(container);
+  // Wire click handlers
+  container.querySelectorAll('[data-todo-idx]').forEach(el=>{
+    el.addEventListener('click',function(){
+      const idx = parseInt(this.dataset.todoIdx);
+      const q = todos[idx]; if(q&&q.action) q.action();
     });
   });
 }
 
-// ── Import Dialog ──────────────────────────────────────
+function isDailyReport(report) {
+  if(!report||!report.content) return false;
+  const c=report.content;
+  return c.includes('type: daily-report')||c.includes('## 语法纠正')||c.includes('## 发音纠正')||c.includes('## 今日生词')||c.includes('## 表现总结')||c.includes('## 地道表达');
+}
+
+// ── Import Dialog (updated for Tailwind) ────────────────
 function showImportDialog() {
-  document.getElementById('import-dialog').style.display = 'flex';
+  const dlg = document.getElementById('import-dialog');
+  dlg.classList.remove('hidden');
   document.getElementById('dialog-report-input').value = '';
   document.getElementById('dialog-import-result').innerHTML = '';
 }
 function hideImportDialog() {
-  document.getElementById('import-dialog').style.display = 'none';
+  document.getElementById('import-dialog').classList.add('hidden');
 }
 
 // ── 🔥 Streak calc ────────────────────────────────────
@@ -582,15 +574,6 @@ function renderDetails(todayReport, vocab, errors, patterns, prog) {
   });
 }
 
-function isDailyReport(report) {
-  if (!report || !report.content) return false;
-  const c = report.content;
-  return c.includes('type: daily-report') ||
-    c.includes('## 语法纠正') || c.includes('## 发音纠正') ||
-    c.includes('## 今日生词') || c.includes('## 表现总结') ||
-    c.includes('## 地道表达');
-}
-
 // ── Detail Modal [deprecated v4.0] ──
 let _detailModalData = null; // [deprecated v4.0]
 function showDetailModal(label, count, tab) {
@@ -678,24 +661,6 @@ function renderBearHeatmap(vocab, reports) {
   `).join('');
 
   setTimeout(() => { container.scrollLeft = container.scrollWidth; }, 100);
-}
-
-function showBearDay(date, active) {
-  if (!active) { showToast("📅 " + date + " · 🌱 未打卡，无日报数据"); return; }
-  _viewDate = date;
-  loadHome();
-}
-
-// ── History Banner ────────────────────────────────────
-function renderHistoryBanner(report, viewDate) {
-  const banner = document.getElementById("home-history-banner");
-  if (!banner) return;
-  if (!viewDate) { banner.style.display = "none"; return; }
-  if (!report) { banner.style.display = "none"; showToast("📅 " + viewDate + " · 该日期无日报数据"); _viewDate = null; loadHome(); return; }
-  const d = new Date(viewDate + "T00:00:00");
-  const wd = ["周日","周一","周二","周三","周四","周五","周六"];
-  banner.innerHTML = "<span>📅 正在查看 " + viewDate + " " + wd[d.getDay()] + " 的数据</span> <a onclick=\"_viewDate=null;loadHome();\" style=\"cursor:pointer;color:var(--blue);font-weight:600;\">回到今天 →</a>";
-  banner.style.display = "flex";
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1027,7 +992,7 @@ function rateShadow(rating) {
 }
 
 // ═══════════════════════════════════════════════════════
-// TAB 4: ME
+// TAB 4: ME (v5.0 Grouped List)
 // ═══════════════════════════════════════════════════════
 async function loadMe() {
   const { data: { session } } = await sb.auth.getSession();
@@ -1040,7 +1005,13 @@ async function loadMe() {
   document.getElementById('setting-username').value = username;
   document.getElementById('me-name').textContent = username || '无名小熊';
 
-  // Stats
+  // Update last sync
+  const el = document.getElementById('home-last-sync');
+  if (el) {
+    const { data: reports } = await sb.from('reports').select('date').order('date',{ascending:false}).limit(1);
+    if (reports?.length) el.textContent = '最近同步: '+reports[0].date;
+  }
+
   const [{ data: prog }, { data: vocab }, { data: errors }] = await Promise.all([
     sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle(),
     sb.from('vocabulary').select('*'),
@@ -1053,19 +1024,17 @@ async function loadMe() {
   const streak = calcStreak(dates);
   const level = calcLevel(prog?.total_sessions || 0, streak, vList.length);
 
-  document.getElementById('me-streak').textContent = `🔥 ${streak} 天`;
-  document.getElementById('me-level').textContent = `⭐ Lv.${level.level}`;
+  document.getElementById('me-streak').innerHTML = `${icon('flame','w-4 h-4 text-[var(--c-orange)]')} ${streak} 天`;
+  document.getElementById('me-level').innerHTML = `${icon('star','w-4 h-4 text-[var(--c-orange)]')} Lv.${level.level}`;
   document.getElementById('me-level-bar-fill').style.width = `${(level.progress / level.threshold) * 100}%`;
   document.getElementById('me-level-hint').textContent = level.hint;
 
-  // Achievements
   renderAchievements(prog, vList, eList, streak);
 
-  // Error patterns
   if (eList.length > 0) {
     showErrorPatterns(eList);
   } else {
-    document.getElementById('error-patterns-group').style.display = 'none';
+    document.getElementById('error-patterns-group').classList.add('hidden');
   }
 }
 
@@ -1073,27 +1042,17 @@ async function loadMe() {
 function calcLevel(sessions, streak, vocabCount) {
   const xp = (sessions || 0) * 50 + (streak || 0) * 10 + (vocabCount || 0) * 5;
   const levels = [
-    { lv: 1, min: 0, max: 200, title: '初学者' },
-    { lv: 2, min: 200, max: 500, title: '探索者' },
-    { lv: 3, min: 500, max: 1000, title: '练习者' },
-    { lv: 4, min: 1000, max: 1800, title: '进阶者' },
-    { lv: 5, min: 1800, max: 3000, title: '挑战者' },
-    { lv: 6, min: 3000, max: 4500, title: '口语达人' },
-    { lv: 7, min: 4500, max: 6500, title: '英语高手' },
-    { lv: 8, min: 6500, max: 9000, title: '语言大师' },
-    { lv: 9, min: 9000, max: 12000, title: '传奇' },
-    { lv: 10, min: 12000, max: Infinity, title: '终极王者' },
+    { lv: 1, min: 0, max: 200, title: '初学者' }, { lv: 2, min: 200, max: 500, title: '探索者' },
+    { lv: 3, min: 500, max: 1000, title: '练习者' }, { lv: 4, min: 1000, max: 1800, title: '进阶者' },
+    { lv: 5, min: 1800, max: 3000, title: '挑战者' }, { lv: 6, min: 3000, max: 4500, title: '口语达人' },
+    { lv: 7, min: 4500, max: 6500, title: '英语高手' }, { lv: 8, min: 6500, max: 9000, title: '语言大师' },
+    { lv: 9, min: 9000, max: 12000, title: '传奇' }, { lv: 10, min: 12000, max: Infinity, title: '终极王者' },
   ];
-
   for (const l of levels) {
     if (xp < l.max) {
-      const progress = xp - l.min;
-      const threshold = l.max - l.min;
+      const progress = xp - l.min, threshold = l.max - l.min;
       const nextTitle = levels.find(ll => ll.lv === l.lv + 1);
-      return {
-        level: l.lv, title: l.title, progress, threshold,
-        hint: nextTitle ? `${xp}XP · 距 Lv.${nextTitle.lv} ${nextTitle.title} 还差 ${l.max - xp}XP` : `${xp}XP · 已达最高等级！`
-      };
+      return { level: l.lv, title: l.title, progress, threshold, hint: nextTitle ? `${xp}XP · 距 Lv.${nextTitle.lv} ${nextTitle.title} 还差 ${l.max - xp}XP` : `${xp}XP · 已达最高等级！` };
     }
   }
   return { level: 10, title: '终极王者', progress: 1, threshold: 1, hint: `${xp}XP · 已达最高等级！` };
@@ -1102,26 +1061,25 @@ function calcLevel(sessions, streak, vocabCount) {
 // ── Achievements ──────────────────────────────────────
 function renderAchievements(prog, vocab, errors, streak) {
   const badges = [
-    { icon: '🎯', label: '首次练习', unlocked: (prog?.total_sessions || 0) >= 1 },
-    { icon: '🔥', label: '7天坚持', unlocked: streak >= 7 },
-    { icon: '🔮', label: '14天坚持', unlocked: streak >= 14 },
-    { icon: '📚', label: '掌握50词', unlocked: (vocab || []).filter(v => v.status === 'mastered' || v.mastered).length >= 50 },
-    { icon: '🔧', label: '纠正20次', unlocked: (errors || []).filter(e => e.correct_in_review).length >= 20 },
-    { icon: '💎', label: '30天坚持', unlocked: streak >= 30 },
-    { icon: '🌟', label: '练习10次', unlocked: (prog?.total_sessions || 0) >= 10 },
+    { icon: 'target', label: '首次练习', unlocked: (prog?.total_sessions || 0) >= 1 },
+    { icon: 'flame', label: '7天坚持', unlocked: streak >= 7 },
+    { icon: 'sparkles', label: '14天坚持', unlocked: streak >= 14 },
+    { icon: 'book-open', label: '掌握50词', unlocked: (vocab || []).filter(v => v.status === 'mastered' || v.mastered).length >= 50 },
+    { icon: 'wrench', label: '纠正20次', unlocked: (errors || []).filter(e => e.correct_in_review).length >= 20 },
+    { icon: 'gem', label: '30天坚持', unlocked: streak >= 30 },
+    { icon: 'star', label: '练习10次', unlocked: (prog?.total_sessions || 0) >= 10 },
   ];
-
-  document.getElementById('me-badges').innerHTML = badges.map(b =>
-    `<div class="me-badge${b.unlocked ? '' : ' locked'}">
-      <span>${b.icon}</span>
-      <small>${b.label}</small>
-    </div>`
+  const container = document.getElementById('me-badges');
+  container.innerHTML = badges.map(b =>
+    `<div class="flex flex-col items-center gap-1 px-3 py-3 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] min-w-[70px] ${b.unlocked?'':'opacity-40 grayscale-[0.8]'}">${icon(b.icon, 'w-8 h-8')}<small class="text-[10px] text-[var(--c-text-dim)]">${b.label}</small></div>`
   ).join('');
+  refreshIcons(container);
 }
 
 // ── Error patterns ─────────────────────────────────────
 function showErrorPatterns(errors) {
-  document.getElementById('error-patterns-group').style.display = 'block';
+  const grp = document.getElementById('error-patterns-group');
+  grp.classList.remove('hidden');
   const epDiv = document.getElementById('error-patterns');
   const patternCount = {};
   errors.forEach(e => {
@@ -1135,15 +1093,19 @@ function showErrorPatterns(errors) {
   const fixRate = errors.length > 0 ? Math.round((fixedCount / errors.length) * 100) : 0;
 
   epDiv.innerHTML = `
-    <div class="ep-summary"><div class="ep-stat"><strong>${errors.length}</strong> 个错误</div><div class="ep-stat"><strong>${fixRate}%</strong> 已纠正</div></div>
-    <div class="ep-patterns"><div class="ep-label">高频错误模式</div>${sorted.map(([name, count]) =>
-      `<div class="ep-row" onclick="showErrorDetail('${name}')" style="cursor:pointer;">
-        <span class="ep-name">${name}</span>
-        <div class="ep-bar-wrap"><div class="ep-bar" style="width:${(count/max)*100}%;"></div></div>
-        <span class="ep-count">${count}次</span>
+    <div class="flex gap-3 mb-4">${[
+      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-lg text-[var(--c-text)] mb-0.5">${errors.length}</strong>个错误</div>`,
+      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-lg text-[var(--c-text)] mb-0.5">${fixRate}%</strong>已纠正</div>`
+    ].join('')}</div>
+    <div class="mb-3"><div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">高频错误模式</div>${sorted.map(([name, count]) =>
+      `<div class="flex items-center gap-2.5 mb-2 cursor-pointer" onclick="showErrorDetail('${name}')">
+        <span class="w-[50px] text-xs text-[var(--c-text-dim)] text-right shrink-0">${name}</span>
+        <div class="flex-1 h-2 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-500" style="width:${(count/max)*100}%;"></div></div>
+        <span class="w-[30px] text-[11px] text-[var(--c-text-ultradim)] shrink-0">${count}次</span>
       </div>`
     ).join('')}</div>
-    <div class="ep-tip">💡 建议优先练习 <strong>${sorted[0]?.[0] || '无'}</strong> 类型的错误</div>`;
+    <div class="text-xs text-[var(--c-primary)] px-3 py-2 bg-[var(--c-primary-light)] rounded-lg inline-flex items-center gap-1">${icon('lightbulb','w-3.5 h-3.5')} 建议优先练习 <strong>${sorted[0]?.[0] || '无'}</strong> 类型的错误</div>`;
+  refreshIcons(epDiv);
 }
 
 async function showErrorDetail(pattern) {
@@ -1388,31 +1350,34 @@ async function updateProgress(uid, fluency, accuracy, weak_areas, topic, duratio
 }
 
 // ═══════════════════════════════════════════════════════
-// Theme System
+// Theme System (v5.0 — data-theme + data-mode on <html>)
 // ═══════════════════════════════════════════════════════
 function initTheme() {
   const savedTheme = localStorage.getItem('voco-theme') || 'warm';
   const savedMode = localStorage.getItem('voco-mode') || 'light';
   applyTheme(savedTheme, savedMode);
+  initFontSize();
 }
 
 function applyTheme(theme, mode) {
   document.documentElement.setAttribute('data-theme', theme);
   document.documentElement.setAttribute('data-mode', mode);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = mode === 'dark' ? '#1E1E2E' : (mode === 'eye-care' ? '#F5E6D3' : '#FBF7F0');
+  if (meta) meta.content = mode === 'dark' ? '#1E1E2E' : (mode === 'eye-care' ? '#E5EBE0' : '#FBF7F0');
   localStorage.setItem('voco-theme', theme);
   localStorage.setItem('voco-mode', mode);
 
-  // Update theme picker
-  document.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
-  const active = document.querySelector(`.theme-option[data-theme="${theme}"]`);
-  if (active) active.classList.add('active');
+  // Update theme picker (circle buttons)
+  document.querySelectorAll('#theme-picker button').forEach(b => {
+    b.style.borderColor = b.dataset.theme === theme ? 'var(--c-primary)' : 'transparent';
+    if (b.dataset.theme === theme) b.classList.add('ring-2'); else b.classList.remove('ring-2');
+  });
 
   // Update mode toggle
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-  const activeMode = document.querySelector(`.mode-btn[data-mode="${mode}"]`);
-  if (activeMode) activeMode.classList.add('active');
+  document.querySelectorAll('#mode-toggle button').forEach(b => {
+    if (b.dataset.mode === mode) { b.classList.add('active'); b.style.background='var(--c-surface)'; b.style.color='var(--c-primary)'; b.style.fontWeight='600'; b.style.boxShadow='var(--c-shadow-sm)'; }
+    else { b.classList.remove('active'); b.style.background='transparent'; b.style.color=''; b.style.fontWeight=''; b.style.boxShadow=''; }
+  });
 }
 
 function selectTheme(theme) {
@@ -1423,6 +1388,24 @@ function selectTheme(theme) {
 function selectMode(mode) {
   const theme = document.documentElement.getAttribute('data-theme') || 'warm';
   applyTheme(theme, mode);
+}
+
+function initFontSize() {
+  const saved = localStorage.getItem('voco-font-size') || 'normal';
+  applyFontSize(saved);
+  document.querySelectorAll('#font-size-toggle button').forEach(b => {
+    if (b.dataset.size === saved) { b.classList.add('active'); b.style.background='var(--c-surface)'; b.style.color='var(--c-primary)'; b.style.fontWeight='600'; b.style.boxShadow='var(--c-shadow-sm)'; }
+  });
+}
+
+function applyFontSize(size) {
+  localStorage.setItem('voco-font-size', size);
+  const scale = size === 'large' ? '1.15' : size === 'medium' ? '1.07' : '1';
+  document.documentElement.style.fontSize = (16 * parseFloat(scale)) + 'px';
+  document.querySelectorAll('#font-size-toggle button').forEach(b => {
+    if (b.dataset.size === size) { b.classList.add('active'); b.style.background='var(--c-surface)'; b.style.color='var(--c-primary)'; b.style.fontWeight='600'; b.style.boxShadow='var(--c-shadow-sm)'; }
+    else { b.classList.remove('active'); b.style.background='transparent'; b.style.color=''; b.style.fontWeight=''; b.style.boxShadow=''; }
+  });
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1698,6 +1681,16 @@ function LoadingState({ message = 'Voco小熊正一路小跑赶来...', size = 8
 // ═══════════════════════════════════════════════════════
 function h(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
+// ── Lucide Icon Helper (data-lucide → SVG via CDN) ──────
+function icon(name, cls = '') {
+  return `<i data-lucide="${name}" class="${cls}"></i>`;
+}
+function refreshIcons(el) {
+  if (typeof lucide !== 'undefined' && lucide.createIcons) {
+    lucide.createIcons({ root: el });
+  }
+}
+
 function showToast(msg) {
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
@@ -1710,7 +1703,7 @@ function showToast(msg) {
 }
 
 // ═══════════════════════════════════════════════════════
-// Event Bindings
+// Event Bindings (v5.0)
 // ═══════════════════════════════════════════════════════
 document.getElementById('btn-login').addEventListener('click', signIn);
 document.getElementById('btn-login-email').addEventListener('click', sendMagicLink);
@@ -1724,19 +1717,19 @@ document.getElementById('import-dialog')?.addEventListener('click', function(e) 
   if (e.target === this) hideImportDialog();
 });
 
-// Template buttons (both in dialog and practice flow)
-document.querySelectorAll('.tpl-btn').forEach(btn => {
-  btn.addEventListener('click', (e) => { e.stopPropagation(); copyTemplate(btn.dataset.tpl); });
-});
-
-// Theme picker
-document.querySelectorAll('.theme-option').forEach(o => {
-  o.addEventListener('click', () => selectTheme(o.dataset.theme));
+// Theme picker (circle buttons)
+document.querySelectorAll('#theme-picker button').forEach(b => {
+  b.addEventListener('click', () => selectTheme(b.dataset.theme));
 });
 
 // Mode toggle
-document.querySelectorAll('.mode-btn').forEach(b => {
+document.querySelectorAll('#mode-toggle button').forEach(b => {
   b.addEventListener('click', () => selectMode(b.dataset.mode));
+});
+
+// Font size toggle
+document.querySelectorAll('#font-size-toggle button').forEach(b => {
+  b.addEventListener('click', () => applyFontSize(b.dataset.size));
 });
 
 // Search
@@ -1765,6 +1758,10 @@ document.querySelectorAll('.self-rate-btn').forEach(b => {
 // Init
 // ═══════════════════════════════════════════════════════
 initTheme();
+// Replace all static <i data-lucide> elements with SVG icons
+if (typeof lucide !== 'undefined' && lucide.createIcons) {
+  lucide.createIcons();
+}
 
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_IN') checkAuth();
@@ -1774,5 +1771,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=29');
+  navigator.serviceWorker.register('/sw.js?v=40');
 }
