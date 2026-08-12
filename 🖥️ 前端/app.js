@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v4.1 — 5-Block Dashboard + History
+// Voco v4.2 — 5-Block Dashboard + History + 4-Card Insights
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -95,9 +95,29 @@ const ICO_MIC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" str
 const ICO_REPEAT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>';
 
 // ═══════════════════════════════════════════════════════
-// TAB 1: HOME (v4.1 Dashboard — 5 Blocks + History)
+// TAB 1: HOME (v4.2 Dashboard — 5 Blocks + History + 4-Card Insights)
 // ═══════════════════════════════════════════════════════
 let _viewDate = null; // null=today, else 'YYYY-MM-DD' for history view
+
+// ── Mock Insights Data (fallback when no daily report exists) ──
+const mockInsightsData = {
+  overallReview: "本次练习围绕个人成长展开，用户能够表达较复杂的观点，在描述抽象概念时展现了较好的语言组织能力。整体流利度有明显提升，但在语法细节和连接词使用上仍有优化空间。建议在下次练习中刻意关注时态一致性和逻辑连接词的运用。",
+  strengths: [
+    "能够表达抽象观点，如'个人成长需要时间沉淀'",
+    "面对表达困难时，能主动替换近义词汇绕过障碍",
+    "语音语调自然，停顿位置合理，语速适中"
+  ],
+  improvements: [
+    { issue: "过去时态与完成时混淆", detail: "'I have went' → 应为 'I have gone'", action: "查看纠错", target: "words" },
+    { issue: "缺少逻辑连接词", detail: "多处句子之间缺乏 however / therefore 等过渡词", action: "复习句型", target: "speak" },
+    { issue: "冠词遗漏", detail: "'I went to store' → 应为 'I went to the store'", action: "查看纠错", target: "words" }
+  ],
+  nextSteps: [
+    { step: "练习使用更复杂的连接词（however, therefore, moreover）", action: "去练习", target: "speak" },
+    { step: "刻意练习过去时态与现在完成时的区分", action: "去练习", target: "speak" },
+    { step: "尝试在下次对话中使用至少 3 个本周新学单词", action: "去练习", target: "words" }
+  ]
+};
 
 async function loadHome() {
   const { data: { session } } = await sb.auth.getSession();
@@ -247,60 +267,83 @@ function metricsDonut(score) {
   </svg><div class="metrics-donut-score">${score}</div>`;
 }
 
-// ── Block 3: Daily Insights ────────────────────────────
+// ── Block 3: Daily Insights (4 interactive cards) ──────
 function renderInsights(todayReport, vocab, errors, patterns, prog) {
   const container = document.getElementById('home-insights');
-  if (!todayReport || !isDailyReport(todayReport)) { container.style.display = 'none'; return; }
   container.style.display = 'block';
 
-  const parsed = parseReport(todayReport.content);
-  const strengths = parsed.summary.strengths || '';
-  const review = parsed.summary.review || '';
-  const thoughts = parsed.summary.thoughts || '';
-  const nextSuggestions = parsed.summary.next_suggestions || '';
-  const weakAreas = parsed.summary.weak_areas || '';
-  const allErrors = [...(parsed.grammar || []), ...(parsed.pronunciation || [])];
+  // Merge real data with mock fallback
+  let data = {
+    overallReview: mockInsightsData.overallReview,
+    strengths: [...mockInsightsData.strengths],
+    improvements: [...mockInsightsData.improvements],
+    nextSteps: [...mockInsightsData.nextSteps]
+  };
+
+  if (todayReport && isDailyReport(todayReport)) {
+    const parsed = parseReport(todayReport.content);
+    const s = parsed.summary;
+    if (s.review || s.thoughts) data.overallReview = (s.review || '') + (s.thoughts ? '\n\n' + s.thoughts : '') || data.overallReview;
+    if (s.strengths) {
+      const lines = s.strengths.split('\n').filter(Boolean).map(l => l.replace(/^[-•*]\s*/, ''));
+      if (lines.length) data.strengths = lines;
+    }
+    // Map real errors into improvements
+    const allErrors = [...(parsed.grammar || []), ...(parsed.pronunciation || [])];
+    if (allErrors.length) {
+      data.improvements = allErrors.slice(0, 3).map(e => ({
+        issue: e.rule || e.type || '表达纠正',
+        detail: (e.original || '') + ' → ' + (e.correction || ''),
+        action: '查看纠错', target: 'words'
+      }));
+    }
+    if (s.next_suggestions) {
+      const steps = s.next_suggestions.split('\n').filter(Boolean).map(l => l.replace(/^[-•*\d]+[\.\、]\s*/, ''));
+      if (steps.length) data.nextSteps = steps.slice(0, 3).map(step => ({ step, action: '去练习', target: 'speak' }));
+    }
+  }
 
   let html = '';
 
-  // Card 1: Quote / Bilingual sentence (from review highlights)
-  if (strengths) {
-    const enLine = strengths.split('\n')[0] || '';
-    html += `<div class="insight-card" style="animation-delay:0.05s">
-      <div class="insight-quote-en">"${h(enLine.slice(0, 120))}"</div>
-      ${parsed.summary.review ? `<div class="insight-quote-zh">${h(parsed.summary.review.slice(0, 100))}</div>` : ''}
-      <div class="insight-quote-actions">
-        <button class="btn-soft" onclick="speakWord('${h(enLine).replace(/'/g, "\\'")}');event.stopPropagation();">${ICO_SPEAKER} 跟读</button>
+  // ── Card A: 💬 ChatGPT Overall Review ──
+  html += `<div class="insight-review-card" style="animation-delay:0.03s">
+    <div class="ir-title">🧠 AI 陪练复盘</div>
+    <div class="ir-body">${h(data.overallReview)}</div>
+  </div>`;
+
+  // ── Card B: ✅ Strengths ──
+  html += `<div class="insight-strength-card" style="animation-delay:0.06s">
+    <div class="is-title">✅ 今天做得很棒的地方</div>
+    ${data.strengths.map(s => `<div class="insight-strength-item"><span class="is-check">✓</span><span>${h(s)}</span></div>`).join('')}
+  </div>`;
+
+  // ── Card C: ⚠️ Improvements (left-right, interactive) ──
+  html += `<div class="insight-improve-card" style="animation-delay:0.09s">
+    <div class="ii-title">⚠️ 今天需要提升</div>
+    ${data.improvements.map(im => `
+      <div class="insight-improve-row">
+        <div class="ii-left">
+          <div class="ii-issue">${h(im.issue)}</div>
+          <div class="ii-detail">${h(im.detail)}</div>
+        </div>
+        <button class="insight-improve-btn" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=${im.target}]').click()">${h(im.action)} →</button>
       </div>
-    </div>`;
-  }
+    `).join('')}
+  </div>`;
 
-  // Card 2: ChatGPT review summary
-  const reviewText = review || thoughts || '';
-  if (reviewText) {
-    html += `<div class="insight-card" style="animation-delay:0.08s">
-      <div style="font-size:12px;font-weight:600;color:var(--text-dim);margin-bottom:8px;">🧠 AI 复盘摘要</div>
-      <div class="insight-review">${h(reviewText.slice(0, 200))}</div>
-    </div>`;
-  }
-
-  // Card 3: Structured performance points
-  const goodItems = strengths ? strengths.split('\n').filter(Boolean).slice(0, 2) : [];
-  const improveItems = [];
-  if (weakAreas) improveItems.push({ text: weakAreas, action: null });
-  if (allErrors.length > 0) improveItems.push({ text: `纠错 ${allErrors.length} 项`, action: "document.querySelector('.tab[data-tab=words]').click()" });
-  if (parsed.patterns.length > 0) improveItems.push({ text: '复习地道表达', action: "document.querySelector('.tab[data-tab=speak]').click()" });
-
-  if (goodItems.length || improveItems.length) {
-    html += `<div class="insight-card" style="animation-delay:0.12s">
-      <div style="font-size:12px;font-weight:600;color:var(--text-dim);margin-bottom:10px;">📋 本次复盘</div>
-      <div class="insight-list">`;
-    goodItems.forEach(g => { html += `<div class="insight-item good">${h(g)}</div>`; });
-    improveItems.forEach(im => {
-      html += `<div class="insight-item improve">${h(im.text)}${im.action ? `<a class="insight-jump" onclick="event.stopPropagation();${im.action}">→</a>` : ''}</div>`;
-    });
-    html += `</div></div>`;
-  }
+  // ── Card D: 🎯 Next Steps (numbered, interactive) ──
+  html += `<div class="insight-next-card" style="animation-delay:0.12s">
+    <div class="in-title">🎯 下一次学习建议</div>
+    ${data.nextSteps.map((ns, i) => `
+      <div class="insight-next-row">
+        <div class="in-left">
+          <div class="in-num">${i + 1}</div>
+          <div class="in-step">${h(ns.step)}</div>
+        </div>
+        <button class="insight-next-btn" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=${ns.target}]').click()">${h(ns.action)} →</button>
+      </div>
+    `).join('')}
+  </div>`;
 
   container.innerHTML = html;
 }
@@ -1731,5 +1774,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=28');
+  navigator.serviceWorker.register('/sw.js?v=29');
 }

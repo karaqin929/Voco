@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   Voco v4.1 — Professional Dashboard (5-block layout + History)
+   Voco v4.2 — Professional Dashboard (5-block layout + History + 4-Card Insights)
    Morandi Theme System (4 palettes × 3 modes)
    All colors: low-saturation, dusty-muted, genuine Morandi
    ═══════════════════════════════════════════════════════ */
@@ -254,6 +254,102 @@ body {
 .insight-item.improve::before { content: "📈"; flex-shrink: 0; font-size: 12px; }
 .insight-jump { display: inline-block; margin-left: 4px; font-size: 12px; color: var(--blue); cursor: pointer; font-weight: 500; }
 .insight-jump:active { opacity: 0.7; }
+
+/* ── v4.2: 4-Card Insight Modules ───────────────────── */
+
+/* Card A: AI Review */
+.insight-review-card {
+  background: var(--bg); border-radius: var(--radius);
+  border-left: 3px solid var(--primary);
+  padding: 16px; margin-bottom: 10px;
+  animation: fadeInUp 0.3s ease-out both;
+}
+.insight-review-card .ir-title {
+  font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 8px;
+}
+.insight-review-card .ir-body {
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 15px; color: var(--text); line-height: 1.8;
+}
+
+/* Card B: Strengths */
+.insight-strength-card {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 10px;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border-light);
+  animation: fadeInUp 0.3s ease-out both;
+}
+.insight-strength-card .is-title {
+  font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 10px;
+}
+.insight-strength-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 13px; color: var(--text); padding: 6px 0;
+}
+.insight-strength-item .is-check {
+  color: var(--green); flex-shrink: 0; font-weight: 700; font-size: 14px;
+}
+
+/* Card C: Improvements (left-right layout, interactive) */
+.insight-improve-card {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 10px;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border-light);
+  animation: fadeInUp 0.3s ease-out both;
+}
+.insight-improve-card .ii-title {
+  font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 10px;
+}
+.insight-improve-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border-light); gap: 12px;
+}
+.insight-improve-row:last-child { border-bottom: none; }
+.insight-improve-row .ii-left { flex: 1; min-width: 0; }
+.insight-improve-row .ii-issue { font-size: 13px; font-weight: 600; color: var(--text); }
+.insight-improve-row .ii-detail { font-size: 11px; color: var(--text-ultradim); margin-top: 2px; }
+.insight-improve-btn {
+  flex-shrink: 0; padding: 6px 14px;
+  font-size: 12px; font-weight: 600; color: var(--blue);
+  background: transparent; border: 1px solid var(--blue);
+  border-radius: 14px; cursor: pointer; white-space: nowrap;
+  transition: all 0.15s; font-family: inherit;
+}
+.insight-improve-btn:active { background: var(--blue); color: #fff; }
+
+/* Card D: Next Steps (numbered list, interactive) */
+.insight-next-card {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 10px;
+  box-shadow: var(--shadow-sm); border: 1px solid var(--border-light);
+  animation: fadeInUp 0.3s ease-out both;
+}
+.insight-next-card .in-title {
+  font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 10px;
+}
+.insight-next-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border-light); gap: 12px;
+}
+.insight-next-row:last-child { border-bottom: none; }
+.insight-next-row .in-left {
+  display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0;
+}
+.insight-next-row .in-num {
+  width: 22px; height: 22px; min-width: 22px; border-radius: 50%;
+  background: var(--primary-light); color: var(--primary);
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.insight-next-row .in-step { font-size: 13px; color: var(--text); line-height: 1.5; }
+.insight-next-btn {
+  flex-shrink: 0; padding: 6px 14px;
+  font-size: 12px; font-weight: 600; color: var(--primary);
+  background: var(--primary-light); border: none;
+  border-radius: 14px; cursor: pointer; white-space: nowrap;
+  transition: all 0.15s; font-family: inherit;
+}
+.insight-next-btn:active { background: var(--primary); color: #fff; }
 
 /* ═══════════════════════════════════════════════════════
    HOME — Block 4: Content Summary Cards
