@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v3.0 — 4-Tab PWA
+// Voco v4.1 — 5-Block Dashboard + History
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -95,8 +95,10 @@ const ICO_MIC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" str
 const ICO_REPEAT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>';
 
 // ═══════════════════════════════════════════════════════
-// TAB 1: HOME (v4.0.1 Dashboard — 5 Blocks)
+// TAB 1: HOME (v4.1 Dashboard — 5 Blocks + History)
 // ═══════════════════════════════════════════════════════
+let _viewDate = null; // null=today, else 'YYYY-MM-DD' for history view
+
 async function loadHome() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
@@ -105,7 +107,7 @@ async function loadHome() {
     sb.from('vocabulary').select('*'),
     sb.from('errors').select('*'),
     sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle(),
-    sb.from('reports').select('*').order('date', { ascending: false }).limit(30),
+    sb.from('reports').select('*').order('date', { ascending: false }).limit(90),
     sb.from('patterns').select('*'),
     sb.from('topics').select('*').order('created_at', { ascending: false })
   ]);
@@ -116,24 +118,31 @@ async function loadHome() {
   const tList = topics || [];
   const rList = reports || [];
   const today = new Date().toISOString().slice(0, 10);
+
+  // Determine which date's report to show
+  const activeDate = _viewDate || today;
+  const activeReport = rList.find(r => r.date === activeDate);
   const todayReport = rList.find(r => r.date === today);
 
   // Block 1: Header bar (greeting + mini bears)
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
   renderGreeting(streak, vList);
-  renderHeaderBears(vList, rList);
+  renderHeaderBears(vList, rList, _viewDate);
+
+  // History banner
+  renderHistoryBanner(activeReport, activeDate);
 
   // Block 2: Metrics grid
-  renderMetricsGrid(todayReport, vList, eList, pList, prog);
+  renderMetricsGrid(activeReport, vList, eList, pList, prog);
 
-  // Block 3: Insights (only when has report)
-  renderInsights(todayReport, vList, eList, pList, prog);
+  // Block 3: Insights
+  renderInsights(activeReport, vList, eList, pList, prog);
 
   // Block 4: Summary cards
-  renderSummaryCards(todayReport, vList, eList, pList);
+  renderSummaryCards(activeReport, vList, eList, pList);
 
-  // Block 5: Action center
+  // Block 5: Action center (always today's quests, not historical)
   renderQuests(todayReport, vList, eList, rList, streak);
 }
 
@@ -157,7 +166,7 @@ function renderGreeting(streak, vocabList) {
 }
 
 // ── Header Mini Bears (Block 1 right) ──────────────────
-function renderHeaderBears(vocab, reports) {
+function renderHeaderBears(vocab, reports, viewDate) {
   const container = document.getElementById('header-bears');
   const dateScore = {};
   (vocab || []).forEach(v => { if (v.date_added) dateScore[v.date_added] = (dateScore[v.date_added] || 0) + 2; });
@@ -171,7 +180,7 @@ function renderHeaderBears(vocab, reports) {
   }
 
   container.innerHTML = days.map(d => `
-    <div class="header-mini-bear" title="${d.date}${d.active ? ' · 已练习' : ''}" onclick="showBearDay('${d.date}',${d.active})">
+    <div class="header-mini-bear${d.date === viewDate ? ' selected' : ''}" title="${d.date}${d.active ? ' · 已练习' : ''}" onclick="showBearDay('${d.date}',${d.active})">
       <img class="header-mini-bear-img" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}"
         onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=display:flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:14px>${d.active ? '🐻' : '🌱'}</span>')" />
       <span class="header-mini-date">${d.month}/${d.day}</span>
@@ -629,7 +638,21 @@ function renderBearHeatmap(vocab, reports) {
 }
 
 function showBearDay(date, active) {
-  showToast(`📅 ${date} · ${active ? '🎉 已练习' : '🌱 未打卡'}`);
+  if (!active) { showToast("📅 " + date + " · 🌱 未打卡，无日报数据"); return; }
+  _viewDate = date;
+  loadHome();
+}
+
+// ── History Banner ────────────────────────────────────
+function renderHistoryBanner(report, viewDate) {
+  const banner = document.getElementById("home-history-banner");
+  if (!banner) return;
+  if (!viewDate) { banner.style.display = "none"; return; }
+  if (!report) { banner.style.display = "none"; showToast("📅 " + viewDate + " · 该日期无日报数据"); _viewDate = null; loadHome(); return; }
+  const d = new Date(viewDate + "T00:00:00");
+  const wd = ["周日","周一","周二","周三","周四","周五","周六"];
+  banner.innerHTML = "<span>📅 正在查看 " + viewDate + " " + wd[d.getDay()] + " 的数据</span> <a onclick=\"_viewDate=null;loadHome();\" style=\"cursor:pointer;color:var(--blue);font-weight:600;\">回到今天 →</a>";
+  banner.style.display = "flex";
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1708,5 +1731,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=27');
+  navigator.serviceWorker.register('/sw.js?v=28');
 }

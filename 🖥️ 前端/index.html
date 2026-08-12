@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=27">
+  <link rel="stylesheet" href="/style.css?v=28">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     /* Splash screen — covers Render cold-start / white-screen gap */
@@ -60,7 +60,7 @@
     <span class="app-header-actions"></span>
   </header>
 
-  <!-- ── Tab 1: Home (Dashboard v4.0) ──────────────────────────── -->
+  <!-- ── Tab 1: Home (Dashboard v4.1) ──────────────────────────── -->
   <section id="tab-home" class="tab-content active">
 
     <!-- Block 1: Header Status Bar — greeting + mini bear heatmap -->
@@ -71,6 +71,9 @@
       </div>
       <div class="home-header-right" id="header-bears"></div>
     </div>
+
+    <!-- History Banner (visible when viewing past date) -->
+    <div id="home-history-banner" class="home-history-banner" style="display:none;"></div>
 
     <!-- Block 2: Metrics & Data Grid -->
     <div id="home-metrics" class="metrics-grid" style="display:none;">
@@ -295,7 +298,7 @@
 
     <div class="settings-footer">
       <span>Voco</span>
-      <span class="settings-version">v4.0.3</span>
+      <span class="settings-version">v4.1</span>
     </div>
   </section>
 
@@ -330,8 +333,8 @@
   </nav>
 </div>
 
-<script src="/supabase-client.js?v=27"></script>
-<script src="/parser.js?v=27"></script>
-<script src="/app.js?v=27"></script>
+<script src="/supabase-client.js?v=28"></script>
+<script src="/parser.js?v=28"></script>
+<script src="/app.js?v=28"></script>
 </body>
 </html>
