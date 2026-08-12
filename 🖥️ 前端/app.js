@@ -514,7 +514,7 @@ function renderExecutiveSummary(d) {
       </div>
 
       <!-- 一句话核心总结 -->
-      <p class="font-[Georgia,serif] text-[17px] italic text-[var(--c-text)] leading-[1.7] mb-4 px-3 py-2.5 bg-[var(--c-primary-light)] rounded-xl border-l-[3px] border-l-[var(--c-primary)]">
+      <p class="text-[17px] italic text-[var(--c-text)] leading-[1.7] mb-4 px-3 py-2.5 bg-[var(--c-primary-light)] rounded-xl border-l-[3px] border-l-[var(--c-primary)]">
         ${h(d.executiveSummary || d.overallReview.slice(0, 80) + '…')}
       </p>
 
