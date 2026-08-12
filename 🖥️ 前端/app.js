@@ -417,7 +417,7 @@ function showNextStepDetail(idx) {
     </div>
     <div class="px-5 py-4 overflow-y-auto">
       <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-primary-light)] rounded-xl">${h(ns.step)}</div>
-      <div class="text-xs text-[var(--c-text-dim)] leading-relaxed mb-4">💡 下次与 ChatGPT 进行口语练习时，将这条建议作为重点练习目标。练习结束后导入日报，系统会自动追踪你的进步。</div>
+      <div class="text-xs text-[var(--c-text-dim)] leading-relaxed mb-4">${icon('lightbulb','w-3.5 h-3.5 text-amber-500 inline-block mr-1')} 下次与 ChatGPT 进行口语练习时，将这条建议作为重点练习目标。练习结束后导入日报，系统会自动追踪你的进步。</div>
       <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="document.querySelector('.tab[data-tab=${targetTab}]').click();this.closest('.fixed').remove()">${targetLabel} ${icon('arrow-right','w-3.5 h-3.5')}</button>
     </div>
   </div>`;
