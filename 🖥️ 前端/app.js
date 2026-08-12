@@ -398,16 +398,19 @@ function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natur
         <div class="text-xs text-[var(--c-text-dim)]">开口时长 / 总时长</div>
       </div>
     </div>
-    <div class="flex flex-col gap-2 mb-3.5">${[
+    <div class="grid grid-cols-2 gap-x-6 gap-y-4 mb-3.5">${[
       {l:'流利度',s:fluency,c:'var(--c-primary)'},
       {l:'语法',s:grammar,c:'var(--c-blue)'},
       {l:'词汇',s:vocab,c:'var(--c-green)'},
       {l:'自然度',s:natural,c:'var(--c-orange)'}
     ].map(b=>`
-      <div class="flex items-center gap-2">
-        <span class="w-14 shrink-0 text-[11px] text-[var(--c-text-dim)] text-right">${b.l}</span>
-        <div class="flex-1 h-[5px] bg-[var(--c-border-light)] rounded-sm overflow-hidden"><div class="h-full rounded-sm transition-all duration-[0.6s]" style="width:${(b.s/10)*100}%;background:${b.c}"></div></div>
-        <span class="w-7 shrink-0 text-xs font-bold text-[var(--c-text)] text-right">${b.s}/10</span>
+      <div class="flex flex-col">
+        <div class="flex justify-between text-xs text-[var(--c-text-dim)] mb-1.5">
+          <span class="font-medium">${b.l}</span><span>${b.s}/10</span>
+        </div>
+        <div class="w-full bg-[var(--c-border-light)] rounded-full h-1.5 overflow-hidden">
+          <div class="h-1.5 rounded-full transition-all duration-[0.6s]" style="width:${(b.s/10)*100}%;background:${b.c}"></div>
+        </div>
       </div>`).join('')}
     </div>
     <div class="flex gap-1.5 flex-wrap pt-3 border-t border-[var(--c-border-light)]">
@@ -479,79 +482,63 @@ function renderInsightsSection(todayReport) {
   refreshIcons(container);
 }
 
-// ── Card F: Executive Summary (v6.0 高管摘要 — 替代长文本墙) ──
-function renderExecutiveSummary(d) {
-  // Build target area rows
-  const targetRows = (d.targetAreas || []).map(t => `
-    <li class="text-[12px] leading-relaxed">
-      <div class="flex items-baseline flex-wrap gap-x-1 gap-y-1 mb-1.5">
-        <span class="font-semibold text-[var(--c-text)]">${h(t.label)}</span>
-        <span class="text-[var(--c-text-ultradim)]">：</span>
-        <span class="inline-block px-1.5 py-0.5 rounded-md bg-[var(--c-orange-light)] text-[var(--c-orange)] text-[11px] font-bold border border-[var(--c-orange)]/20">${h(t.keyword)}</span>
-        ${t.count > 1 ? `<span class="text-[10px] text-[var(--c-text-ultradim)] ml-0.5">&times;${t.count}</span>` : ''}
-      </div>
-      <button onclick="navigateToTab('speak','${t.filterKey}','${t.filterLabel}')" class="inline-flex items-center gap-1 px-2.5 py-1 bg-[var(--c-orange-light)] text-[var(--c-orange)] rounded-full text-[10px] font-bold cursor-pointer border-0 hover:brightness-95 active:scale-[0.97] transition-all duration-150">
-        ${icon('arrow-right','w-3 h-3')} ${h(t.actionLabel)}
-      </button>
-    </li>
-  `).join('');
+// ── Card F: 行动红黑榜 (v6.1 — 零废话，只看数据+靶点) ──
+// ── Raw SVG icon helpers ──
+function _svgTarget(cls) { return `<svg class="${cls}" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`; }
+function _svgCheck(cls) { return `<svg class="${cls}" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`; }
+function _svgArrow(cls) { return `<svg class="${cls}" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`; }
 
-  // Build highlight rows
-  const highlightRows = (d.highlights || d.strengths || []).map((s, i) => {
+function renderExecutiveSummary(d) {
+  // Build highlights
+  const highlightRows = (d.highlights || d.strengths || []).map((s) => {
     const text = typeof s === 'string' ? s : s.text;
-    return `<li class="flex items-start gap-1.5 text-[12px] text-[var(--c-text)] leading-[1.5]">
-      <span class="w-1 h-1 rounded-full bg-[var(--c-green)] shrink-0 mt-[6px]"></span>
+    return `<li class="flex items-start gap-2 text-[13px] text-[var(--c-text)] leading-[1.5] py-1">
+      ${_svgCheck('w-4 h-4 text-emerald-500 flex-shrink-0 mt-px')}
       <span>${h(text)}</span>
     </li>`;
   }).join('');
 
+  // Build target area rows — strict skeleton
+  const targetRows = (d.targetAreas || []).map(t => `
+    <li class="flex items-start gap-3 mb-5 bg-[var(--c-surface)] p-3 rounded-xl border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
+      ${_svgTarget('w-5 h-5 text-[var(--c-orange)] flex-shrink-0 mt-0.5')}
+      <div class="flex-1">
+        <p class="text-sm text-[var(--c-text)] leading-relaxed">
+          <span class="inline-block bg-[var(--c-orange-light)] text-[var(--c-orange)] px-2 py-0.5 rounded text-xs font-medium mr-1 border border-[var(--c-orange)]/20">${h(t.keyword)}</span>
+          ${h(t.label)}${t.count > 1 ? ' &times;' + t.count : ''}
+        </p>
+        <div class="mt-3 text-right">
+          <button onclick="navigateToTab('speak','${t.filterKey}','${t.filterLabel}')" class="inline-flex items-center text-xs font-medium text-[var(--c-text)] bg-[var(--c-bg)] px-3.5 py-1.5 rounded-full hover:bg-[var(--c-border-light)] transition-colors border-0 cursor-pointer">
+            ${h(t.actionLabel)}
+            ${_svgArrow('w-3 h-3 ml-1')}
+          </button>
+        </div>
+      </div>
+    </li>
+  `).join('');
+
   return `
     <div class="bg-[var(--c-surface)] rounded-2xl p-5 mb-2.5 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:0.18s;box-shadow:var(--c-shadow-sm)">
 
-      <!-- Header -->
-      <div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-3">
-        ${icon('brain','w-3.5 h-3.5 text-[var(--c-primary)]')} AI 陪练复盘
+      <!-- ✨ 亮点 -->
+      <div class="mb-4">
+        <div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">
+          ${_svgCheck('w-3.5 h-3.5 text-emerald-500')} 亮点
+        </div>
+        <ul class="flex flex-col bg-[var(--c-green-light)]/40 rounded-xl p-3">
+          ${highlightRows || '<li class="text-[12px] text-[var(--c-text-ultradim)] py-1">暂无数据</li>'}
+        </ul>
       </div>
 
-      <!-- 一句话核心总结 -->
-      <p class="text-[17px] italic text-[var(--c-text)] leading-[1.7] mb-4 px-3 py-2.5 bg-[var(--c-primary-light)] rounded-xl border-l-[3px] border-l-[var(--c-primary)]">
-        ${h(d.executiveSummary || d.overallReview.slice(0, 80) + '…')}
-      </p>
-
-      <!-- 双栏：亮点 + 靶点 -->
-      <div class="flex gap-3 mb-4">
-        <!-- ✨ 左栏：亮点 -->
-        <div class="flex-1 bg-[var(--c-green-light)]/60 rounded-xl p-3.5">
-          <div class="flex items-center gap-1 mb-2.5">
-            ${icon('check-circle-2','w-3.5 h-3.5 text-[var(--c-green)]')}
-            <span class="text-[11px] font-bold text-[var(--c-green)]">亮点</span>
-          </div>
-          <ul class="flex flex-col gap-2">
-            ${highlightRows}
-          </ul>
+      <!-- 🎯 核心靶点 -->
+      <div>
+        <div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">
+          ${_svgTarget('w-3.5 h-3.5 text-[var(--c-orange)]')} 核心靶点
         </div>
-
-        <!-- 🎯 右栏：核心提升靶点 -->
-        <div class="flex-1 bg-[var(--c-orange-light)]/60 rounded-xl p-3.5">
-          <div class="flex items-center gap-1 mb-2.5">
-            ${icon('target','w-3.5 h-3.5 text-[var(--c-orange)]')}
-            <span class="text-[11px] font-bold text-[var(--c-orange)]">核心靶点</span>
-          </div>
-          <ul class="flex flex-col gap-2.5">
-            ${targetRows}
-          </ul>
-        </div>
+        <ul class="flex flex-col">
+          ${targetRows || '<li class="text-[12px] text-[var(--c-text-ultradim)] py-2">暂无靶点数据</li>'}
+        </ul>
       </div>
-
-      <!-- 展开：完整复盘原文（降级为可折叠详情） -->
-      <details class="group">
-        <summary class="text-[11px] text-[var(--c-text-ultradim)] cursor-pointer hover:text-[var(--c-text-dim)] transition-colors list-none flex items-center gap-1">
-          ${icon('chevron-down','w-3 h-3 group-open:rotate-180 transition-transform')} 查看完整复盘原文
-        </summary>
-        <div class="mt-3 p-3 bg-[var(--c-bg)] rounded-xl text-[13px] text-[var(--c-text-dim)] leading-[1.8]">
-          ${hf(d.overallReview)}
-        </div>
-      </details>
 
     </div>`;
 }
