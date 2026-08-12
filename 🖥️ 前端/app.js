@@ -189,9 +189,9 @@ const mockDashboardData = {
       '语音语调自然，停顿位置合理，语速适中'
     ],
     improvements: [
-      { issue: '过去时态与完成时混淆', detail: "'I have went' → 应为 'I have gone'", action: '专项攻克', tab: 'speak', filter: 'tense', filterLabel: '时态句型', errorCategory: 'tense' },
-      { issue: '缺少逻辑连接词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '专项攻克', tab: 'speak', filter: 'connective', filterLabel: '连接词句型', errorCategory: 'connective' },
-      { issue: '冠词遗漏', detail: "'I went to store' → 应为 'I went to the store'", action: '查看纠错', tab: 'words', filter: 'errors', filterLabel: '高频错词', errorCategory: 'article' }
+      { issue: '表达纠正', wrong: 'I have went to three interviews last month.', correct: 'I have gone to three interviews last month.', explanation: '过去时态与完成时混淆：现在完成时需用 have + 过去分词（gone），不能用过去式 went', detail: "'I have went' → 应为 'I have gone'", action: '专项攻克', tab: 'speak', filter: 'tense', filterLabel: '时态句型', errorCategory: 'tense' },
+      { issue: '逻辑连接', wrong: 'I wanted to go out. It was raining.', correct: 'I wanted to go out. However, it was raining.', explanation: '缺少逻辑连接词：句子之间缺少 however / therefore 等过渡词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '专项攻克', tab: 'speak', filter: 'connective', filterLabel: '连接词句型', errorCategory: 'connective' },
+      { issue: '表达纠正', wrong: 'I went to store.', correct: 'I went to the store.', explanation: '冠词遗漏：单数可数名词 store 前需要冠词 the', detail: "'I went to store' → 应为 'I went to the store'", action: '查看纠错', tab: 'words', filter: 'errors', filterLabel: '高频错词', errorCategory: 'article' }
     ],
     nextSteps: [
       { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项跟读', tab: 'speak', filter: 'connective', filterLabel: '连接词句型' },
@@ -450,7 +450,7 @@ function renderInsightsSection(todayReport) {
     if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
     if(p.summary.strengths){ const lines = p.summary.strengths.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*]\s*/,'')); if(lines.length) d.strengths = lines; }
     const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
-    if(allErr.length) d.improvements = allErr.slice(0,3).map(e=>({issue:e.rule||e.type||'表达纠正',detail:(e.original||'')+' → '+(e.correction||''),action:'查看纠错',tab:'words'}));
+    if(allErr.length) d.improvements = allErr.slice(0,3).map(e=>({issue:e.type==='pronunciation'?'发音纠正':'表达纠正',wrong:e.original||'',correct:e.correction||'',explanation:e.rule||'',detail:(e.original||'')+' → '+(e.correction||'')+(e.rule?'（'+e.rule+'）':''),action:'查看纠错',tab:'words'}));
     if(p.summary.next_suggestions){ const steps = p.summary.next_suggestions.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*\d]+[\.\、]\s*/,'')); if(steps.length) d.nextSteps = steps.slice(0,3).map(s=>({step:s,action:'去练习',tab:'speak'})); }
     // v6.0: derive executive summary fields from real report data
     if(allErr.length) {
@@ -483,21 +483,23 @@ function renderInsightsSection(todayReport) {
   html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div><div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(d.thoughts.en)}"</div><div class="text-[13px] text-[var(--c-text-dim)]">${h(d.thoughts.zh)}</div>`);
   // Card C: Strengths
   html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} 今天做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
-  // Card D: Improvements — each item is its own card with proper flex layout
+  // Card D: Improvements — one error = ONE card, wrong/correct/explanation stacked inside
   html += `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2 px-1">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} 今天需要提升</div>`;
   html += d.improvements.map((im, i) => {
+    // Legacy fallback: derive structured fields from detail string if new fields absent
     const parts = (im.detail || '').split(' → ');
-    const original = parts[0] || '';
-    const correction = parts.length > 1 ? parts.slice(1).join(' → ') : '';
-    const hasSplit = parts.length > 1;
+    const wrong = im.wrong || parts[0] || '';
+    const correct = im.correct || (parts.length > 1 ? parts.slice(1).join(' → ').replace(/^应为\s*/, '') : '');
+    const explanation = im.explanation || (parts.length > 1 ? '' : parts[0] || '');
     return card(0.12 + i * 0.02, `
-      <div class="flex items-center justify-between gap-4 cursor-pointer" onclick="showImprovementDetail(${i})">
+      <div class="flex items-start justify-between gap-4 cursor-pointer" onclick="showImprovementDetail(${i})">
         <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-          <span class="text-xs font-medium text-amber-600">${h(im.issue)}</span>
-          ${hasSplit ? `<p class="text-sm line-through text-[var(--c-red)] truncate">${h(original)}</p>` : ''}
-          <p class="text-sm font-semibold text-[var(--c-green)] truncate">${hasSplit ? '→ ' : ''}${h(hasSplit ? correction : (original || im.detail))}</p>
+          <span class="text-xs font-medium text-amber-600">${h(im.issue || '表达纠正')}</span>
+          ${wrong ? `<p class="text-sm line-through text-[var(--c-red)]">${h(wrong)}</p>` : ''}
+          ${correct ? `<p class="text-sm font-semibold text-[var(--c-green)]">→ ${h(correct)}</p>` : ''}
+          ${explanation ? `<p class="text-xs text-[var(--c-text-ultradim)] mt-1">${h(explanation)}</p>` : ''}
         </div>
-        <button class="shrink-0 px-3 py-1.5 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] text-xs text-[var(--c-text-dim)] rounded-full flex items-center gap-1 transition-colors border-0 cursor-pointer" onclick="event.stopPropagation();showImprovementDetail(${i})">
+        <button class="shrink-0 px-3 py-1.5 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] text-xs text-[var(--c-text-dim)] rounded-full flex items-center gap-1 transition-colors border-0 cursor-pointer mt-1" onclick="event.stopPropagation();showImprovementDetail(${i})">
           查看纠错 ${icon('arrow-right','w-3 h-3')}
         </button>
       </div>
