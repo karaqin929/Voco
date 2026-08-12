@@ -261,6 +261,18 @@ def supabase_js():
 def parser_js():
     return FileResponse(os.path.join(FRONTEND_DIR, "parser.js"))
 
+@app.get("/bear-default.png")
+def bear_default():
+    return FileResponse(os.path.join(FRONTEND_DIR, "bear-default.png"))
+
+@app.get("/bear-active.png")
+def bear_active():
+    return FileResponse(os.path.join(FRONTEND_DIR, "bear-active.png"))
+
+@app.get("/icon.png")
+def icon_png():
+    return FileResponse(os.path.join(FRONTEND_DIR, "icon.png"))
+
 
 # ─── Startup ───────────────────────────────────────────
 if __name__ == "__main__":

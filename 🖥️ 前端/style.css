@@ -327,10 +327,10 @@ body {
   padding-bottom: 4px; scroll-behavior: smooth;
 }
 .bear-heatmap::-webkit-scrollbar { display: none; }
-.bear-day { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; cursor: pointer; width: 52px; }
-.bear-img { width: 40px; height: 40px; object-fit: contain; transition: transform 0.15s; }
+.bear-day { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; cursor: pointer; width: 48px; }
+.bear-img { width: 36px; height: 36px; min-width: 36px; min-height: 36px; object-fit: contain; border-radius: 50%; transition: transform 0.15s; background: var(--border-light); }
 .bear-day:active .bear-img { transform: scale(1.15); }
-.bear-date { font-size: 10px; color: var(--text-ultradim); white-space: nowrap; }
+.bear-date { font-size: 10px; color: var(--text-ultradim); white-space: nowrap; text-align: center; }
 
 /* ═══════════════════════════════════════════════════════
    HOME — Stats Grid
