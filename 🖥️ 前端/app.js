@@ -505,72 +505,8 @@ function renderInsightsSection(todayReport) {
   }).join('');
   // Card E: Next Steps — contextual action per suggestion
   html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 下一次学习建议</div>${d.nextSteps.map((ns,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0 cursor-pointer active:bg-[var(--c-border-light)] -mx-4 px-4 transition-colors" onclick="showNextStepDetail(${i})"><div class="flex items-start gap-2.5 flex-1 min-w-0"><div class="w-[22px] h-[22px] rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] text-xs font-bold flex items-center justify-center shrink-0">${i+1}</div><div class="text-[13px] text-[var(--c-text)] leading-[1.5] line-clamp-2">${h(ns.step)}</div></div><div class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 rounded-2xl whitespace-nowrap transition-all duration-150">${h(ns.action)} ${icon('arrow-right','w-3 h-3')}</div></div>`).join('')}`);
-  // Card F: Executive Summary (v6.0 — 替代原有长文本墙)
-  html += renderExecutiveSummary(d);
-
   container.innerHTML = html;
   refreshIcons(container);
-}
-
-// ── Card F: 行动红黑榜 (v6.1 — 零废话，只看数据+靶点) ──
-// ── Raw SVG icon helpers ──
-function _svgTarget(cls) { return `<svg class="${cls}" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`; }
-function _svgCheck(cls) { return `<svg class="${cls}" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`; }
-function _svgArrow(cls) { return `<svg class="${cls}" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`; }
-
-function renderExecutiveSummary(d) {
-  // Build highlights
-  const highlightRows = (d.highlights || d.strengths || []).map((s) => {
-    const text = typeof s === 'string' ? s : s.text;
-    return `<li class="flex items-start gap-2 text-[13px] text-[var(--c-text)] leading-[1.5] py-1">
-      ${_svgCheck('w-4 h-4 text-emerald-500 flex-shrink-0 mt-px')}
-      <span>${h(text)}</span>
-    </li>`;
-  }).join('');
-
-  // Build target area rows — strict skeleton
-  const targetRows = (d.targetAreas || []).map(t => `
-    <li class="flex items-start gap-3 mb-5 bg-[var(--c-surface)] p-3 rounded-xl border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
-      ${_svgTarget('w-5 h-5 text-[var(--c-orange)] flex-shrink-0 mt-0.5')}
-      <div class="flex-1">
-        <p class="text-sm text-[var(--c-text)] leading-relaxed">
-          <span class="inline-block bg-[var(--c-orange-light)] text-[var(--c-orange)] px-2 py-0.5 rounded text-xs font-medium mr-1 border border-[var(--c-orange)]/20">${h(t.keyword)}</span>
-          ${h(t.label)}${t.count > 1 ? ' &times;' + t.count : ''}
-        </p>
-        <div class="mt-3 text-right">
-          <button onclick="navigateToTab('speak','${t.filterKey}','${t.filterLabel}')" class="inline-flex items-center text-xs font-medium text-[var(--c-text)] bg-[var(--c-bg)] px-3.5 py-1.5 rounded-full hover:bg-[var(--c-border-light)] transition-colors border-0 cursor-pointer">
-            ${h(t.actionLabel)}
-            ${_svgArrow('w-3 h-3 ml-1')}
-          </button>
-        </div>
-      </div>
-    </li>
-  `).join('');
-
-  return `
-    <div class="bg-[var(--c-surface)] rounded-2xl p-5 mb-2.5 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:0.18s;box-shadow:var(--c-shadow-sm)">
-
-      <!-- ✨ 亮点 -->
-      <div class="mb-4">
-        <div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">
-          ${_svgCheck('w-3.5 h-3.5 text-emerald-500')} 亮点
-        </div>
-        <ul class="flex flex-col bg-[var(--c-green-light)]/40 rounded-xl p-3">
-          ${highlightRows || '<li class="text-[12px] text-[var(--c-text-ultradim)] py-1">暂无数据</li>'}
-        </ul>
-      </div>
-
-      <!-- 🎯 核心靶点 -->
-      <div>
-        <div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">
-          ${_svgTarget('w-3.5 h-3.5 text-[var(--c-orange)]')} 核心靶点
-        </div>
-        <ul class="flex flex-col">
-          ${targetRows || '<li class="text-[12px] text-[var(--c-text-ultradim)] py-2">暂无靶点数据</li>'}
-        </ul>
-      </div>
-
-    </div>`;
 }
 
 // Store current insights for detail popovers
