@@ -177,14 +177,26 @@ const mockDashboardData = {
       '语音语调自然，停顿位置合理，语速适中'
     ],
     improvements: [
-      { issue: '过去时态与完成时混淆', detail: "'I have went' → 应为 'I have gone'", action: '查看纠错', tab: 'words' },
-      { issue: '缺少逻辑连接词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '复习句型', tab: 'speak' },
-      { issue: '冠词遗漏', detail: "'I went to store' → 应为 'I went to the store'", action: '查看纠错', tab: 'words' }
+      { issue: '过去时态与完成时混淆', detail: "'I have went' → 应为 'I have gone'", action: '专项攻克', tab: 'speak', filter: 'tense', filterLabel: '时态句型', errorCategory: 'tense' },
+      { issue: '缺少逻辑连接词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '专项攻克', tab: 'speak', filter: 'connective', filterLabel: '连接词句型', errorCategory: 'connective' },
+      { issue: '冠词遗漏', detail: "'I went to store' → 应为 'I went to the store'", action: '查看纠错', tab: 'words', filter: 'errors', filterLabel: '高频错词', errorCategory: 'article' }
     ],
     nextSteps: [
-      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '去练习', tab: 'speak' },
-      { step: '刻意练习过去时态与现在完成时的区分', action: '去练习', tab: 'speak' },
-      { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words' }
+      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项跟读', tab: 'speak', filter: 'connective', filterLabel: '连接词句型' },
+      { step: '刻意练习过去时态与现在完成时的区分', action: '专项跟读', tab: 'speak', filter: 'tense', filterLabel: '时态句型' },
+      { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words', filter: 'today', filterLabel: '今日新词' }
+    ],
+    // ── v6.0 高管摘要（Card F 重构） ──
+    executiveSummary: '整体流利度明显提升，但在时态一致性和逻辑连接词的使用上仍有结构化提升空间。',
+    highlights: [
+      { text: '能够流畅表达抽象观点，语言组织能力较好' },
+      { text: '遇到表达困难时能主动替换近义词，沟通策略成熟' },
+      { text: '语音语调自然，停顿位置合理，语速适中' }
+    ],
+    targetAreas: [
+      { category:'tense', label:'时态混淆', keyword:'过去时 vs 完成时', count:3, filterKey:'tense', filterLabel:'时态句型', actionLabel:'专项跟读' },
+      { category:'connective', label:'连接词缺失', keyword:'however / therefore', count:2, filterKey:'connective', filterLabel:'连接词句型', actionLabel:'专项跟读' },
+      { category:'article', label:'冠词遗漏', keyword:'a / an / the', count:2, filterKey:'errors', filterLabel:'高频错词', actionLabel:'去纠错' }
     ],
     overallReview: "本次练习围绕个人成长展开，用户能够表达较复杂的观点，在描述抽象概念时展现了较好的语言组织能力。整体流利度有明显提升，但在语法细节和连接词使用上仍有优化空间。建议在下次练习中刻意关注时态一致性和逻辑连接词的运用。"
   },
@@ -425,6 +437,24 @@ function renderInsightsSection(todayReport) {
     const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
     if(allErr.length) d.improvements = allErr.slice(0,3).map(e=>({issue:e.rule||e.type||'表达纠正',detail:(e.original||'')+' → '+(e.correction||''),action:'查看纠错',tab:'words'}));
     if(p.summary.next_suggestions){ const steps = p.summary.next_suggestions.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*\d]+[\.\、]\s*/,'')); if(steps.length) d.nextSteps = steps.slice(0,3).map(s=>({step:s,action:'去练习',tab:'speak'})); }
+    // v6.0: derive executive summary fields from real report data
+    if(allErr.length) {
+      d.targetAreas = allErr.slice(0,3).map(e => ({
+        category: detectErrorCategory(e.original, e.correction),
+        label: e.rule || e.type || '表达纠正',
+        keyword: (e.correction || '').slice(0, 20),
+        count: 1,
+        filterKey: 'errors',
+        filterLabel: '高频错词',
+        actionLabel: '去纠错'
+      }));
+    }
+    if (d.strengths.length) {
+      d.highlights = d.strengths.slice(0, 3).map(s => ({ text: s }));
+    }
+    if (p.summary.review) {
+      d.executiveSummary = p.summary.review.slice(0, 100) + (p.summary.review.length > 100 ? '…' : '');
+    }
   }
   const card = (delay,html) => `<div class="bg-[var(--c-surface)] rounded-2xl p-4 mb-2.5 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s;box-shadow:var(--c-shadow-sm)">${html}</div>`;
   const cardBg = (delay,html) => `<div class="bg-[var(--c-bg)] rounded-2xl p-4 mb-2.5 border-l-[3px] border-l-[var(--c-primary)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s">${html}</div>`;
@@ -442,11 +472,88 @@ function renderInsightsSection(todayReport) {
   html += card(0.12, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} 今天需要提升</div>${d.improvements.map((im,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0 cursor-pointer active:bg-[var(--c-border-light)] -mx-4 px-4 transition-colors" onclick="showImprovementDetail(${i})"><div class="flex-1 min-w-0"><div class="text-[13px] font-semibold text-[var(--c-text)]">${h(im.issue)}</div><div class="text-[11px] text-[var(--c-text-ultradim)] mt-0.5 truncate">${h(im.detail)}</div></div><div class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-blue)] bg-transparent border border-[var(--c-blue)] rounded-2xl whitespace-nowrap transition-all duration-150">${h(im.action)} ${icon('arrow-right','w-3 h-3')}</div></div>`).join('')}`);
   // Card E: Next Steps — contextual action per suggestion
   html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 下一次学习建议</div>${d.nextSteps.map((ns,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0 cursor-pointer active:bg-[var(--c-border-light)] -mx-4 px-4 transition-colors" onclick="showNextStepDetail(${i})"><div class="flex items-start gap-2.5 flex-1 min-w-0"><div class="w-[22px] h-[22px] rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] text-xs font-bold flex items-center justify-center shrink-0">${i+1}</div><div class="text-[13px] text-[var(--c-text)] leading-[1.5] line-clamp-2">${h(ns.step)}</div></div><div class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 rounded-2xl whitespace-nowrap transition-all duration-150">${h(ns.action)} ${icon('arrow-right','w-3 h-3')}</div></div>`).join('')}`);
-  // Card F: Overall Review — white card, same as other insights
-  html += card(0.18, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2">${icon('brain','w-3.5 h-3.5')} AI 陪练复盘</div><div class="text-[15px] text-[var(--c-text)] leading-[1.8]">${hf(d.overallReview)}</div>`);
+  // Card F: Executive Summary (v6.0 — 替代原有长文本墙)
+  html += renderExecutiveSummary(d);
 
   container.innerHTML = html;
   refreshIcons(container);
+}
+
+// ── Card F: Executive Summary (v6.0 高管摘要 — 替代长文本墙) ──
+function renderExecutiveSummary(d) {
+  // Build target area rows
+  const targetRows = (d.targetAreas || []).map(t => `
+    <li class="text-[12px] leading-relaxed">
+      <div class="flex items-baseline flex-wrap gap-x-1 gap-y-1 mb-1.5">
+        <span class="font-semibold text-[var(--c-text)]">${h(t.label)}</span>
+        <span class="text-[var(--c-text-ultradim)]">：</span>
+        <span class="inline-block px-1.5 py-0.5 rounded-md bg-[var(--c-orange-light)] text-[var(--c-orange)] text-[11px] font-bold border border-[var(--c-orange)]/20">${h(t.keyword)}</span>
+        ${t.count > 1 ? `<span class="text-[10px] text-[var(--c-text-ultradim)] ml-0.5">&times;${t.count}</span>` : ''}
+      </div>
+      <button onclick="navigateToTab('speak','${t.filterKey}','${t.filterLabel}')" class="inline-flex items-center gap-1 px-2.5 py-1 bg-[var(--c-orange-light)] text-[var(--c-orange)] rounded-full text-[10px] font-bold cursor-pointer border-0 hover:brightness-95 active:scale-[0.97] transition-all duration-150">
+        ${icon('arrow-right','w-3 h-3')} ${h(t.actionLabel)}
+      </button>
+    </li>
+  `).join('');
+
+  // Build highlight rows
+  const highlightRows = (d.highlights || d.strengths || []).map((s, i) => {
+    const text = typeof s === 'string' ? s : s.text;
+    return `<li class="flex items-start gap-1.5 text-[12px] text-[var(--c-text)] leading-[1.5]">
+      <span class="w-1 h-1 rounded-full bg-[var(--c-green)] shrink-0 mt-[6px]"></span>
+      <span>${h(text)}</span>
+    </li>`;
+  }).join('');
+
+  return `
+    <div class="bg-[var(--c-surface)] rounded-2xl p-5 mb-2.5 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:0.18s;box-shadow:var(--c-shadow-sm)">
+
+      <!-- Header -->
+      <div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-3">
+        ${icon('brain','w-3.5 h-3.5 text-[var(--c-primary)]')} AI 陪练复盘
+      </div>
+
+      <!-- 一句话核心总结 -->
+      <p class="font-[Georgia,serif] text-[17px] italic text-[var(--c-text)] leading-[1.7] mb-4 px-3 py-2.5 bg-[var(--c-primary-light)] rounded-xl border-l-[3px] border-l-[var(--c-primary)]">
+        ${h(d.executiveSummary || d.overallReview.slice(0, 80) + '…')}
+      </p>
+
+      <!-- 双栏：亮点 + 靶点 -->
+      <div class="flex gap-3 mb-4">
+        <!-- ✨ 左栏：亮点 -->
+        <div class="flex-1 bg-[var(--c-green-light)]/60 rounded-xl p-3.5">
+          <div class="flex items-center gap-1 mb-2.5">
+            ${icon('check-circle-2','w-3.5 h-3.5 text-[var(--c-green)]')}
+            <span class="text-[11px] font-bold text-[var(--c-green)]">亮点</span>
+          </div>
+          <ul class="flex flex-col gap-2">
+            ${highlightRows}
+          </ul>
+        </div>
+
+        <!-- 🎯 右栏：核心提升靶点 -->
+        <div class="flex-1 bg-[var(--c-orange-light)]/60 rounded-xl p-3.5">
+          <div class="flex items-center gap-1 mb-2.5">
+            ${icon('target','w-3.5 h-3.5 text-[var(--c-orange)]')}
+            <span class="text-[11px] font-bold text-[var(--c-orange)]">核心靶点</span>
+          </div>
+          <ul class="flex flex-col gap-2.5">
+            ${targetRows}
+          </ul>
+        </div>
+      </div>
+
+      <!-- 展开：完整复盘原文（降级为可折叠详情） -->
+      <details class="group">
+        <summary class="text-[11px] text-[var(--c-text-ultradim)] cursor-pointer hover:text-[var(--c-text-dim)] transition-colors list-none flex items-center gap-1">
+          ${icon('chevron-down','w-3 h-3 group-open:rotate-180 transition-transform')} 查看完整复盘原文
+        </summary>
+        <div class="mt-3 p-3 bg-[var(--c-bg)] rounded-xl text-[13px] text-[var(--c-text-dim)] leading-[1.8]">
+          ${hf(d.overallReview)}
+        </div>
+      </details>
+
+    </div>`;
 }
 
 // Store current insights for detail popovers
@@ -470,7 +577,7 @@ function showImprovementDetail(idx) {
       <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-bg)] rounded-xl">${hf(im.detail)}</div>
       <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">建议</div>
       <div class="text-sm text-[var(--c-text-dim)] leading-relaxed mb-3">在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。</div>
-      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateToTab('words','errors','高频错词');this.closest('.fixed').remove()">去单词本复习相关词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>
+      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateToTab('${im.tab||'words'}','${im.filter||'errors'}','${im.filterLabel||'高频错词'}');this.closest('.fixed').remove()">去单词本复习相关词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -482,19 +589,22 @@ function showNextStepDetail(idx) {
   const d = _currentInsights || mockDashboardData.insights;
   const ns = d.nextSteps[idx];
   if (!ns) return;
-  // Determine sensible action: vocab → words, patterns → speak, else show detail
+  // Determine sensible action: use explicit filter fields if available, else derive
   const isVocab = /单词|词汇|生词/.test(ns.step);
-  const isSpeak = /连接词|时态|语法|句型|对话|口语|表达/.test(ns.step);
-  const targetTab = isVocab ? 'words' : 'speak';
-  const targetLabel = isVocab ? '去单词本练习' : '去口语页练习';
-  // Derive filter from step text keywords
-  let targetFilter = ''; let targetFilterLabel = '';
-  if (isVocab) { targetFilter = 'today'; targetFilterLabel = '今日新词'; }
-  else if (/连接词|过渡词|however|therefore|moreover/i.test(ns.step)) { targetFilter = '连接词'; targetFilterLabel = '连接词'; }
-  else if (/过去时|完成时|进行时|时态/i.test(ns.step)) { targetFilter = '过去时'; targetFilterLabel = '时态'; }
-  else if (/条件|if|would|could|虚拟/i.test(ns.step)) { targetFilter = '条件句'; targetFilterLabel = '条件句'; }
-  else if (/比较|more.*than|the more/i.test(ns.step)) { targetFilter = '比较级'; targetFilterLabel = '比较级'; }
-  else { targetFilter = '句型'; targetFilterLabel = '句型练习'; }
+  const targetTab = ns.tab || (isVocab ? 'words' : 'speak');
+  const targetLabel = ns.filterLabel
+    ? `去${ns.tab === 'words' ? '单词本' : '口语页'}练习：${ns.filterLabel}`
+    : (isVocab ? '去单词本练习' : '去口语页练习');
+  let targetFilter = ns.filter || '';
+  let targetFilterLabel = ns.filterLabel || '';
+  if (!targetFilter) {
+    if (isVocab) { targetFilter = 'today'; targetFilterLabel = '今日新词'; }
+    else if (/连接词|过渡词|however|therefore|moreover/i.test(ns.step)) { targetFilter = '连接词'; targetFilterLabel = '连接词'; }
+    else if (/过去时|完成时|进行时|时态/i.test(ns.step)) { targetFilter = '过去时'; targetFilterLabel = '时态'; }
+    else if (/条件|if|would|could|虚拟/i.test(ns.step)) { targetFilter = '条件句'; targetFilterLabel = '条件句'; }
+    else if (/比较|more.*than|the more/i.test(ns.step)) { targetFilter = '比较级'; targetFilterLabel = '比较级'; }
+    else { targetFilter = '句型'; targetFilterLabel = '句型练习'; }
+  }
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
   modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
@@ -1236,8 +1346,8 @@ async function startShadowMode() {
 }
 
 function startShadowFromSpeak() {
-  document.querySelector('.tab[data-tab=speak]').click();
-  setTimeout(startShadowMode, 200);
+  // Already on the speak tab — start shadow mode directly
+  startShadowMode();
 }
 
 function showShadowPhrase(idx) {
@@ -1608,6 +1718,19 @@ async function importInsightReport(parsed) {
     user_id: session.user.id, date: new Date().toISOString().slice(0, 10), content: parsed.raw
   }, { onConflict: 'user_id,date' });
   document.getElementById('dialog-import-result').innerHTML = '<span class="toast-success">✅ 分析报告已保存！</span>';
+}
+
+// ── v6.0: error category detection (typed linguistic classification) ──
+function detectErrorCategory(original, correction) {
+  if (!original || !correction) return 'vocabulary';
+  if (/(ed|ing|was|were|have|has|had|will)\b/i.test(original) || /(ed|ing|was|were|have|has|had|will)\b/i.test(correction)) return 'tense';
+  if (/\b(in|on|at|for|to|of|with|by|from)\b/i.test(correction) && original.replace(/\b(in|on|at|for|to|of|with|by|from)\b/gi,'')===correction.replace(/\b(in|on|at|for|to|of|with|by|from)\b/gi,'')) return 'preposition';
+  if (/\b(a|an|the)\b/i.test(original) || /\b(a|an|the)\b/i.test(correction)) return 'article';
+  const oWords = original.toLowerCase().split(/\s+/).sort().join(' ');
+  const cWords = correction.toLowerCase().split(/\s+/).sort().join(' ');
+  if (oWords===cWords && original!==correction) return 'word-order';
+  if (/(s|es)\b/i.test(original) !== /(s|es)\b/i.test(correction)) return 'singular-plural';
+  return 'vocabulary';
 }
 
 function detectErrorPattern(original, correction) {
@@ -2080,5 +2203,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=40');
+  navigator.serviceWorker.register('/sw.js?v=41');
 }
