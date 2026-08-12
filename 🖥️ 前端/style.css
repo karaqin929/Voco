@@ -400,7 +400,9 @@ body {
    ME Tab
    ═══════════════════════════════════════════════════════ */
 .me-profile { text-align: center; padding: 20px 0 16px; }
-.me-avatar { font-size: 64px; line-height: 1; margin-bottom: 8px; }
+.me-avatar { margin-bottom: 8px; }
+.me-avatar-img { width: 80px; height: 80px; min-width: 80px; min-height: 80px; border-radius: 50%; object-fit: contain; }
+.me-avatar-fallback { font-size: 64px; line-height: 1; display: inline-block; }
 .me-name { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
 .me-name input { border: none; background: transparent; font-size: 20px; font-weight: 700; color: var(--text); text-align: center; width: 160px; font-family: inherit; outline: none; border-bottom: 2px dashed var(--border); }
 .me-stats-row { display: flex; justify-content: center; gap: 16px; margin-bottom: 8px; }

@@ -89,6 +89,11 @@ document.getElementById('setting-username').addEventListener('input', function()
   loadHome(); // refresh greeting in real-time
 });
 
+// ── Icon SVGs (Feather-style, inherit currentColor) ──────
+const ICO_SPEAKER = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>';
+const ICO_MIC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>';
+const ICO_REPEAT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>';
+
 // ═══════════════════════════════════════════════════════
 // TAB 1: HOME
 // ═══════════════════════════════════════════════════════
@@ -613,7 +618,7 @@ function vocabCard(v) {
     <div class="card-row"><span class="word">${h(v.word)}</span><span class="phonetic">${h(v.phonetic)}</span></div>
     <div class="meaning">${h(v.meaning)}</div>
     ${v.example ? `<div class="example">💬 ${h(v.example)}</div>` : ''}
-    <div class="card-actions">${btn}${srsHtml}<span style="font-size:10px;color:var(--text-ultradim);">${rc} 次</span>${sourceLabel}${errInfo}<button onclick="speakWord('${h(v.word).replace(/'/g, "\\'")}');event.stopPropagation();" class="btn-small">🔊</button></div>
+    <div class="card-actions">${btn}${srsHtml}<span style="font-size:10px;color:var(--text-ultradim);">${rc} 次</span>${sourceLabel}${errInfo}<button onclick="speakWord('${h(v.word).replace(/'/g, "\\'")}');event.stopPropagation();" class="btn-small">${ICO_SPEAKER}</button></div>
     <div class="card-detail"><div class="card-detail-row"><strong>状态：</strong>${statusLabel(s)}</div><div class="card-detail-row"><strong>添加：</strong>${v.date_added || ''}</div><div class="card-detail-row"><strong>复习：</strong>${v.review_count || 0} 次</div></div>
   </div>`;
 }
@@ -775,8 +780,8 @@ function renderSpeakList(items) {
       <div class="expr-orig">代替: ${h(p.original)}</div>
       ${p.scene ? `<div class="expr-scene">🎬 ${h(p.scene)}</div>` : ''}
       <div class="expr-actions">
-        <button class="btn-small" onclick="speakWord('${h(p.better).replace(/'/g, "\\'")}');event.stopPropagation();">🔊 听发音</button>
-        <button class="btn-small" onclick="startShadowFromSpeak();event.stopPropagation();">🎤 跟读</button>
+        <button class="btn-small" onclick="speakWord('${h(p.better).replace(/'/g, "\\'")}');event.stopPropagation();">${ICO_SPEAKER} 听发音</button>
+        <button class="btn-small" onclick="startShadowFromSpeak();event.stopPropagation();">${ICO_MIC} 跟读</button>
       </div>
     </div>
   `).join('');
@@ -1559,5 +1564,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=19');
+  navigator.serviceWorker.register('/sw.js?v=20');
 }
