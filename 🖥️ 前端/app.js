@@ -189,7 +189,6 @@ async function loadHome() {
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
   renderGreeting(streak, vList, rList);
-  renderHeaderBears(vList, rList, _viewDate);
   renderHistoryBanner(activeReport, activeDate);
 
   // Section 2: Streak / Check-in Card
