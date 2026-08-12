@@ -483,8 +483,26 @@ function renderInsightsSection(todayReport) {
   html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div><div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(d.thoughts.en)}"</div><div class="text-[13px] text-[var(--c-text-dim)]">${h(d.thoughts.zh)}</div>`);
   // Card C: Strengths
   html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} 今天做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
-  // Card D: Improvements — click shows specific error detail popover
-  html += card(0.12, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} 今天需要提升</div>${d.improvements.map((im,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0 cursor-pointer active:bg-[var(--c-border-light)] -mx-4 px-4 transition-colors" onclick="showImprovementDetail(${i})"><div class="flex-1 min-w-0"><div class="text-[13px] font-semibold text-[var(--c-text)]">${h(im.issue)}</div><div class="text-[11px] text-[var(--c-text-ultradim)] mt-0.5 truncate">${h(im.detail)}</div></div><div class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-blue)] bg-transparent border border-[var(--c-blue)] rounded-2xl whitespace-nowrap transition-all duration-150">${h(im.action)} ${icon('arrow-right','w-3 h-3')}</div></div>`).join('')}`);
+  // Card D: Improvements — each item is its own card with proper flex layout
+  html += `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2 px-1">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} 今天需要提升</div>`;
+  html += d.improvements.map((im, i) => {
+    const parts = (im.detail || '').split(' → ');
+    const original = parts[0] || '';
+    const correction = parts.length > 1 ? parts.slice(1).join(' → ') : '';
+    const hasSplit = parts.length > 1;
+    return card(0.12 + i * 0.02, `
+      <div class="flex items-center justify-between gap-4 cursor-pointer" onclick="showImprovementDetail(${i})">
+        <div class="flex flex-col gap-1.5 flex-1 min-w-0">
+          <span class="text-xs font-medium text-amber-600">${h(im.issue)}</span>
+          ${hasSplit ? `<p class="text-sm line-through text-[var(--c-red)] truncate">${h(original)}</p>` : ''}
+          <p class="text-sm font-semibold text-[var(--c-green)] truncate">${hasSplit ? '→ ' : ''}${h(hasSplit ? correction : (original || im.detail))}</p>
+        </div>
+        <button class="shrink-0 px-3 py-1.5 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] text-xs text-[var(--c-text-dim)] rounded-full flex items-center gap-1 transition-colors border-0 cursor-pointer" onclick="event.stopPropagation();showImprovementDetail(${i})">
+          查看纠错 ${icon('arrow-right','w-3 h-3')}
+        </button>
+      </div>
+    `);
+  }).join('');
   // Card E: Next Steps — contextual action per suggestion
   html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 下一次学习建议</div>${d.nextSteps.map((ns,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0 cursor-pointer active:bg-[var(--c-border-light)] -mx-4 px-4 transition-colors" onclick="showNextStepDetail(${i})"><div class="flex items-start gap-2.5 flex-1 min-w-0"><div class="w-[22px] h-[22px] rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] text-xs font-bold flex items-center justify-center shrink-0">${i+1}</div><div class="text-[13px] text-[var(--c-text)] leading-[1.5] line-clamp-2">${h(ns.step)}</div></div><div class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 rounded-2xl whitespace-nowrap transition-all duration-150">${h(ns.action)} ${icon('arrow-right','w-3 h-3')}</div></div>`).join('')}`);
   // Card F: Executive Summary (v6.0 — 替代原有长文本墙)
