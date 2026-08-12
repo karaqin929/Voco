@@ -349,6 +349,8 @@ function renderInsightsSection(todayReport) {
   const card = (delay,html) => `<div class="bg-[var(--c-surface)] rounded-2xl p-4 mb-2.5 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s;box-shadow:var(--c-shadow-sm)">${html}</div>`;
   const cardBg = (delay,html) => `<div class="bg-[var(--c-bg)] rounded-2xl p-4 mb-2.5 border-l-[3px] border-l-[var(--c-primary)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s">${html}</div>`;
 
+  _currentInsights = d;
+
   let html = '';
   // Card A: Topics
   html += card(0.03, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('message-circle','w-3.5 h-3.5')} 今日对话主题</div><div class="flex gap-2 flex-wrap">${d.topics.map(t=>`<span class="px-3 py-1 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-xs font-medium">#${h(t)}</span>`).join('')}</div>`);
@@ -356,18 +358,72 @@ function renderInsightsSection(todayReport) {
   html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div><div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(d.thoughts.en)}"</div><div class="text-[13px] text-[var(--c-text-dim)]">${h(d.thoughts.zh)}</div>`);
   // Card C: Strengths
   html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} 今天做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
-  // Card D: Improvements
-  html += card(0.12, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} 今天需要提升</div>${d.improvements.map(im=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0"><div class="flex-1 min-w-0"><div class="text-[13px] font-semibold text-[var(--c-text)]">${h(im.issue)}</div><div class="text-[11px] text-[var(--c-text-ultradim)] mt-0.5">${h(im.detail)}</div></div><button class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-blue)] bg-transparent border border-[var(--c-blue)] rounded-2xl cursor-pointer whitespace-nowrap transition-all duration-150 active:bg-[var(--c-blue)] active:text-white" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=${im.tab}]').click()">${h(im.action)} ${icon('arrow-right','w-3 h-3')}</button></div>`).join('')}`);
-  // Card E: Next Steps
-  html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 下一次学习建议</div>${d.nextSteps.map((ns,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0"><div class="flex items-start gap-2.5 flex-1 min-w-0"><div class="w-[22px] h-[22px] rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] text-xs font-bold flex items-center justify-center shrink-0">${i+1}</div><div class="text-[13px] text-[var(--c-text)] leading-[1.5]">${h(ns.step)}</div></div><button class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 rounded-2xl cursor-pointer whitespace-nowrap transition-all duration-150 active:bg-[var(--c-primary)] active:text-white" onclick="event.stopPropagation();document.querySelector('.tab[data-tab=${ns.tab}]').click()">${h(ns.action)} ${icon('arrow-right','w-3 h-3')}</button></div>`).join('')}`);
-  // Card F: Overall Review
-  html += cardBg(0.18, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2">${icon('brain','w-3.5 h-3.5')} AI 陪练复盘</div><div class="font-[Georgia,serif] text-[15px] text-[var(--c-text)] leading-[1.8]">${h(d.overallReview)}</div>`);
+  // Card D: Improvements — click shows specific error detail popover
+  html += card(0.12, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} 今天需要提升</div>${d.improvements.map((im,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0 cursor-pointer active:bg-[var(--c-border-light)] -mx-4 px-4 transition-colors" onclick="showImprovementDetail(${i})"><div class="flex-1 min-w-0"><div class="text-[13px] font-semibold text-[var(--c-text)]">${h(im.issue)}</div><div class="text-[11px] text-[var(--c-text-ultradim)] mt-0.5 truncate">${h(im.detail)}</div></div><div class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-blue)] bg-transparent border border-[var(--c-blue)] rounded-2xl whitespace-nowrap transition-all duration-150">${h(im.action)} ${icon('arrow-right','w-3 h-3')}</div></div>`).join('')}`);
+  // Card E: Next Steps — contextual action per suggestion
+  html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 下一次学习建议</div>${d.nextSteps.map((ns,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0 cursor-pointer active:bg-[var(--c-border-light)] -mx-4 px-4 transition-colors" onclick="showNextStepDetail(${i})"><div class="flex items-start gap-2.5 flex-1 min-w-0"><div class="w-[22px] h-[22px] rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] text-xs font-bold flex items-center justify-center shrink-0">${i+1}</div><div class="text-[13px] text-[var(--c-text)] leading-[1.5] line-clamp-2">${h(ns.step)}</div></div><div class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 rounded-2xl whitespace-nowrap transition-all duration-150">${h(ns.action)} ${icon('arrow-right','w-3 h-3')}</div></div>`).join('')}`);
+  // Card F: Overall Review — system font, same as rest of dashboard
+  html += cardBg(0.18, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2">${icon('brain','w-3.5 h-3.5')} AI 陪练复盘</div><div class="text-[15px] text-[var(--c-text)] leading-[1.8]">${h(d.overallReview)}</div>`);
 
   container.innerHTML = html;
   refreshIcons(container);
 }
 
-// ── Section 5: Content Cards + Todos ────────────────────
+// Store current insights for detail popovers
+let _currentInsights = null;
+
+// ── Improvement detail: show targeted analysis, not just dump to words tab ──
+function showImprovementDetail(idx) {
+  const d = _currentInsights || mockDashboardData.insights;
+  const im = d.improvements[idx];
+  if (!im) return;
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+  modal.innerHTML = `<div class="bg-[var(--c-surface)] rounded-t-[20px] w-full max-w-[480px] max-h-[70vh] flex flex-col overflow-hidden animate-[slideUp_0.25s_ease-out]">
+    <div class="flex justify-between items-center px-5 py-4 border-b border-[var(--c-border-light)]">
+      <div class="flex items-center gap-2 text-sm font-bold text-[var(--c-text)]">${icon('alert-circle','w-4 h-4 text-amber-500')} ${h(im.issue)}</div>
+      <button class="w-7 h-7 rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-base cursor-pointer flex items-center justify-center" onclick="this.closest('.fixed').remove()">✕</button>
+    </div>
+    <div class="px-5 py-4 overflow-y-auto">
+      <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">问题详情</div>
+      <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-bg)] rounded-xl">${h(im.detail)}</div>
+      <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">建议</div>
+      <div class="text-sm text-[var(--c-text-dim)] leading-relaxed mb-3">在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。</div>
+      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="document.querySelector('.tab[data-tab=words]').click();this.closest('.fixed').remove()">去单词本复习相关词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  refreshIcons(modal);
+}
+
+// ── Next-step detail: contextual action, not blind tab switch ──
+function showNextStepDetail(idx) {
+  const d = _currentInsights || mockDashboardData.insights;
+  const ns = d.nextSteps[idx];
+  if (!ns) return;
+  // Determine sensible action: vocab → words, patterns → speak, else show detail
+  const isVocab = /单词|词汇|生词/.test(ns.step);
+  const isSpeak = /连接词|时态|语法|句型|对话|口语|表达/.test(ns.step);
+  const targetTab = isVocab ? 'words' : 'speak';
+  const targetLabel = isVocab ? '去单词本练习' : '去口语页练习';
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+  modal.innerHTML = `<div class="bg-[var(--c-surface)] rounded-t-[20px] w-full max-w-[480px] max-h-[70vh] flex flex-col overflow-hidden animate-[slideUp_0.25s_ease-out]">
+    <div class="flex justify-between items-center px-5 py-4 border-b border-[var(--c-border-light)]">
+      <div class="flex items-center gap-2 text-sm font-bold text-[var(--c-text)]">${icon('target','w-4 h-4 text-amber-500')} 学习建议 ${idx+1}</div>
+      <button class="w-7 h-7 rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-base cursor-pointer flex items-center justify-center" onclick="this.closest('.fixed').remove()">✕</button>
+    </div>
+    <div class="px-5 py-4 overflow-y-auto">
+      <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-primary-light)] rounded-xl">${h(ns.step)}</div>
+      <div class="text-xs text-[var(--c-text-dim)] leading-relaxed mb-4">💡 下次与 ChatGPT 进行口语练习时，将这条建议作为重点练习目标。练习结束后导入日报，系统会自动追踪你的进步。</div>
+      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="document.querySelector('.tab[data-tab=${targetTab}]').click();this.closest('.fixed').remove()">${targetLabel} ${icon('arrow-right','w-3.5 h-3.5')}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  refreshIcons(modal);
+}
 function renderContentCards(todayReport, vocab, errors, patterns) {
   const container = document.getElementById('home-summary-cards');
   let cards = mockDashboardData.contentCards;
