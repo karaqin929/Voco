@@ -95,7 +95,7 @@ const ICO_MIC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" str
 const ICO_REPEAT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>';
 
 // ═══════════════════════════════════════════════════════
-// TAB 1: HOME
+// TAB 1: HOME (v4.0 Dashboard — 5 Blocks)
 // ═══════════════════════════════════════════════════════
 async function loadHome() {
   const { data: { session } } = await sb.auth.getSession();
@@ -118,41 +118,26 @@ async function loadHome() {
   const today = new Date().toISOString().slice(0, 10);
   const todayReport = rList.find(r => r.date === today);
 
-  // Greeting
+  // Block 1: Header bar (greeting + mini bears)
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
   renderGreeting(streak, vList);
+  renderHeaderBears(vList, rList);
 
-  // Zone 1: Overview
-  renderOverview(todayReport, vList, eList, prog);
+  // Block 2: Metrics grid
+  renderMetricsGrid(todayReport, vList, eList, pList, prog);
 
-  // Zone 2: Quests
+  // Block 3: Insights (only when has report)
+  renderInsights(todayReport, vList, eList, pList, prog);
+
+  // Block 4: Summary cards
+  renderSummaryCards(todayReport, vList, eList, pList);
+
+  // Block 5: Action center
   renderQuests(todayReport, vList, eList, rList, streak);
-
-  // Zone 3: Details
-  renderDetails(todayReport, vList, eList, pList, prog);
-
-  // Zone 4: Bear heatmap
-  renderBearHeatmap(vList, rList);
-
-  // Stats grid
-  document.getElementById('stat-sessions').textContent = prog?.total_sessions || '0';
-  document.getElementById('stat-vocab').textContent = vList.length;
-  document.getElementById('stat-errors').textContent = eList.length;
-  document.getElementById('stat-streak').textContent = streak;
-
-  // Practice flow — only when no report today
-  const hasReport = todayReport && isDailyReport(todayReport);
-  const flowEl = document.getElementById('practice-flow');
-  if (hasReport) {
-    if (flowEl) flowEl.style.display = 'none';
-  } else {
-    if (flowEl) flowEl.style.display = 'block';
-    renderFlowStep();
-  }
 }
 
-// ── Greeting ───────────────────────────────────────────
+// ── Greeting (Block 1 left) ─────────────────────────────
 function renderGreeting(streak, vocabList) {
   const hour = new Date().getHours();
   let greeting;
@@ -169,61 +154,36 @@ function renderGreeting(streak, vocabList) {
   const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   document.getElementById('greeting-date').textContent =
     `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`;
-
-  // Weekday pills
-  const today = now.getDay();
-  const weekStart = new Date(now);
-  weekStart.setDate(weekStart.getDate() - today);
-  const practicedDays = new Set();
-  (vocabList || []).forEach(v => {
-    if (v.date_added) {
-      const d = new Date(v.date_added);
-      const ws = new Date(d);
-      ws.setDate(ws.getDate() - d.getDay());
-      if (ws.toDateString() === weekStart.toDateString()) practicedDays.add(d.getDay());
-    }
-  });
-
-  const dayLabels = ['日', '一', '二', '三', '四', '五', '六'];
-  const daysHTML = dayLabels.map((label, i) => {
-    let cls = 'streak-day';
-    if (practicedDays.has(i)) cls += ' done';
-    if (i === today) cls += ' today';
-    return `<span class="${cls}">${label}</span>`;
-  }).join('');
-
-  const streakEl = document.getElementById('greeting-streak');
-  if (streak > 0) {
-    streakEl.innerHTML = `<span class="streak-pill">🔥 ${streak} 天坚持</span><div class="streak-weekdays">${daysHTML}</div>`;
-  } else {
-    streakEl.innerHTML = `<span class="streak-pill zero">🌱 今天开始</span><div class="streak-weekdays">${daysHTML}</div>`;
-  }
 }
 
-// ── 🔥 Streak calc ────────────────────────────────────
-function calcStreak(dates) {
-  if (!dates.length) return 0;
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-  const yStr = yesterday.toISOString().slice(0, 10);
-  const hasToday = dates.includes(today);
-  const hasYesterday = dates.includes(yStr);
-  if (!hasToday && !hasYesterday) return 0;
-  let check = hasToday ? new Date(today) : yesterday;
-  let streak = 0;
-  while (true) {
-    const s = check.toISOString().slice(0, 10);
-    if (dates.includes(s)) { streak++; check.setDate(check.getDate() - 1); }
-    else break;
+// ── Header Mini Bears (Block 1 right) ──────────────────
+function renderHeaderBears(vocab, reports) {
+  const container = document.getElementById('header-bears');
+  const dateScore = {};
+  (vocab || []).forEach(v => { if (v.date_added) dateScore[v.date_added] = (dateScore[v.date_added] || 0) + 2; });
+  (reports || []).forEach(r => { if (r.date && isDailyReport(r)) dateScore[r.date] = (dateScore[r.date] || 0) + 5; });
+
+  const today = new Date();
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    days.push({ date: d.toISOString().slice(0, 10), day: d.getDate(), month: d.getMonth() + 1, active: !!dateScore[d.toISOString().slice(0, 10)] });
   }
-  return streak;
+
+  container.innerHTML = days.map(d => `
+    <div class="header-mini-bear" title="${d.date}${d.active ? ' · 已练习' : ''}" onclick="showBearDay('${d.date}',${d.active})">
+      <img class="header-mini-bear-img" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}"
+        onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=display:flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:14px>${d.active ? '🐻' : '🌱'}</span>')" />
+      <span class="header-mini-date">${d.month}/${d.day}</span>
+    </div>
+  `).join('');
 }
 
-// ── Zone 1: Overview (Donut + Metrics + Pills) ────────
-function renderOverview(todayReport, vocab, errors, prog) {
-  const ov = document.getElementById('home-overview');
-  if (!todayReport || !isDailyReport(todayReport)) { ov.style.display = 'none'; return; }
-  ov.style.display = 'block';
+// ── Block 2: Metrics Grid ──────────────────────────────
+function renderMetricsGrid(todayReport, vocab, errors, patterns, prog) {
+  const grid = document.getElementById('home-metrics');
+  if (!todayReport || !isDailyReport(todayReport)) { grid.style.display = 'none'; return; }
+  grid.style.display = 'block';
 
   const parsed = parseReport(todayReport.content);
   const fluency = parsed.summary.fluency || 0;
@@ -231,71 +191,162 @@ function renderOverview(todayReport, vocab, errors, prog) {
   const natural = parsed.summary.naturalness || Math.round(fluency * 0.8) || 0;
   const vocabScore = Math.min(parsed.vocabulary.length * 2, 10);
   const overall = Math.round((fluency + accuracy + natural + vocabScore) / 4);
+  const duration = parsed.meta.duration || (prog?.total_minutes || 0);
+  const speakTime = Math.round(duration * 0.6);
 
   // Donut
-  document.getElementById('ov-donut').innerHTML = overviewDonut(overall);
+  document.getElementById('metrics-donut').innerHTML = metricsDonut(overall);
 
-  // Metrics bars
-  const metrics = [
-    { label: '流利度', score: fluency, cls: 'fluency', color: 'var(--primary)' },
-    { label: '语法', score: accuracy, cls: 'grammar', color: 'var(--blue)' },
-    { label: '词汇', score: vocabScore, cls: 'vocab', color: 'var(--green)' },
-    { label: '自然度', score: natural, cls: 'natural', color: 'var(--orange)' },
+  // Duration
+  document.getElementById('metrics-duration').innerHTML = `
+    <div class="metrics-duration-value">🗣️ ${speakTime || '--'}m / 共 ${duration || '--'}m</div>
+    <div class="metrics-duration-label">开口时长 / 总时长</div>
+  `;
+
+  // 4-dimension bars
+  const bars = [
+    { label: '流利度', score: fluency, cls: 'fluency' },
+    { label: '语法', score: accuracy, cls: 'grammar' },
+    { label: '词汇', score: vocabScore, cls: 'vocab' },
+    { label: '自然度', score: natural, cls: 'natural' },
   ];
-  document.getElementById('ov-metrics').innerHTML = metrics.map(m =>
-    `<div class="ov-metric">
-      <span class="ov-metric-label">${m.label}</span>
-      <div class="ov-metric-bar-wrap"><div class="ov-metric-bar ${m.cls}" style="width:${(m.score/10)*100}%;background:${m.color}"></div></div>
-      <span class="ov-metric-score">${m.score}/10</span>
+  document.getElementById('metrics-bars').innerHTML = bars.map(b =>
+    `<div class="metrics-bar-row">
+      <span class="metrics-bar-label">${b.label}</span>
+      <div class="metrics-bar-track"><div class="metrics-bar-fill ${b.cls}" style="width:${(b.score/10)*100}%"></div></div>
+      <span class="metrics-bar-score">${b.score}/10</span>
     </div>`
   ).join('');
 
-  // Stats pills
-  const allReportDates = [...new Set((vocab || []).map(v => v.date_added).filter(Boolean))];
-  document.getElementById('ov-stats').innerHTML = [
-    `<div class="ov-stat"><strong>💬</strong> ${prog?.topics?.length || 0} 话题</div>`,
-    `<div class="ov-stat"><strong>📝</strong> ${parsed.vocabulary.length} 新词</div>`,
-    `<div class="ov-stat"><strong>🗣️</strong> ${parsed.patterns.length} 表达</div>`,
-    `<div class="ov-stat"><strong>🔧</strong> ${(parsed.grammar||[]).length + (parsed.pronunciation||[]).length} 纠正</div>`,
+  // Pills
+  document.getElementById('metrics-pills').innerHTML = [
+    `<div class="metrics-pill"><strong>💬 ${prog?.topics?.length || 0}</strong> 个话题</div>`,
+    `<div class="metrics-pill"><strong>📝 ${parsed.vocabulary.length}</strong> 个新词</div>`,
+    `<div class="metrics-pill"><strong>🗣️ ${parsed.patterns.length}</strong> 个表达</div>`,
+    `<div class="metrics-pill"><strong>🔧 ${(parsed.grammar||[]).length + (parsed.pronunciation||[]).length}</strong> 项纠正</div>`,
   ].join('');
 }
 
-function overviewDonut(score) {
-  const r = 40, cx = 50, cy = 50, sw = 10, circ = 2 * Math.PI * r;
+function metricsDonut(score) {
+  const r = 34, cx = 44, cy = 44, sw = 8, circ = 2 * Math.PI * r;
   const len = (score / 10) * circ;
   const color = score >= 7 ? 'var(--green)' : score >= 4 ? 'var(--orange)' : 'var(--red)';
-  return `<svg viewBox="0 0 100 100" width="100" height="100">
+  return `<svg viewBox="0 0 88 88" width="88" height="88">
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border-light)" stroke-width="${sw}"/>
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
-      stroke-dasharray="${len} ${circ - len}" stroke-dashoffset="0" transform="rotate(-90 50 50)" stroke-linecap="round"/>
-    <text x="50" y="52" text-anchor="middle" font-size="22" font-weight="800" fill="var(--text)">${score}</text>
-    <text x="50" y="66" text-anchor="middle" font-size="9" fill="var(--text-dim)">/10</text>
-  </svg>`;
+      stroke-dasharray="${len} ${circ - len}" stroke-dashoffset="0" transform="rotate(-90 44 44)" stroke-linecap="round"/>
+  </svg><div class="metrics-donut-score">${score}</div>`;
 }
 
-// ── Zone 2: Daily Quests (Duolingo-style) ────────────
+// ── Block 3: Daily Insights ────────────────────────────
+function renderInsights(todayReport, vocab, errors, patterns, prog) {
+  const container = document.getElementById('home-insights');
+  if (!todayReport || !isDailyReport(todayReport)) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+
+  const parsed = parseReport(todayReport.content);
+  const strengths = parsed.summary.strengths || '';
+  const review = parsed.summary.review || '';
+  const thoughts = parsed.summary.thoughts || '';
+  const nextSuggestions = parsed.summary.next_suggestions || '';
+  const weakAreas = parsed.summary.weak_areas || '';
+  const allErrors = [...(parsed.grammar || []), ...(parsed.pronunciation || [])];
+
+  let html = '';
+
+  // Card 1: Quote / Bilingual sentence (from review highlights)
+  if (strengths) {
+    const enLine = strengths.split('\n')[0] || '';
+    html += `<div class="insight-card" style="animation-delay:0.05s">
+      <div class="insight-quote-en">"${h(enLine.slice(0, 120))}"</div>
+      ${parsed.summary.review ? `<div class="insight-quote-zh">${h(parsed.summary.review.slice(0, 100))}</div>` : ''}
+      <div class="insight-quote-actions">
+        <button class="btn-soft" onclick="speakWord('${h(enLine).replace(/'/g, "\\'")}');event.stopPropagation();">${ICO_SPEAKER} 跟读</button>
+      </div>
+    </div>`;
+  }
+
+  // Card 2: ChatGPT review summary
+  const reviewText = review || thoughts || '';
+  if (reviewText) {
+    html += `<div class="insight-card" style="animation-delay:0.08s">
+      <div style="font-size:12px;font-weight:600;color:var(--text-dim);margin-bottom:8px;">🧠 AI 复盘摘要</div>
+      <div class="insight-review">${h(reviewText.slice(0, 200))}</div>
+    </div>`;
+  }
+
+  // Card 3: Structured performance points
+  const goodItems = strengths ? strengths.split('\n').filter(Boolean).slice(0, 2) : [];
+  const improveItems = [];
+  if (weakAreas) improveItems.push({ text: weakAreas, action: null });
+  if (allErrors.length > 0) improveItems.push({ text: `纠错 ${allErrors.length} 项`, action: "document.querySelector('.tab[data-tab=words]').click()" });
+  if (parsed.patterns.length > 0) improveItems.push({ text: '复习地道表达', action: "document.querySelector('.tab[data-tab=speak]').click()" });
+
+  if (goodItems.length || improveItems.length) {
+    html += `<div class="insight-card" style="animation-delay:0.12s">
+      <div style="font-size:12px;font-weight:600;color:var(--text-dim);margin-bottom:10px;">📋 本次复盘</div>
+      <div class="insight-list">`;
+    goodItems.forEach(g => { html += `<div class="insight-item good">${h(g)}</div>`; });
+    improveItems.forEach(im => {
+      html += `<div class="insight-item improve">${h(im.text)}${im.action ? `<a class="insight-jump" onclick="event.stopPropagation();${im.action}">→</a>` : ''}</div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+// ── Block 4: Content Summary Cards ─────────────────────
+function renderSummaryCards(todayReport, vocab, errors, patterns) {
+  const container = document.getElementById('home-summary-cards');
+  if (!todayReport || !isDailyReport(todayReport)) { container.style.display = 'none'; return; }
+  container.style.display = 'flex';
+
+  const parsed = parseReport(todayReport.content);
+  const allErrors = [...(parsed.grammar || []), ...(parsed.pronunciation || [])];
+  const sentencePatterns = parsed.sentence_patterns || [];
+
+  const cards = [
+    { icon: '📝', num: parsed.vocabulary.length, label: '新学单词', link: 'words', linkText: '去复习' },
+    { icon: '📐', num: sentencePatterns.length, label: '核心句型', link: 'speak', linkText: '去复习' },
+    { icon: '🔧', num: allErrors.length, label: '重点纠错', link: 'words', linkText: '查看' },
+  ].filter(c => c.num > 0);
+
+  if (!cards.length) { container.style.display = 'none'; return; }
+
+  container.innerHTML = cards.map(c => `
+    <div class="summary-card" onclick="document.querySelector('.tab[data-tab=${c.link}]').click()">
+      <div class="summary-card-icon">${c.icon}</div>
+      <div class="summary-card-num">${c.num}</div>
+      <div class="summary-card-label">${c.label}</div>
+      <div class="summary-card-link">${c.linkText} →</div>
+    </div>
+  `).join('');
+}
+
+// ── Block 5: Action Center (Todoist-style) ────────────
 function renderQuests(todayReport, vocab, errors, reports, streak) {
   const today = new Date().toISOString().slice(0, 10);
   const quests = [];
 
-  // Quest 1: Import today's report
+  // Quest 1: Import today's report → opens dialog
   const hasTodayReport = todayReport && isDailyReport(todayReport);
   quests.push({
-    id: 'q1', icon: '📥', title: '导入今日日报', sub: '把 ChatGPT 练习报告粘贴进来',
-    done: hasTodayReport, action: hasTodayReport ? null : () => { document.querySelector('.tab[data-tab=me]').click(); }
+    id: 'q1', icon: '📥', title: '导入今日日报', sub: hasTodayReport ? '已完成 ✓' : '把 ChatGPT 练习报告粘贴进来',
+    done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); }
   });
 
-  // Quest 2: Review at least 5 words today
+  // Quest 2: Review words
   const reviewedToday = (vocab || []).filter(v => v.last_reviewed_at && v.last_reviewed_at.slice(0,10) === today).length;
   quests.push({
     id: 'q2', icon: '🃏', title: '复习 5 个单词', sub: reviewedToday >= 5 ? `已复习 ${reviewedToday} 个` : `今日进度: ${reviewedToday}/5`,
     done: reviewedToday >= 5, action: () => { document.querySelector('.tab[data-tab=words]').click(); }
   });
 
-  // Quest 3: Practice speaking (has report = practiced)
+  // Quest 3: Practice speaking
   quests.push({
     id: 'q3', icon: '🎤', title: '完成一次口语练习', sub: hasTodayReport ? '今天练习过了！' : '打开 ChatGPT 开口说英语',
-    done: hasTodayReport, action: hasTodayReport ? null : () => { document.getElementById('practice-flow').scrollIntoView({behavior:'smooth'}); }
+    done: hasTodayReport, action: hasTodayReport ? null : () => { document.querySelector('.tab[data-tab=speak]').click(); }
   });
 
   const done = quests.filter(q => q.done).length;
@@ -323,6 +374,35 @@ function renderQuests(todayReport, vocab, errors, reports, streak) {
       }
     });
   });
+}
+
+// ── Import Dialog ──────────────────────────────────────
+function showImportDialog() {
+  document.getElementById('import-dialog').style.display = 'flex';
+  document.getElementById('dialog-report-input').value = '';
+  document.getElementById('dialog-import-result').innerHTML = '';
+}
+function hideImportDialog() {
+  document.getElementById('import-dialog').style.display = 'none';
+}
+
+// ── 🔥 Streak calc ────────────────────────────────────
+function calcStreak(dates) {
+  if (!dates.length) return 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  const yStr = yesterday.toISOString().slice(0, 10);
+  const hasToday = dates.includes(today);
+  const hasYesterday = dates.includes(yStr);
+  if (!hasToday && !hasYesterday) return 0;
+  let check = hasToday ? new Date(today) : yesterday;
+  let streak = 0;
+  while (true) {
+    const s = check.toISOString().slice(0, 10);
+    if (dates.includes(s)) { streak++; check.setDate(check.getDate() - 1); }
+    else break;
+  }
+  return streak;
 }
 
 // ── Zone 3: Report Details (5 cards — learning-flow order) ──
@@ -618,7 +698,19 @@ function vocabCard(v) {
     <div class="card-row"><span class="word">${h(v.word)}</span><span class="phonetic">${h(v.phonetic)}</span></div>
     <div class="meaning">${h(v.meaning)}</div>
     ${v.example ? `<div class="example">💬 ${h(v.example)}</div>` : ''}
-    <div class="card-actions">${btn}${srsHtml}<span style="font-size:10px;color:var(--text-ultradim);">${rc} 次</span>${sourceLabel}${errInfo}<button onclick="speakWord('${h(v.word).replace(/'/g, "\\'")}');event.stopPropagation();" class="btn-soft">${ICO_SPEAKER}</button></div>
+    <div class="card-actions">
+      <div class="card-toolbar">
+        <div class="card-toolbar-left">
+          ${srsHtml}
+          <span style="font-size:10px;color:var(--text-ultradim);">${rc} 次</span>
+          ${btn}
+        </div>
+        <div class="card-toolbar-right">
+          ${sourceLabel}${errInfo}
+          <button onclick="speakWord('${h(v.word).replace(/'/g, "\\'")}');event.stopPropagation();" class="btn-soft">${ICO_SPEAKER}</button>
+        </div>
+      </div>
+    </div>
     <div class="card-detail"><div class="card-detail-row"><strong>状态：</strong>${statusLabel(s)}</div><div class="card-detail-row"><strong>添加：</strong>${v.date_added || ''}</div><div class="card-detail-row"><strong>复习：</strong>${v.review_count || 0} 次</div></div>
   </div>`;
 }
@@ -780,8 +872,8 @@ function renderSpeakList(items) {
       <div class="expr-orig">代替: ${h(p.original)}</div>
       ${p.scene ? `<div class="expr-scene">🎬 ${h(p.scene)}</div>` : ''}
       <div class="expr-actions">
-        <button class="btn-soft" onclick="speakWord('${h(p.better).replace(/'/g, "\\'")}');event.stopPropagation();">${ICO_SPEAKER} 听发音</button>
-        <button class="btn-soft" onclick="startShadowFromSpeak();event.stopPropagation();">${ICO_MIC} 跟读</button>
+        <button class="btn-speak-secondary" onclick="speakWord('${h(p.better).replace(/'/g, "\\'")}');event.stopPropagation();">${ICO_SPEAKER} 听发音</button>
+        <button class="btn-speak-primary" onclick="startShadowFromSpeak();event.stopPropagation();">${ICO_MIC} 跟读</button>
       </div>
     </div>
   `).join('');
@@ -1083,9 +1175,10 @@ function copyTemplate(type) {
 }
 
 async function importReport(text) {
-  if (!text) text = document.getElementById('report-input').value.trim();
+  if (!text) text = document.getElementById('dialog-report-input').value.trim();
   if (!text) return;
-  const btn = document.getElementById('btn-submit');
+  const btn = document.getElementById('btn-dialog-submit');
+  const resultEl = document.getElementById('dialog-import-result');
   if (btn) { btn.disabled = true; btn.textContent = '解析中...'; }
 
   const parsed = parseReport(text);
@@ -1098,14 +1191,15 @@ async function importReport(text) {
   } else if (type === 'insight-report') {
     await importInsightReport(parsed);
   } else {
-    document.getElementById('import-result').innerHTML = '<span class="toast-error">❌ 无法识别内容格式</span>';
+    if (resultEl) resultEl.innerHTML = '<span class="toast-error">❌ 无法识别内容格式</span>';
     if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
     return;
   }
 
-  document.getElementById('report-input').value = '';
+  document.getElementById('dialog-report-input').value = '';
   if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
-  loadHome();
+  if (resultEl) resultEl.innerHTML = '<span class="toast-success">✅ 导入成功！</span>';
+  setTimeout(() => { hideImportDialog(); loadHome(); }, 1200);
 }
 
 async function importDailyReport(parsed) {
@@ -1284,6 +1378,43 @@ async function exportData() {
   showToast('📥 数据已导出');
 }
 
+async function importJSON() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      let imported = 0;
+      if (data.vocabulary?.length) {
+        const items = data.vocabulary.map(v => ({ ...v, id: undefined, user_id: session.user.id }));
+        await sb.from('vocabulary').insert(items);
+        imported += items.length;
+      }
+      if (data.errors?.length) {
+        const items = data.errors.map(e => ({ ...e, id: undefined, user_id: session.user.id }));
+        await sb.from('errors').insert(items);
+        imported += items.length;
+      }
+      if (data.patterns?.length) {
+        const items = data.patterns.map(p => ({ ...p, id: undefined, user_id: session.user.id }));
+        await sb.from('patterns').insert(items);
+        imported += items.length;
+      }
+      showToast(`📥 已导入 ${imported} 条数据`);
+      loadHome();
+    } catch (err) {
+      showToast('❌ 导入失败：文件格式错误');
+    }
+  };
+  input.click();
+}
+
 // ═══════════════════════════════════════════════════════
 // TTS
 // ═══════════════════════════════════════════════════════
@@ -1455,8 +1586,7 @@ async function detectClipboard() {
   try {
     const text = await navigator.clipboard.readText();
     if (text && (text.includes('type: daily-report') || text.includes('type: topic-card') || text.includes('type: insight-report'))) {
-      showToast('📋 检测到 Voco 内容，已粘贴到导入框');
-      document.getElementById('report-input').value = text;
+      showToast('📋 检测到 Voco 内容，点击任务"导入日报"进行导入');
     }
   } catch(e) {}
 }
@@ -1510,11 +1640,17 @@ function showToast(msg) {
 // ═══════════════════════════════════════════════════════
 document.getElementById('btn-login').addEventListener('click', signIn);
 document.getElementById('btn-login-email').addEventListener('click', sendMagicLink);
-document.getElementById('btn-submit').addEventListener('click', () => importReport());
+document.getElementById('btn-dialog-submit')?.addEventListener('click', () => importReport());
 document.getElementById('btn-export-data').addEventListener('click', exportData);
 document.getElementById('btn-logout-me').addEventListener('click', signOut);
+document.getElementById('btn-import-json')?.addEventListener('click', importJSON);
 
-// Template buttons
+// Import dialog overlay click-to-close
+document.getElementById('import-dialog')?.addEventListener('click', function(e) {
+  if (e.target === this) hideImportDialog();
+});
+
+// Template buttons (both in dialog and practice flow)
 document.querySelectorAll('.tpl-btn').forEach(btn => {
   btn.addEventListener('click', (e) => { e.stopPropagation(); copyTemplate(btn.dataset.tpl); });
 });
@@ -1564,5 +1700,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=23');
+  navigator.serviceWorker.register('/sw.js?v=24');
 }

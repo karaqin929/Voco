@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="/icon.png">
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=23">
+  <link rel="stylesheet" href="/style.css?v=24">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     /* Splash screen — covers Render cold-start / white-screen gap */
@@ -59,56 +59,44 @@
     <span class="app-header-actions"></span>
   </header>
 
-  <!-- ── Tab 1: Home ──────────────────────────── -->
+  <!-- ── Tab 1: Home (Dashboard v4.0) ──────────────────────────── -->
   <section id="tab-home" class="tab-content active">
 
-    <!-- ── Greeting ── -->
-    <div id="home-greeting" class="home-greeting">
-      <div class="greeting-left">
+    <!-- Block 1: Header Status Bar — greeting + mini bear heatmap -->
+    <div id="home-header" class="home-header-bar">
+      <div class="home-header-left">
         <div class="greeting-text" id="greeting-text"></div>
         <div class="greeting-date" id="greeting-date"></div>
       </div>
-      <div class="greeting-streak" id="greeting-streak"></div>
+      <div class="home-header-right" id="header-bears"></div>
     </div>
 
-    <!-- ── Zone 1: Overview (always visible) ── -->
-    <div id="home-overview" class="home-overview" style="display:none;">
-      <div class="ov-score-row">
-        <div class="ov-donut" id="ov-donut"></div>
-        <div class="ov-metrics" id="ov-metrics"></div>
+    <!-- Block 2: Metrics & Data Grid -->
+    <div id="home-metrics" class="metrics-grid" style="display:none;">
+      <div class="metrics-score-row">
+        <div class="metrics-donut" id="metrics-donut"></div>
+        <div class="metrics-duration" id="metrics-duration"></div>
       </div>
-      <div class="ov-stats" id="ov-stats"></div>
+      <div class="metrics-bars" id="metrics-bars"></div>
+      <div class="metrics-pills" id="metrics-pills"></div>
     </div>
 
-    <!-- ── Zone 2: Daily Quests (Duolingo-style) ── -->
-    <div id="home-quests" class="home-quests" style="display:none;">
+    <!-- Block 3: Daily Insights & Quotes -->
+    <div id="home-insights" style="display:none;"></div>
+
+    <!-- Block 4: Content Summary Cards -->
+    <div id="home-summary-cards" class="summary-cards" style="display:none;"></div>
+
+    <!-- Block 5: Action Center (Todoist-style) -->
+    <div id="home-quests" class="home-quests">
       <div class="quests-header">
-        <span>🎯 今日任务</span>
+        <span>✅ 今日待办</span>
         <span class="quests-progress-text" id="quests-progress-text">0/3</span>
       </div>
       <div class="quests-bar"><div class="quests-bar-fill" id="quests-bar-fill"></div></div>
       <div class="quests-list" id="quests-list"></div>
     </div>
 
-    <!-- ── Zone 3: Report Details (flat cards) ── -->
-    <div id="home-detail-cards" style="display:none;"></div>
-
-    <!-- ── Zone 4: Bear Heatmap ── -->
-    <div class="bear-heatmap-wrap">
-      <div class="bear-heatmap-label">📅 本月练习足迹</div>
-      <div class="bear-heatmap" id="bear-heatmap"></div>
-    </div>
-
-    <!-- ── Practice Flow (no report) ── -->
-    <div id="practice-flow" class="practice-flow"></div>
-
-    <!-- ── Stats Grid ── -->
-    <div class="stats-grid">
-      <div class="stat-card sessions"><div class="stat-num" id="stat-sessions">0</div><div class="stat-label">次练习</div></div>
-      <div class="stat-card vocab"><div class="stat-num" id="stat-vocab">0</div><div class="stat-label">个单词</div></div>
-      <div class="stat-card errors"><div class="stat-num" id="stat-errors">0</div><div class="stat-label">条纠正</div></div>
-      <div class="stat-card streak"><div class="stat-num" id="stat-streak">0</div><div class="stat-label">天坚持</div></div>
-    </div>
   </section>
 
   <!-- ── Tab 2: Words ──────────────────────────── -->
@@ -184,8 +172,8 @@
         <div class="shadow-context" id="speak-shadow-context"></div>
       </div>
       <div class="shadow-actions">
-        <button class="btn-primary" id="btn-speak-play"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg> 播放</button>
-        <button class="btn-primary" id="btn-speak-next" style="display:none;">下一个 →</button>
+        <button class="btn-speak-primary" id="btn-speak-play"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg> 播放</button>
+        <button class="btn-speak-primary" id="btn-speak-next" style="display:none;">下一个 →</button>
         <button class="btn-soft" id="btn-speak-repeat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> 重播</button>
       </div>
       <div class="speak-self-rate" id="speak-self-rate" style="display:none;">
@@ -215,7 +203,7 @@
     <!-- Profile card -->
     <div class="me-profile">
       <div class="me-avatar">
-        <img class="me-avatar-img" src="/bear-active.png" alt="avatar"
+        <img class="me-avatar-img" src="/bear-default.png" alt="avatar"
           onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=me-avatar-fallback>🐻</span>')">
       </div>
       <div class="me-name" id="me-name">---</div>
@@ -236,19 +224,6 @@
         <div class="me-badge locked"><span>📚</span><small>掌握50词</small></div>
         <div class="me-badge locked"><span>🔧</span><small>纠正20次</small></div>
       </div>
-    </div>
-
-    <!-- Import -->
-    <div class="me-section">
-      <div class="me-section-title">📥 导入日报</div>
-      <div class="template-btns" style="margin-bottom:10px;">
-        <button class="tpl-btn" data-tpl="report">📝 日报模板</button>
-        <button class="tpl-btn" data-tpl="topic">📋 话题卡模板</button>
-        <button class="tpl-btn" data-tpl="insight">🔍 弱点分析模板</button>
-      </div>
-      <textarea id="report-input" rows="5" placeholder="将 ChatGPT 生成的内容粘贴到这里..."></textarea>
-      <button id="btn-submit" class="btn-primary">解析入库</button>
-      <div id="import-result"></div>
     </div>
 
     <!-- Settings -->
@@ -299,6 +274,10 @@
         <span>导出数据</span>
         <span class="settings-arrow">›</span>
       </div>
+      <div class="me-settings-item" id="btn-import-json">
+        <span>导入数据</span>
+        <span class="settings-arrow">›</span>
+      </div>
     </div>
 
     <div class="me-section" id="error-patterns-group" style="display:none;">
@@ -315,9 +294,31 @@
 
     <div class="settings-footer">
       <span>Voco</span>
-      <span class="settings-version">v3.0</span>
+      <span class="settings-version">v4.0</span>
     </div>
   </section>
+
+  <!-- ── Import Dialog (global, from Home task center) ── -->
+  <div id="import-dialog" class="import-dialog-overlay" style="display:none;">
+    <div class="import-dialog-card">
+      <div class="import-dialog-header">
+        <span>📥 导入日报</span>
+        <button class="import-dialog-close" onclick="hideImportDialog()">✕</button>
+      </div>
+      <div class="import-dialog-body">
+        <div class="template-btns" style="margin-bottom:10px;">
+          <button class="tpl-btn" data-tpl="report">📝 日报模板</button>
+          <button class="tpl-btn" data-tpl="topic">📋 话题卡模板</button>
+          <button class="tpl-btn" data-tpl="insight">🔍 弱点分析模板</button>
+        </div>
+        <textarea id="dialog-report-input" rows="5" placeholder="将 ChatGPT 生成的内容粘贴到这里..."></textarea>
+      </div>
+      <div class="import-dialog-footer">
+        <button id="btn-dialog-submit" class="btn-primary">解析入库</button>
+        <div id="dialog-import-result" style="margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- ── Tab Bar ──────────────────────────────── -->
   <nav class="tab-bar">
@@ -328,8 +329,8 @@
   </nav>
 </div>
 
-<script src="/supabase-client.js?v=23"></script>
-<script src="/parser.js?v=23"></script>
-<script src="/app.js?v=23"></script>
+<script src="/supabase-client.js?v=24"></script>
+<script src="/parser.js?v=24"></script>
+<script src="/app.js?v=24"></script>
 </body>
 </html>
