@@ -1,9 +1,21 @@
 # Voco — Claude Memory File
 
+## 🚨 ALWAYS READ THIS FIRST
+
+**Live URL**: `https://kks-voicelog.onrender.com`
+- NOT `voco.onrender.com` — that domain is dead/wrong.
+- To verify deploy: `curl -sL "https://kks-voicelog.onrender.com/" | grep 'lang="zh-CN"'`
+- New deployments take ~2-3 min on Render free tier.
+- Cloudflare sits in front of Render; cache `s-maxage=300`. If stale, wait or purge.
+
+**Backend**: Python FastAPI (`⚙️ 后端/server.py`) — serves frontend static files from `🖥️ 前端/`.
+- Render is configured as a **Python web service**, NOT static site.
+- DO NOT check `voco.onrender.com` — always use `kks-voicelog.onrender.com`.
+
 ## Repository
 - **Git remote**: `git@github.com:karaqin929/Voco.git`
 - **Repo root**: `📱 产品开发/🗣️ 口语练习/`
-- **Frontend code**: `🖥️ 前端/` (deployed to Render as static site)
+- **Frontend code**: `🖥️ 前端/`
 - **Branch**: `main`
 
 ## Deploy
