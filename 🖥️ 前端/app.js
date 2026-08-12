@@ -618,7 +618,7 @@ function vocabCard(v) {
     <div class="card-row"><span class="word">${h(v.word)}</span><span class="phonetic">${h(v.phonetic)}</span></div>
     <div class="meaning">${h(v.meaning)}</div>
     ${v.example ? `<div class="example">💬 ${h(v.example)}</div>` : ''}
-    <div class="card-actions">${btn}${srsHtml}<span style="font-size:10px;color:var(--text-ultradim);">${rc} 次</span>${sourceLabel}${errInfo}<button onclick="speakWord('${h(v.word).replace(/'/g, "\\'")}');event.stopPropagation();" class="btn-small">${ICO_SPEAKER}</button></div>
+    <div class="card-actions">${btn}${srsHtml}<span style="font-size:10px;color:var(--text-ultradim);">${rc} 次</span>${sourceLabel}${errInfo}<button onclick="speakWord('${h(v.word).replace(/'/g, "\\'")}');event.stopPropagation();" class="btn-soft">${ICO_SPEAKER}</button></div>
     <div class="card-detail"><div class="card-detail-row"><strong>状态：</strong>${statusLabel(s)}</div><div class="card-detail-row"><strong>添加：</strong>${v.date_added || ''}</div><div class="card-detail-row"><strong>复习：</strong>${v.review_count || 0} 次</div></div>
   </div>`;
 }
@@ -780,8 +780,8 @@ function renderSpeakList(items) {
       <div class="expr-orig">代替: ${h(p.original)}</div>
       ${p.scene ? `<div class="expr-scene">🎬 ${h(p.scene)}</div>` : ''}
       <div class="expr-actions">
-        <button class="btn-small" onclick="speakWord('${h(p.better).replace(/'/g, "\\'")}');event.stopPropagation();">${ICO_SPEAKER} 听发音</button>
-        <button class="btn-small" onclick="startShadowFromSpeak();event.stopPropagation();">${ICO_MIC} 跟读</button>
+        <button class="btn-soft" onclick="speakWord('${h(p.better).replace(/'/g, "\\'")}');event.stopPropagation();">${ICO_SPEAKER} 听发音</button>
+        <button class="btn-soft" onclick="startShadowFromSpeak();event.stopPropagation();">${ICO_MIC} 跟读</button>
       </div>
     </div>
   `).join('');
@@ -1564,5 +1564,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=20');
+  navigator.serviceWorker.register('/sw.js?v=21');
 }
