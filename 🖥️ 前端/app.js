@@ -515,52 +515,29 @@ function renderBearHeatmap(vocab, reports) {
   const container = document.getElementById('bear-heatmap');
   const dateScore = {};
 
-  // Count score from vocab + reports
-  (vocab || []).forEach(v => {
-    if (v.date_added) {
-      dateScore[v.date_added] = (dateScore[v.date_added] || 0) + 2;
-    }
-  });
-  (reports || []).forEach(r => {
-    if (r.date && isDailyReport(r)) {
-      dateScore[r.date] = (dateScore[r.date] || 0) + 5;
-    }
-  });
-
-  function getBearLevel(score) {
-    if (!score) return 0;
-    if (score <= 2) return 1;
-    if (score <= 6) return 2;
-    if (score <= 12) return 3;
-    return 4;
-  }
+  (vocab || []).forEach(v => { if (v.date_added) dateScore[v.date_added] = (dateScore[v.date_added] || 0) + 2; });
+  (reports || []).forEach(r => { if (r.date && isDailyReport(r)) dateScore[r.date] = (dateScore[r.date] || 0) + 5; });
 
   // Last 35 days
   const today = new Date();
   const days = [];
   for (let i = 34; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0, 10);
-    days.push({ date: ds, day: d.getDate(), month: d.getMonth() + 1, score: dateScore[ds] || 0 });
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    days.push({ date: d.toISOString().slice(0, 10), day: d.getDate(), month: d.getMonth() + 1, active: !!dateScore[d.toISOString().slice(0, 10)] });
   }
 
-  const bears = ['🐻‍❄️', '🐻', '🐨', '🐼', '🧸'];
-
-  container.innerHTML = days.map(d => {
-    const level = getBearLevel(d.score);
-    return `<div class="bear-day" title="${d.date}: ${d.score} 分" onclick="showBearDay('${d.date}',${d.score})">
-      <span class="bear-icon${level === 0 ? ' bear-score-none' : level === 1 ? ' bear-score-l1' : level === 2 ? ' bear-score-l2' : level === 3 ? ' bear-score-l3' : ' bear-score-l4'}">${bears[level]}</span>
+  container.innerHTML = days.map(d => `
+    <div class="bear-day" title="${d.date}${d.active ? ' · 已练习' : ''}" onclick="showBearDay('${d.date}',${d.active})">
+      <img class="bear-img" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '已打卡' : '未打卡'}" loading="lazy" />
       <span class="bear-date">${d.month}/${d.day}</span>
-    </div>`;
-  }).join('');
+    </div>
+  `).join('');
 
-  // Scroll to today (far right)
   setTimeout(() => { container.scrollLeft = container.scrollWidth; }, 100);
 }
 
-function showBearDay(date, score) {
-  showToast(`📅 ${date} · 活跃度: ${score} 分`);
+function showBearDay(date, active) {
+  showToast(`📅 ${date} · ${active ? '🎉 已练习' : '🌱 未打卡'}`);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1559,5 +1536,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=10');
+  navigator.serviceWorker.register('/sw.js?v=11');
 }
