@@ -262,64 +262,38 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
   const today = new Date().toISOString().slice(0,10);
   const hasToday = !!todayReport;
 
-  // 7-day bear strip (Mon–Sun of current week)
+  // Same dateScore as header bears
   const dateScore = {};
   (vocab||[]).forEach(v => { if(v.date_added) dateScore[v.date_added] = (dateScore[v.date_added]||0)+2; });
   (reports||[]).forEach(r => { if(r.date && isDailyReport(r)) dateScore[r.date] = (dateScore[r.date]||0)+5; });
+
+  // 7 days: 6 days ago → today
   const now = new Date();
-  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // days back to Monday
-  const monday = new Date(now); monday.setDate(monday.getDate() + mondayOffset);
   const days = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday); d.setDate(d.getDate() + i);
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
     const ds = d.toISOString().slice(0,10);
-    days.push({ date: ds, month: d.getMonth()+1, day: d.getDate(), active: !!dateScore[ds], isToday: ds === today });
+    days.push({ date: ds, month: d.getMonth()+1, day: d.getDate(), active: !!dateScore[ds] });
   }
 
-  // Motivational message based on streak
-  const quotes = [
-    { min: 30, text: '太厉害了！一个月不间断打卡！' },
-    { min: 14, text: '两周打卡，习惯正在养成！' },
-    { min: 7, text: '一周了！说英语越来越自然了' },
-    { min: 3, text: '坚持就是胜利，小熊为你骄傲！' },
-    { min: 1, text: '好的开始是成功的一半！' },
-    { min: 0, text: '今天开始也不晚，小熊在等你 🐻' },
-  ];
-  const msg = quotes.find(q => streak >= q.min)?.text || quotes[quotes.length-1].text;
-
   el.innerHTML = `
-    <div class="flex justify-between items-start mb-3">
-      <span class="inline-flex items-center gap-1.5">
-        <img src="/bear-head-active.png" class="w-7 h-7 object-contain" alt="bear" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-xl>🐻</span>')" />
-        <span class="text-[10px] font-semibold tracking-wider text-[var(--c-text-ultradim)] uppercase">${hasToday ? '今日已打卡' : '本周打卡日历'}</span>
-        ${streak > 0 ? `<span class="inline-flex items-center gap-0.5 text-[11px] font-bold text-emerald-500 ml-1">${icon('flame','w-3.5 h-3.5')}${streak}天</span>` : ''}
+    <div class="flex justify-between items-center mb-3">
+      <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--c-text-dim)]">
+        ${icon('calendar','w-3.5 h-3.5')} 本周打卡
+        ${streak > 0 ? `<span class="inline-flex items-center gap-0.5 text-emerald-500">· ${icon('flame','w-3.5 h-3.5')}${streak}天</span>` : ''}
       </span>
       ${hasToday
         ? `<span class="inline-flex items-center gap-1 text-[11px] text-emerald-500 font-semibold">${icon('check-circle-2','w-3.5 h-3.5')}已打卡</span>`
-        : `<span onclick="showImportDialog()" class="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--c-primary)] cursor-pointer hover:opacity-80 transition-opacity">${icon('upload','w-3.5 h-3.5')}去打卡</span>`
+        : `<span onclick="showImportDialog()" class="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--c-primary)] cursor-pointer">${icon('upload','w-3.5 h-3.5')}去打卡</span>`
       }
     </div>
-
-    <!-- 7-day bear strip -->
-    <div class="flex justify-between items-end mb-3 px-1">
+    <div class="flex justify-between items-end">
       ${days.map(d => `
-        <div class="flex flex-col items-center gap-1 ${d.isToday ? 'relative' : ''}" style="min-width:34px">
-          ${d.isToday ? '<div class="absolute -top-1 left-1/2 -translate-x-1/2 w-[38px] h-[38px] rounded-xl bg-[var(--c-primary-light)] -z-0"></div>' : ''}
-          <img class="w-[26px] h-[26px] object-contain ${d.active ? '' : 'grayscale opacity-40'} relative z-10" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? 'active' : 'inactive'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-[22px]>${d.active ? '🐻' : '🌱'}</span>')" />
-          <span class="text-[9px] ${d.isToday ? 'text-[var(--c-primary)] font-bold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
+        <div class="flex flex-col items-center gap-px cursor-pointer w-8" onclick="showBearDay('${d.date}',${d.active})">
+          <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
+          <span class="text-[8px] text-[var(--c-text-ultradim)] whitespace-nowrap text-center">${d.month}/${d.day}</span>
         </div>
       `).join('')}
-    </div>
-
-    <!-- Status + motivational -->
-    <div class="flex items-center gap-2 pt-2 border-t border-[var(--c-border-light)]">
-      <span class="text-[13px] ${hasToday ? 'text-[var(--c-text-dim)]' : 'text-amber-500'}">
-        ${hasToday
-          ? `${icon('sparkles','w-3.5 h-3.5 inline text-amber-400')} ${msg}`
-          : `${icon('alert-circle','w-3.5 h-3.5 inline')} 别忘了导入今天的日报哦～`
-        }
-      </span>
     </div>`;
   refreshIcons(el);
 }
