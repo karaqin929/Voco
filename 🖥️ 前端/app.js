@@ -782,18 +782,105 @@ function isDailyReport(report) {
     || c.includes('"mistakes"')||c.includes('"coreSentences"')||c.includes('"newWords"');
 }
 
+// ── 无损数据迁移与清洗层 (Data Migration & Normalization) ──
+// 任意历史日报（如 8.10 / 8.12）在渲染前必须经过本函数：
+//   · sentences（跟读句型）与 mistakes（错题）老格式（字符串 / 数组元组 / 残缺对象）→ 结构校验补齐为对象
+//   · 新格式 → 原样透传（spread 保留全部原始键，绝不删改、绝不丢弃任何历史数据）
+// 幂等设计：对同一份数据重复清洗，结果不变。
+function normalizeDailyData(rawDailyData) {
+  if (!rawDailyData || typeof rawDailyData !== 'object') return rawDailyData;
+  const d = { ...rawDailyData };
+
+  // 1) 跟读句型清洗：sentences / coreSentences / sentence_patterns 三态统一
+  const sentSrc = Array.isArray(d.sentences) ? d.sentences
+    : Array.isArray(d.coreSentences) ? d.coreSentences
+    : Array.isArray(d.sentence_patterns) ? d.sentence_patterns : null;
+  if (sentSrc) {
+    const cleaned = sentSrc.map((item, index) => {
+      if (typeof item === 'string' && item.trim()) {
+        return { id: `migrated_${index}`, targetSentence: item, replacedSentence: '', explanation: '历史导入内容', isTodayCore: true };
+      }
+      if (!item || typeof item !== 'object') {
+        return { id: `migrated_${index}`, targetSentence: '有效跟读训练', replacedSentence: '', explanation: '历史导入内容', isTodayCore: true };
+      }
+      const target = item.targetSentence || item.pattern || item.text || '有效跟读训练';
+      return {
+        ...item,
+        id: item.id || `migrated_${index}`,
+        targetSentence: target,
+        replacedSentence: item.replacedSentence || '',
+        explanation: item.explanation || (typeof item.example === 'string' ? item.example : '') || '历史导入内容',
+        isTodayCore: item.isTodayCore === undefined ? true : item.isTodayCore
+      };
+    });
+    d.sentences = cleaned;
+    if (Array.isArray(d.coreSentences)) d.coreSentences = cleaned;
+    if (Array.isArray(d.sentence_patterns)) d.sentence_patterns = cleaned;
+  }
+
+  // 2) 错题清洗：mistakes 老格式 → {id,type,wrongSentence,correctSentence,explanation}
+  //    同时补 original/improved 别名（桥接归一化层与纠错卡读取，保证一行不丢）
+  if (Array.isArray(d.mistakes)) {
+    d.mistakes = d.mistakes.map((item, index) => {
+      let wrong = '', correct = '', extra = '';
+      if (typeof item === 'string') {
+        wrong = item;
+      } else if (Array.isArray(item)) {
+        wrong = item[0] || ''; correct = item[1] || ''; extra = item[2] || '';
+      } else if (item && typeof item === 'object') {
+        wrong = item.wrongSentence || item.wrong || '';
+        correct = item.correctSentence || item.correct || '';
+        extra = item.explanation || '';
+      }
+      wrong = wrong || '历史错题';
+      const base = (item && typeof item === 'object' && !Array.isArray(item)) ? { ...item } : {};
+      return {
+        ...base,
+        id: base.id || `mistake_${index}`,
+        type: base.type || 'grammar',
+        wrongSentence: wrong,
+        correctSentence: correct,
+        explanation: base.explanation || extra,
+        original: base.original || wrong,
+        improved: base.improved || correct
+      };
+    });
+  }
+
+  // 3) 内部管道兜底：grammar / patterns 结构校验（老 Markdown 解析产物同样无损适配）
+  if (Array.isArray(d.grammar)) {
+    d.grammar = d.grammar.map(g => {
+      if (!g || typeof g !== 'object') return { original: String(g || '历史错题'), correction: '', rule: '' };
+      return { ...g, original: g.original || '历史错题', correction: g.correction || '', rule: g.rule || '' };
+    });
+  }
+  if (Array.isArray(d.patterns)) {
+    d.patterns = d.patterns.map(p => {
+      if (!p || typeof p !== 'object') return { original: String(p || '历史表达'), better: '', scene: '' };
+      return { ...p, original: p.original || '历史表达', better: p.better || '', scene: p.scene || '' };
+    });
+  }
+  return d;
+}
+
 // ── 智能解析路由：新版 JSON 日报 → 归一化为内部结构；否则回退 Markdown 解析器 ──
+// 所有链路（首页 / 历史日期切换 / 单词页 / 跟读页 / 导入预览）读到的数据
+// 都先经 normalizeDailyData 无损清洗，再进入 UI 渲染。
 function parseSmartReport(content) {
   const t = String(content || '').trim();
   if (t.startsWith('{')) {
     try {
       const j = JSON.parse(t);
       if (j && typeof j === 'object' && (j.mistakes || j.coreSentences || j.newWords)) {
-        return normalizeJsonReport(j, t);
+        // ① 原始数据清洗：老格式字符串/残缺字段 → 结构补齐（无损，绝不丢行）
+        const cleanedRaw = normalizeDailyData(j);
+        // ② 归一化产物兜底清洗：UI 契约字段必有值
+        return normalizeDailyData(normalizeJsonReport(cleanedRaw, t));
       }
     } catch (e) { /* 非法 JSON → 回退 Markdown 解析器 */ }
   }
-  return parseReport(t); // 兜底：传统 Markdown 解析器（原引擎，不修改）
+  // ③ 传统 Markdown 解析产物同样过清洗层（原解析引擎 parser.js 不修改）
+  return normalizeDailyData(parseReport(t));
 }
 
 // ── JSON 日报归一化 + 前端约定标签自动打标 ──────────────
@@ -1024,7 +1111,7 @@ function showDetailModal(label, count, tab) {
     } else if (label === '地道表达') {
       html = items.map(p => `<div class="dm-item"><strong>${h(p.better)}</strong><br><span class="text-dim">代替: ${h(p.original||'')}${p.scene ? ' · 🎬 ' + h(p.scene) : ''}</span></div>`).join('');
     } else if (label === '核心句型') {
-      html = items.map(p => `<div class="dm-item"><strong>${h(p.pattern)}</strong>${p.example ? '<br><span class="text-dim">💬 ' + h(p.example) + '</span>' : ''}</div>`).join('');
+      html = items.map(p => `<div class="dm-item"><strong>${h(p.pattern || p.targetSentence || p.text || '')}</strong>${(p.example || p.explanation) ? '<br><span class="text-dim">💬 ' + h(p.example || p.explanation) + '</span>' : ''}</div>`).join('');
     } else if (label === '重点纠错') {
       html = items.map(e => `<div class="dm-item"><span class="text-red">✗</span> ${h(e.original||'')}<br><span class="text-green">✓</span> ${h(e.correction||'')}${e.rule ? ' <span class="text-ultradim">(' + h(e.rule) + ')</span>' : ''}</div>`).join('');
     }
@@ -1535,7 +1622,10 @@ async function loadSpeak() {
 function coreDeck(parsed, speakAll) {
   const realCore = (parsed && parsed.sentence_patterns && parsed.sentence_patterns.length)
     ? parsed.sentence_patterns.map((s, i) => ({
-        id: 'core-' + i, targetSentence: s.pattern, replacedSentence: '', explanation: s.example || ''
+        id: 'core-' + i,
+        targetSentence: s.pattern || s.targetSentence || s.text || '',
+        replacedSentence: '',
+        explanation: s.example || s.explanation || ''
       }))
     : null;
   if (realCore) return realCore;
@@ -2011,6 +2101,9 @@ async function importReport(text) {
 async function importJsonDailyReport(jsonReport, rawText) {
   const { data: { session } } = await sb.auth.getSession();
   const uid = session.user.id;
+  // 无损清洗：老格式 mistakes/coreSentences（字符串、元组、残缺对象）先补齐结构再入库，
+  // 下方所有 `!m.original` / `!c.targetSentence` 过滤从此一行都不会丢。
+  jsonReport = normalizeDailyData(jsonReport || {});
   const date = new Date().toISOString().slice(0, 10);
   const topic = (jsonReport.summary && jsonReport.summary.topic) || '';
 
@@ -2624,5 +2717,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=52');
+  navigator.serviceWorker.register('/sw.js?v=53');
 }
