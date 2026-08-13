@@ -206,9 +206,13 @@ const mockDashboardData = {
       '语音语调自然，停顿位置合理，语速适中'
     ],
     improvements: [
-      { issue: '表达纠正', wrong: 'I have went to three interviews last month.', correct: 'I have gone to three interviews last month.', explanation: '过去时态与完成时混淆：现在完成时需用 have + 过去分词（gone），不能用过去式 went', detail: "'I have went' → 应为 'I have gone'", action: '专项攻克', tab: 'speak', filter: 'tense', filterLabel: '时态句型', errorCategory: 'tense' },
-      { issue: '逻辑连接', wrong: 'I wanted to go out. It was raining.', correct: 'I wanted to go out. However, it was raining.', explanation: '缺少逻辑连接词：句子之间缺少 however / therefore 等过渡词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '专项攻克', tab: 'speak', filter: 'connective', filterLabel: '连接词句型', errorCategory: 'connective' },
-      { issue: '表达纠正', wrong: 'I went to store.', correct: 'I went to the store.', explanation: '冠词遗漏：单数可数名词 store 前需要冠词 the', detail: "'I went to store' → 应为 'I went to the store'", action: '查看纠错', tab: 'words', filter: 'mistakes', filterLabel: '高频错词', errorCategory: 'article' }
+      // 🔴 Hard Mistake — 硬性语法错误：非黑即白，必须纠正
+      { type:'grammar', issue:'语法纠错', wrong:'I have went to three interviews last month.', correct:'I have gone to three interviews last month.', explanation:'注意时态的一致性：现在完成时需用 have + 过去分词（gone），不能用过去式 went', detail:"'I have went' → 应为 'I have gone'", action:'专项攻克', tab:'speak', filter:'tense', filterLabel:'时态句型', errorCategory:'tense' },
+      { type:'grammar', issue:'语法纠错', wrong:'I went to store.', correct:'I went to the store.', explanation:'冠词遗漏：单数可数名词 store 前需要冠词 the', detail:"'I went to store' → 应为 'I went to the store'", action:'查看纠错', tab:'words', filter:'mistakes', filterLabel:'高频错词', errorCategory:'article' },
+      // 💡 Soft Upgrade — 语法没错，但不够地道：不做删除线，只做升级替换
+      { type:'expression', issue:'地道表达', wrong:'I think I can do this job.', correct:"I believe I'm a strong fit for this role.", explanation:'使用更具商务感的词汇：面试场景下 believe / strong fit 比口语化的 I think 更专业自信', detail:"'I think I can do this job' → 'I believe I'm a strong fit for this role'", action:'专项跟读', tab:'speak', filter:'connective', filterLabel:'地道表达', errorCategory:'collocation' },
+      // 🎯 Structure — 逻辑断层：连接词让层次更分明
+      { type:'structure', issue:'逻辑与结构', wrong:'I wanted to go out. It was raining.', correct:'I wanted to go out. However, it was raining.', explanation:'表达转折时使用 however / therefore 等连接词，让层次更分明', detail:'多处句子之间缺乏 however/therefore 等过渡词', action:'专项跟读', tab:'speak', filter:'connective', filterLabel:'连接词句型', errorCategory:'connective' }
     ],
     nextSteps: [
       { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项跟读', tab: 'speak', filter: 'connective', filterLabel: '连接词句型' },
@@ -521,6 +525,14 @@ function metricsDonut(score) {
   return `<svg viewBox="0 0 88 88" width="88" height="88"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--c-border-light)" stroke-width="${sw}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${len} ${circ-len}" stroke-dashoffset="0" transform="rotate(-90 44 44)" stroke-linecap="round"/></svg><div class="absolute inset-0 flex items-center justify-center text-[26px] font-extrabold text-[var(--c-text)]">${score}</div>`;
 }
 
+// ── 「今天需要提升」教练视角分类配置 ─────────────────────
+// grammar（硬伤，红线纠正）/ expression（软性升级，灰句+高阶替换，绝不画删除线）/ structure（逻辑衔接）
+const IMPROVE_TYPES = {
+  grammar:    { badge: '⚠️ 语法纠错',   badgeCls: 'bg-red-50 text-[var(--c-red)]',   wrongCls: 'line-through text-[var(--c-red)]', rightCls: 'text-[var(--c-green)]', btn: '查看纠错' },
+  expression: { badge: '💡 地道表达',   badgeCls: 'bg-amber-50 text-amber-600',      wrongCls: 'text-[var(--c-text-dim)]',        rightCls: 'text-[var(--c-blue)]',  btn: '跟读体验' },
+  structure:  { badge: '🎯 逻辑与结构', badgeCls: 'bg-blue-50 text-[var(--c-blue)]', wrongCls: 'text-[var(--c-text-dim)]',        rightCls: 'text-[var(--c-blue)]',  btn: '专项跟读' }
+};
+
 // ── Section 4: Insights (Cards A-F) ─────────────────────
 function renderInsightsSection(todayReport) {
   const container = document.getElementById('home-insights');
@@ -532,7 +544,22 @@ function renderInsightsSection(todayReport) {
     if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
     if(p.summary.strengths){ const lines = p.summary.strengths.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*]\s*/,'')); if(lines.length) d.strengths = lines; }
     const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
-    if(allErr.length) d.improvements = allErr.slice(0,3).map(e=>({issue:e.type==='pronunciation'?'发音纠正':'表达纠正',wrong:e.original||'',correct:e.correction||'',explanation:e.rule||'',detail:(e.original||'')+' → '+(e.correction||'')+(e.rule?'（'+e.rule+'）':''),action:'查看纠错',tab:'words'}));
+    // 双维度打标：grammar = 硬性错误（红线纠正）；expression = 地道升级（语法没错，只替换不判错）
+    const merged = [
+      ...allErr.slice(0, 2).map(e => ({
+        type: 'grammar', issue: e.type === 'pronunciation' ? '发音纠正' : '语法纠错',
+        wrong: e.original || '', correct: e.correction || '', explanation: e.rule || '',
+        detail: (e.original||'') + ' → ' + (e.correction||'') + (e.rule ? '（' + e.rule + '）' : ''),
+        action: '查看纠错', tab: 'words', filter: 'mistakes', filterLabel: '高频错词'
+      })),
+      ...(p.patterns || []).filter(x => x.better).slice(0, 2).map(e => ({
+        type: 'expression', issue: '地道表达',
+        wrong: e.original || '', correct: e.better || '', explanation: e.scene || '',
+        detail: (e.original||'') + ' → ' + (e.better||''),
+        action: '专项跟读', tab: 'speak', filter: '', filterLabel: '地道表达'
+      }))
+    ];
+    if (merged.length) d.improvements = merged;
     if(p.summary.next_suggestions){ const steps = p.summary.next_suggestions.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*\d]+[\.\、]\s*/,'')); if(steps.length) d.nextSteps = steps.slice(0,3).map(s=>({step:s,action:'去练习',tab:'speak'})); }
     // v6.0: derive executive summary fields from real report data
     if(allErr.length) {
@@ -565,7 +592,7 @@ function renderInsightsSection(todayReport) {
   html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div><div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(d.thoughts.en)}"</div><div class="text-[13px] text-[var(--c-text-dim)]">${h(d.thoughts.zh)}</div>`);
   // Card C: Strengths
   html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} 今天做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
-  // Card D: Improvements — one error = ONE card, wrong/correct/explanation stacked inside
+  // Card D: 进阶引导 — 一条 = 一卡，按 type 分流教练视角（硬伤红线 / 软性升级 / 逻辑结构）
   html += `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2 px-1">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} 今天需要提升</div>`;
   html += d.improvements.map((im, i) => {
     // Legacy fallback: derive structured fields from detail string if new fields absent
@@ -573,16 +600,17 @@ function renderInsightsSection(todayReport) {
     const wrong = im.wrong || parts[0] || '';
     const correct = im.correct || (parts.length > 1 ? parts.slice(1).join(' → ').replace(/^应为\s*/, '') : '');
     const explanation = im.explanation || (parts.length > 1 ? '' : parts[0] || '');
+    const conf = IMPROVE_TYPES[im.type] || IMPROVE_TYPES.grammar;
     return card(0.12 + i * 0.02, `
       <div class="flex items-start justify-between gap-4 cursor-pointer" onclick="showImprovementDetail(${i})">
         <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-          <span class="text-xs font-medium text-amber-600">${h(im.issue || '表达纠正')}</span>
-          ${wrong ? `<p class="text-sm line-through text-[var(--c-red)]">${h(wrong)}</p>` : ''}
-          ${correct ? `<p class="text-sm font-semibold text-[var(--c-green)]">→ ${h(correct)}</p>` : ''}
+          <span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${conf.badgeCls}">${conf.badge}</span>
+          ${wrong ? `<p class="text-sm ${conf.wrongCls}">${h(wrong)}</p>` : ''}
+          ${correct ? `<p class="text-sm font-semibold ${conf.rightCls}">→ ${h(correct)}</p>` : ''}
           ${explanation ? `<p class="text-xs text-[var(--c-text-ultradim)] mt-1">${h(explanation)}</p>` : ''}
         </div>
         <button class="shrink-0 px-3 py-1.5 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] text-xs text-[var(--c-text-dim)] rounded-full flex items-center gap-1 transition-colors border-0 cursor-pointer mt-1" onclick="event.stopPropagation();showImprovementDetail(${i})">
-          查看纠错 ${icon('arrow-right','w-3 h-3')}
+          ${conf.btn} ${icon('arrow-right','w-3 h-3')}
         </button>
       </div>
     `);
@@ -596,11 +624,22 @@ function renderInsightsSection(todayReport) {
 // Store current insights for detail popovers
 let _currentInsights = null;
 
-// ── Improvement detail: show targeted analysis, not just dump to words tab ──
+// ── Improvement detail: coach advice by type, not a blind error dump ──
 function showImprovementDetail(idx) {
   const d = _currentInsights || mockDashboardData.insights;
   const im = d.improvements[idx];
   if (!im) return;
+  // 教练视角：硬伤给纠错建议，软性升级给语感建议，绝不把地道表达当错误训斥
+  const advice = {
+    grammar:    '在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。',
+    expression: '你这样说语法完全没错，只是不够地道。下次尝试替换成母语者的自然说法，并跟读 3 遍形成语感。',
+    structure:  '长段表达时留意句子之间的逻辑衔接。练习用 however / therefore 等连接词，让层次更分明。'
+  }[im.type] || '在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。';
+  const btnLabel = im.tab === 'speak' ? '去口语页专项跟读' : '去单词本复习相关词汇';
+  // 有 filter 才带参数跳转（地道表达直接去口语页普通列表，不套用 mistakes 兜底）
+  const navArgs = im.filter
+    ? `navigateToTab('${im.tab||'words'}','${im.filter}','${im.filterLabel||''}')`
+    : `navigateToTab('${im.tab||'words'}')`;
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
   modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
@@ -612,9 +651,9 @@ function showImprovementDetail(idx) {
     <div class="px-5 py-4 overflow-y-auto">
       <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">问题详情</div>
       <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-bg)] rounded-xl">${hf(im.detail)}</div>
-      <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">建议</div>
-      <div class="text-sm text-[var(--c-text-dim)] leading-relaxed mb-3">在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。</div>
-      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateToTab('${im.tab||'words'}','${im.filter||'mistakes'}','${im.filterLabel||'高频错词'}');this.closest('.fixed').remove()">去单词本复习相关词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>
+      <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">教练建议</div>
+      <div class="text-sm text-[var(--c-text-dim)] leading-relaxed mb-3">${advice}</div>
+      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="${navArgs};this.closest('.fixed').remove()">${btnLabel} ${icon('arrow-right','w-3.5 h-3.5')}</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -1115,7 +1154,7 @@ function renderErrorCards(items) {
     <div class="bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${(i * 0.04).toFixed(2)}s;box-shadow:var(--c-shadow-sm)">
       <div class="flex items-start justify-between gap-4">
         <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-          <span class="text-xs font-medium text-amber-600">${h(e.issue || '表达纠正')}</span>
+          <span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md bg-red-50 text-[var(--c-red)]">⚠️ ${h(e.issue || '语法纠错')}</span>
           ${e.original ? `<p class="text-sm line-through text-[var(--c-red)]">${h(e.original)}</p>` : ''}
           ${e.correction ? `<p class="text-sm font-semibold text-[var(--c-green)]">→ ${h(e.correction)}</p>` : ''}
           ${e.rule ? `<p class="text-xs text-[var(--c-text-ultradim)] mt-1">${h(e.rule)}</p>` : ''}
@@ -2371,5 +2410,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=47');
+  navigator.serviceWorker.register('/sw.js?v=48');
 }
