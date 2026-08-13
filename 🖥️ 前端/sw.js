@@ -1,6 +1,6 @@
 // Voco Service Worker — cache-first (instant load even when Render is cold)
-const CACHE = 'voco-v59';
-const FILES = ['/','/index.html?v=49','/style.css?v=49','/app.js?v=49','/manifest.json','/supabase-client.js?v=49','/parser.js?v=49','/icon.png','/bear-default.png','/bear-active.png','/bear-head-active.png','/bear-head-default.png'];
+const CACHE = 'voco-v60';
+const FILES = ['/','/index.html?v=50','/style.css?v=50','/app.js?v=50','/manifest.json','/supabase-client.js?v=50','/parser.js?v=50','/icon.png','/bear-default.png','/bear-active.png','/bear-head-active.png','/bear-head-default.png'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();

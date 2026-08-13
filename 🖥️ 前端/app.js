@@ -39,7 +39,7 @@ let _navigatingViaProgram = false;  // guards against state pollution from progr
 
 function navigateToTab(tab, filter, label) {
   if (filter) {
-    if (tab === 'words' && (filter === 'new' || filter === 'mistakes')) {
+    if (tab === 'words' && (filter === 'new' || filter === 'mistakes' || filter === 'review')) {
       // /words?tab=new · /words?tab=mistakes — 单词视图参数只进 URL，
       // 严禁写入 _activeFilter（那是口语页专注状态的专属变量）
       _activeFilter = null;
@@ -72,8 +72,8 @@ window.addEventListener('popstate', () => {
   const params = new URLSearchParams(window.location.search);
   let tab = params.get('tab') || 'home';
   const filter = params.get('filter') || null;
-  if (tab === 'new' || tab === 'mistakes') {
-    // /words?tab=new · /words?tab=mistakes → 回单词页并恢复内部视图
+  if (tab === 'new' || tab === 'mistakes' || tab === 'review') {
+    // /words?tab=new|mistakes|review → 回单词页并恢复内部视图
     _wordsFilter = tab;
     _activeFilter = null;
     _activeFilterLabel = '';
@@ -264,26 +264,26 @@ const mockPatterns = [
 // 4 条 isTodayNew: true · 16 条 isMistake: true · 共 20 条
 const _mockToday = new Date().toISOString().slice(0,10);
 const mockWordsData = [
-  { id:1001, word:'pursue',   phonetic:'/pərˈsuː/',   meaning:'追求；继续进行',     example:'She decided to pursue her dream of studying abroad.', source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false },
-  { id:1002, word:'resilience', phonetic:'/rɪˈzɪliəns/', meaning:'韧性；恢复力',      example:'Resilience is the key to overcoming setbacks.',       source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false },
-  { id:1003, word:'gratitude', phonetic:'/ˈɡrætɪtuːd/', meaning:'感激；感恩',        example:'I want to express my gratitude for your support.',    source_topic:'daily routines',  status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false },
-  { id:1004, word:'perspective', phonetic:'/pərˈspektɪv/', meaning:'视角；观点',       example:'Traveling gives you a new perspective on life.',      source_topic:'future plans',    status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false },
-  { id:1101, word:'advice',   phonetic:'/ədˈvaɪs/',   meaning:'建议（不可数名词）',  example:'She gave me some advice about the interview.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-10', isTodayNew:false, isMistake:true },
-  { id:1102, word:'suggest',  phonetic:'/səˈdʒest/',  meaning:'建议；提议',          example:'I suggest going to the park this weekend.',           source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-10', isTodayNew:false, isMistake:true },
-  { id:1103, word:'furniture', phonetic:'/ˈfɜːrnɪtʃər/', meaning:'家具（不可数名词）', example:'We need to buy some furniture for the new house.',   source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-09', isTodayNew:false, isMistake:true },
-  { id:1104, word:'information', phonetic:'/ˌɪnfərˈmeɪʃn/', meaning:'信息（不可数名词）', example:'Could you give me more information about the course?', source_topic:'daily routines', status:'learning', review_count:2, date_added:'2026-08-09', isTodayNew:false, isMistake:true },
-  { id:1105, word:'despite',  phonetic:'/dɪˈspaɪt/',  meaning:'尽管（后接名词/动名词）', example:'Despite the rain, we went for a walk.',            source_topic:'personal growth', status:'learning', review_count:1, date_added:'2026-08-08', isTodayNew:false, isMistake:true },
-  { id:1106, word:'worth',    phonetic:'/wɜːrθ/',     meaning:'值得的',               example:'This book is worth reading twice.',                   source_topic:'personal growth', status:'learning', review_count:4, date_added:'2026-08-08', isTodayNew:false, isMistake:true },
-  { id:1107, word:'remind',   phonetic:'/rɪˈmaɪnd/',  meaning:'提醒',                example:'Please remind me to call my parents tonight.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-07', isTodayNew:false, isMistake:true },
-  { id:1108, word:'afford',   phonetic:'/əˈfɔːrd/',   meaning:'负担得起',             example:'I can\'t afford to miss this opportunity.',          source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-07', isTodayNew:false, isMistake:true },
-  { id:1109, word:'deny',     phonetic:'/dɪˈnaɪ/',    meaning:'否认',                example:'He denied breaking the window.',                     source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-06', isTodayNew:false, isMistake:true },
-  { id:1110, word:'avoid',    phonetic:'/əˈvɔɪd/',    meaning:'避免',                example:'You should avoid making the same mistake.',           source_topic:'personal growth', status:'learning', review_count:2, date_added:'2026-08-06', isTodayNew:false, isMistake:true },
-  { id:1111, word:'enjoy',    phonetic:'/ɪnˈdʒɔɪ/',   meaning:'享受；喜欢',           example:'I enjoy listening to music while working.',          source_topic:'daily routines',  status:'learning', review_count:5, date_added:'2026-08-05', isTodayNew:false, isMistake:true },
-  { id:1112, word:'consider', phonetic:'/kənˈsɪdər/', meaning:'考虑',                example:'We are considering moving to another city.',          source_topic:'future plans',    status:'learning', review_count:2, date_added:'2026-08-05', isTodayNew:false, isMistake:true },
-  { id:1113, word:'borrow',   phonetic:'/ˈbɔːroʊ/',   meaning:'借入',                example:'Can I borrow your dictionary for a moment?',          source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isTodayNew:false, isMistake:true },
-  { id:1114, word:'lend',     phonetic:'/lend/',      meaning:'借出',                example:'Could you lend me your pen?',                        source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isTodayNew:false, isMistake:true },
-  { id:1115, word:'listen',   phonetic:'/ˈlɪsn/',     meaning:'听（后接 to）',        example:'I listen to the radio every morning.',               source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-03', isTodayNew:false, isMistake:true },
-  { id:1116, word:'arrive',   phonetic:'/əˈraɪv/',    meaning:'到达（后接 in/at）',   example:'We arrived at the airport on time.',                 source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-03', isTodayNew:false, isMistake:true },
+  { id:1001, word:'pursue',   phonetic:'/pərˈsuː/',   meaning:'追求；继续进行',     example:'She decided to pursue her dream of studying abroad.', source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false, needsReview:false },
+  { id:1002, word:'resilience', phonetic:'/rɪˈzɪliəns/', meaning:'韧性；恢复力',      example:'Resilience is the key to overcoming setbacks.',       source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false, needsReview:false },
+  { id:1003, word:'gratitude', phonetic:'/ˈɡrætɪtuːd/', meaning:'感激；感恩',        example:'I want to express my gratitude for your support.',    source_topic:'daily routines',  status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false, needsReview:false },
+  { id:1004, word:'perspective', phonetic:'/pərˈspektɪv/', meaning:'视角；观点',       example:'Traveling gives you a new perspective on life.',      source_topic:'future plans',    status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false, needsReview:false },
+  { id:1101, word:'advice',   phonetic:'/ədˈvaɪs/',   meaning:'建议（不可数名词）',  example:'She gave me some advice about the interview.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-10', isTodayNew:false, isMistake:true, needsReview:true },
+  { id:1102, word:'suggest',  phonetic:'/səˈdʒest/',  meaning:'建议；提议',          example:'I suggest going to the park this weekend.',           source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-10', isTodayNew:false, isMistake:true, needsReview:true },
+  { id:1103, word:'furniture', phonetic:'/ˈfɜːrnɪtʃər/', meaning:'家具（不可数名词）', example:'We need to buy some furniture for the new house.',   source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-09', isTodayNew:false, isMistake:true, needsReview:true },
+  { id:1104, word:'information', phonetic:'/ˌɪnfərˈmeɪʃn/', meaning:'信息（不可数名词）', example:'Could you give me more information about the course?', source_topic:'daily routines', status:'learning', review_count:2, date_added:'2026-08-09', isTodayNew:false, isMistake:true, needsReview:true },
+  { id:1105, word:'despite',  phonetic:'/dɪˈspaɪt/',  meaning:'尽管（后接名词/动名词）', example:'Despite the rain, we went for a walk.',            source_topic:'personal growth', status:'learning', review_count:1, date_added:'2026-08-08', isTodayNew:false, isMistake:true, needsReview:true },
+  { id:1106, word:'worth',    phonetic:'/wɜːrθ/',     meaning:'值得的',               example:'This book is worth reading twice.',                   source_topic:'personal growth', status:'learning', review_count:4, date_added:'2026-08-08', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1107, word:'remind',   phonetic:'/rɪˈmaɪnd/',  meaning:'提醒',                example:'Please remind me to call my parents tonight.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-07', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1108, word:'afford',   phonetic:'/əˈfɔːrd/',   meaning:'负担得起',             example:'I can\'t afford to miss this opportunity.',          source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-07', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1109, word:'deny',     phonetic:'/dɪˈnaɪ/',    meaning:'否认',                example:'He denied breaking the window.',                     source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-06', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1110, word:'avoid',    phonetic:'/əˈvɔɪd/',    meaning:'避免',                example:'You should avoid making the same mistake.',           source_topic:'personal growth', status:'learning', review_count:2, date_added:'2026-08-06', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1111, word:'enjoy',    phonetic:'/ɪnˈdʒɔɪ/',   meaning:'享受；喜欢',           example:'I enjoy listening to music while working.',          source_topic:'daily routines',  status:'learning', review_count:5, date_added:'2026-08-05', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1112, word:'consider', phonetic:'/kənˈsɪdər/', meaning:'考虑',                example:'We are considering moving to another city.',          source_topic:'future plans',    status:'learning', review_count:2, date_added:'2026-08-05', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1113, word:'borrow',   phonetic:'/ˈbɔːroʊ/',   meaning:'借入',                example:'Can I borrow your dictionary for a moment?',          source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1114, word:'lend',     phonetic:'/lend/',      meaning:'借出',                example:'Could you lend me your pen?',                        source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1115, word:'listen',   phonetic:'/ˈlɪsn/',     meaning:'听（后接 to）',        example:'I listen to the radio every morning.',               source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-03', isTodayNew:false, isMistake:true, needsReview:false },
+  { id:1116, word:'arrive',   phonetic:'/əˈraɪv/',    meaning:'到达（后接 in/at）',   example:'We arrived at the airport on time.',                 source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-03', isTodayNew:false, isMistake:true, needsReview:false },
 ];
 // 错词数据（供 _errorsAll 交叉比对 fallback）
 const mockMistakeErrors = mockWordsData.filter(w => w.isMistake).map(w => ({
@@ -456,6 +456,21 @@ function countTodayWords(words) {
   // 真实 Supabase 数据（无布尔标识）回退 date_added 匹配
   const today = new Date().toISOString().slice(0, 10);
   return words.filter(w => w.date_added === today).length;
+}
+
+// ── 统一待复习逻辑：needsReview 布尔打标优先（Mock），SM-2 到期规则兜底（云端） ──
+// 顶部 SM-2 卡片数字 / 首页待办 / 单词页 tab=review 列表 —— 三处共用同一规则，绝不分叉
+function isDueBySrs(v, today) {
+  if (!v || v.status === 'mastered' || v.mastered) return false;
+  if (!v.next_review_date) return true;
+  return v.next_review_date <= today;
+}
+function countReviewWords(words) {
+  if (!words || !words.length) return 0;
+  const flagged = words.filter(w => w.needsReview === true).length;
+  if (flagged) return flagged; // 动态计算：const reviewCount = words.filter(w => w.needsReview).length
+  const today = new Date().toISOString().slice(0, 10);
+  return words.filter(v => isDueBySrs(v, today)).length;
 }
 
 function renderMetricsOverview(todayReport, vocab, errors, patterns, prog) {
@@ -741,9 +756,12 @@ function renderTodoList(todayReport, vocab, errors, reports, streak) {
   // Merge real state
   const hasTodayReport = todayReport && isDailyReport(todayReport);
   const reviewedToday = (vocab||[]).filter(v=>v.last_reviewed_at&&v.last_reviewed_at.slice(0,10)===today).length;
+  // 与单词页 SM-2 卡片、tab=review 列表共用同一计数规则（needsReview 打标优先，SM-2 到期兜底）
+  const reviewSource = (_wordsAll && _wordsAll.length) ? _wordsAll : (vocab || []);
+  const reviewCount = countReviewWords(reviewSource);
   todos = [
     {text:'导入今日日报',sub:hasTodayReport?'已完成':'把 ChatGPT 练习报告粘贴进来',done:hasTodayReport,action:hasTodayReport?null:()=>{showImportDialog();},tab:null},
-    {text:'复习 5 个单词',sub:reviewedToday>=5?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/5`,done:reviewedToday>=5,action:()=>{navigateToTab('words','new','今日新词');},tab:'words'},
+    {text:`复习 ${reviewCount} 个单词`,sub:reviewedToday>=reviewCount?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/${reviewCount}`,done:reviewedToday>=reviewCount,action:()=>{navigateToTab('words','review','待复习');},tab:'words'},
     {text:'完成一次口语练习',sub:hasTodayReport?'今天练习过了！':'打开 ChatGPT 开口说英语',done:hasTodayReport,action:hasTodayReport?null:()=>{navigateToTab('speak');},tab:'speak'}
   ];
   const done = todos.filter(q=>q.done).length;
@@ -1112,12 +1130,8 @@ async function loadWords() {
     return true;
   });
 
-  // SRS review entry
-  const dueCount = _wordsAll.filter(v => {
-    if (v.status === 'mastered' || v.mastered) return false;
-    if (!v.next_review_date) return true;
-    return v.next_review_date <= today;
-  }).length;
+  // SRS review entry — 与首页待办、tab=review 列表共用同一计数规则，严禁写死/用总词库长度
+  const dueCount = countReviewWords(_wordsAll);
 
   const entry = document.getElementById('words-review-entry');
   const sub = document.getElementById('words-review-sub');
@@ -1128,15 +1142,16 @@ async function loadWords() {
     entry.style.display = 'none';
   }
 
-  // URL 是唯一事实源：/words?tab=new · /words?tab=mistakes（首页卡片携带的 query 参数）
+  // URL 是唯一事实源：/words?tab=new|mistakes|review（首页卡片/待办携带的 query 参数）
   const params = new URLSearchParams(window.location.search);
   const activeTab = params.get('tab') || 'all';
-  let mode = (activeTab === 'new' || activeTab === 'mistakes') ? activeTab : 'all';
+  let mode = (activeTab === 'new' || activeTab === 'mistakes' || activeTab === 'review') ? activeTab : 'all';
   if (mode === 'all') {
     // 兼容旧参数 wordsView/view 与历史键名（today→new / errors→mistakes）
     const legacy = (params.get('wordsView') || params.get('view') || '').toLowerCase();
     if (legacy === 'today' || legacy === 'today_new' || legacy === 'new') mode = 'new';
     else if (legacy === 'errors' || legacy === 'mistakes') mode = 'mistakes';
+    else if (legacy === 'review') mode = 'review';
   }
   _wordsFilter = mode;
   renderWordsSubTabs(mode);
@@ -1183,6 +1198,7 @@ function renderWordsSubTabs(activeMode) {
     { key:'all', label:'全部词库', count:_wordsAll.length },
     { key:'new', label:'今日新词', count:todayCount },
     { key:'mistakes', label:'高频错词', count:errorCount },
+    { key:'review', label:'待复习', count:countReviewWords(_wordsAll) },
   ];
   el.innerHTML = tabs.map(t =>
     `<span class="lib-subtab${t.key===activeMode?' active':''}" data-words-filter="${t.key}" onclick="switchWordsView('${t.key}')">${t.label}<small style="opacity:0.6;margin-left:3px">${t.count}</small></span>`
@@ -1191,7 +1207,7 @@ function renderWordsSubTabs(activeMode) {
 
 function switchWordsView(mode) {
   _wordsFilter = mode;
-  // /words?tab=new · /words?tab=mistakes — 单词视图参数只影响本页，绝不写入 _activeFilter
+  // /words?tab=new|mistakes|review — 单词视图参数只影响本页，绝不写入 _activeFilter
   window.history.replaceState({}, '', mode === 'all' ? '/?tab=words' : `/?tab=${mode}`);
   renderWordsSubTabs(mode);
   renderWordsList(mode);
@@ -1226,6 +1242,12 @@ function renderErrorCards(items) {
 
 function getFilteredVocab(items, mode) {
   const today = new Date().toISOString().slice(0,10);
+  if (mode === 'review') {
+    // 与顶部 SM-2 卡片同一规则：needsReview 布尔打标优先，SM-2 到期兜底
+    const flagged = items.filter(v => v.needsReview === true);
+    if (flagged.length) return flagged;
+    return items.filter(v => isDueBySrs(v, today));
+  }
   if (mode === 'new' || mode === 'today') {
     // 1) 真实日报解析的「今日生词」—— parser 输出即为当日数据
     //    真实字段：item.word / item.phonetic / item.meaning / item.example
@@ -2531,5 +2553,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=49');
+  navigator.serviceWorker.register('/sw.js?v=50');
 }
