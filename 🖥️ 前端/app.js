@@ -471,7 +471,7 @@ function renderMetricsOverview(todayReport, vocab, errors, patterns, prog) {
     refreshIcons(grid);
     return;
   }
-  const parsed = parseReport(todayReport.content);
+  const parsed = parseSmartReport(todayReport.content);
   const fluency = Math.min((parsed.summary.fluency||0) * 10, 100);
   const accuracy = Math.min((parsed.summary.accuracy||0) * 10, 100);
   const natural = Math.min((parsed.summary.naturalness||Math.round((parsed.summary.fluency||0)*0.8)) * 10, 100);
@@ -539,7 +539,7 @@ function renderInsightsSection(todayReport) {
   // Merge real data with mock
   let d = JSON.parse(JSON.stringify(mockDashboardData.insights));
   if(todayReport && isDailyReport(todayReport)){
-    const p = parseReport(todayReport.content);
+    const p = parseSmartReport(todayReport.content);
     if(p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
     if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
     if(p.summary.strengths){ const lines = p.summary.strengths.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*]\s*/,'')); if(lines.length) d.strengths = lines; }
@@ -711,7 +711,7 @@ function renderContentCards(todayReport, vocab, errors, patterns) {
 
   // 真实日报存在时以解析数据为准
   if (todayReport && isDailyReport(todayReport)) {
-    const p = parseReport(todayReport.content);
+    const p = parseSmartReport(todayReport.content);
     const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
     newCount = p.vocabulary.length;
     coreCount = (p.sentence_patterns||[]).length || coreCount;
@@ -774,7 +774,66 @@ function renderTodoList(todayReport, vocab, errors, reports, streak) {
 function isDailyReport(report) {
   if(!report||!report.content) return false;
   const c=report.content;
-  return c.includes('type: daily-report')||c.includes('## 语法纠正')||c.includes('## 发音纠正')||c.includes('## 今日生词')||c.includes('## 表现总结')||c.includes('## 地道表达');
+  // 兼容两种上游格式：传统 Markdown 日报 + 新版 JSON 日报
+  return c.includes('type: daily-report')||c.includes('## 语法纠正')||c.includes('## 发音纠正')||c.includes('## 今日生词')||c.includes('## 表现总结')||c.includes('## 地道表达')
+    || c.includes('"mistakes"')||c.includes('"coreSentences"')||c.includes('"newWords"');
+}
+
+// ── 智能解析路由：新版 JSON 日报 → 归一化为内部结构；否则回退 Markdown 解析器 ──
+function parseSmartReport(content) {
+  const t = String(content || '').trim();
+  if (t.startsWith('{')) {
+    try {
+      const j = JSON.parse(t);
+      if (j && typeof j === 'object' && (j.mistakes || j.coreSentences || j.newWords)) {
+        return normalizeJsonReport(j, t);
+      }
+    } catch (e) { /* 非法 JSON → 回退 Markdown 解析器 */ }
+  }
+  return parseReport(t); // 兜底：传统 Markdown 解析器（原引擎，不修改）
+}
+
+// ── JSON 日报归一化 + 前端约定标签自动打标 ──────────────
+// 上游 ChatGPT JSON → 内部 parsed 结构；在此处统一打上布尔标签：
+//   newWords → isNewToday:true   coreSentences → isTodayCore:true   mistakes → type:grammar/expression
+function normalizeJsonReport(j, raw) {
+  const s = j.summary || {};
+  const mistakes = Array.isArray(j.mistakes) ? j.mistakes : [];
+  const core = Array.isArray(j.coreSentences) ? j.coreSentences : [];
+  const words = Array.isArray(j.newWords) ? j.newWords : [];
+  const grammar = [], patterns = [];
+  for (const m of mistakes) {
+    if (!m || !m.original) continue;
+    if (m.type === 'expression') {
+      // 软性升级 → patterns（地道表达），无删除线语义
+      patterns.push({ original: m.original, better: m.improved || '', scene: m.explanation || '', type: 'expression' });
+    } else {
+      // 硬伤 → grammar
+      grammar.push({ original: m.original, correction: m.improved || '', rule: m.explanation || '', type: 'grammar' });
+    }
+  }
+  return {
+    meta: { type: 'daily-report', topic: s.topic || '', date: new Date().toISOString().slice(0, 10) },
+    grammar,
+    pronunciation: [],
+    patterns,
+    sentence_patterns: core.filter(c => c && c.targetSentence).map(c => ({
+      pattern: c.targetSentence,
+      example: [c.replacedSentence, c.explanation].filter(Boolean).join(' — '),
+      isTodayCore: true          // 自动打标：核心句型布尔过滤直接命中
+    })),
+    vocabulary: words.filter(w => w && w.word).map(w => ({
+      word: w.word, phonetic: w.phonetic || '', meaning: w.meaning || '', example: w.example || '',
+      isNewToday: true           // 自动打标：今日新词布尔过滤直接命中
+    })),
+    summary: {
+      topic: s.topic || '',
+      thoughts: s.thought || '',
+      strengths: Array.isArray(s.strengths) ? s.strengths.join('\n') : '',
+      next_suggestions: Array.isArray(s.nextSteps) ? s.nextSteps.join('\n') : ''
+    },
+    raw
+  };
 }
 
 // ── Import Dialog (updated for Tailwind) ────────────────
@@ -815,7 +874,7 @@ function renderDetails(todayReport, vocab, errors, patterns, prog) {
   if (!todayReport || !isDailyReport(todayReport)) { container.style.display = 'none'; return; }
   container.style.display = 'block';
 
-  const parsed = parseReport(todayReport.content);
+  const parsed = parseSmartReport(todayReport.content);
   const topic = parsed.meta.topic || '';
   const duration = parsed.meta.duration || (prog?.total_minutes || 0);
   const strengths = parsed.summary.strengths || '';
@@ -949,7 +1008,7 @@ function showDetailModal(label, count, tab) {
     const today = new Date().toISOString().slice(0, 10);
     const report = (reports || []).find(r => r.date === today);
     if (!report) return;
-    const parsed = parseReport(report.content);
+    const parsed = parseSmartReport(report.content);
     let items = [];
     if (label === '新增单词') items = parsed.vocabulary;
     else if (label === '地道表达') items = parsed.patterns;
@@ -1038,7 +1097,7 @@ async function loadWords() {
   ]);
   // 真实解析数据源：parseReport 原样输出，只消费、不修改解析逻辑
   const todayReport = (reports || []).find(r => r.date === today && isDailyReport(r));
-  _reportParsed = todayReport ? parseReport(todayReport.content) : null;
+  _reportParsed = todayReport ? parseSmartReport(todayReport.content) : null;
 
   // 统一数据源：Supabase 为空时回退 Mock（绝不允许 0 数据空状态）
   _errorsAll = (errors && errors.length) ? errors : mockMistakeErrors;
@@ -1088,7 +1147,7 @@ async function loadWords() {
 let _wordsAll = [];
 let _errorsAll = [];
 let _wordsFilter = 'all';
-let _reportParsed = null; // 当日日报的 parseReport() 结果（只读消费，不修改解析逻辑）
+let _reportParsed = null; // 当日日报的 parseSmartReport() 结果（只读消费，不修改解析逻辑）
 
 // ── 真实纠错数据源：日报解析 grammar + pronunciation ───
 // 真实字段：item.original（错句）/ item.correction（正句）/ item.rule（规则）
@@ -1427,7 +1486,7 @@ async function loadSpeak() {
   // 真实解析数据源：当日日报的核心句型（parser 原样输出，只消费不修改）
   const today = new Date().toISOString().slice(0, 10);
   const todayReport = (reports || []).find(r => r.date === today && isDailyReport(r));
-  const parsed = todayReport ? parseReport(todayReport.content) : null;
+  const parsed = todayReport ? parseSmartReport(todayReport.content) : null;
 
   // /speaking?filter=core_sentences — 专注模式的唯一事实源是 URL 的 filter 参数
   const params = new URLSearchParams(window.location.search);
@@ -1735,52 +1794,33 @@ async function showErrorDetail(pattern) {
 // Template & Import
 // ═══════════════════════════════════════════════════════
 const TEMPLATES = {
-  report: `请根据以下口语练习会话，生成 Voco 格式的日报：
+  report: `你现在是我的资深英语口语教练。请根据我们今天的对话，生成一份结构化的复盘日报。
 
----
-type: daily-report
-date: ${new Date().toISOString().slice(0, 10)}
-topic: [话题名称]
-duration: [分钟数]
----
+请务必仅返回合法的 JSON 格式数据，不要包含任何额外的解释文本，不要使用 Markdown 代码块标记。JSON 结构必须严格如下：
 
-## 语法纠正
-- [我说] [原文]
-- [应为] [纠正后]
-- [规则] [语法规则说明]
+{
+  "summary": {
+    "topic": "今天对话的核心主题标签",
+    "thought": "一句鼓励性的学习金句（英文及中文翻译）",
+    "strengths": ["优点1", "优点2", "优点3"],
+    "nextSteps": ["下一次练习建议1", "建议2"]
+  },
+  "mistakes": [
+    { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释" },
+    { "type": "expression", "original": "中式或普通的句子", "improved": "更地道高阶的表达", "explanation": "为什么这样说更好" }
+  ],
+  "coreSentences": [
+    { "targetSentence": "高阶金句", "replacedSentence": "被替代的普通表达", "explanation": "使用场景或提示" }
+  ],
+  "newWords": [
+    { "word": "单词", "phonetic": "音标", "meaning": "释义", "example": "包含该词的例句" }
+  ]
+}
 
-## 发音纠正
-- [问题] [发音有问题的词或短语]
-- [纠正] [正确的发音方式]
-
-## 地道表达
-- [我说] [我的表达]
-- [更自然] [更地道的说法]
-- [场景] [使用场景]
-
-## 核心句型
-- [句型模板] | [例句]
-
-## 今日生词
-- word | /phonetic/ | 释义 | 例句
-
-## 表现亮点
-- [今天做得好的地方]
-
-## 表现总结
-- 流利度: X/10
-- 准确度: X/10
-- 自然度: X/10
-- 需要加强: [需要加强的方面]
-
-## 对话想法
-- [对今天对话内容的思考和感悟]
-
-## AI 复盘评语
-- [整体评价和建议]
-
-## 下一步建议
-- [明天可以重点练什么]`,
+硬性要求：
+1. mistakes 数组必须严格区分两类：type 为 "grammar" 的条目是语法硬伤（时态、单复数、冠词等）；type 为 "expression" 的条目是语法正确但不够地道的表达升级，两者绝不能混用。
+2. coreSentences 必须同时包含高阶金句 targetSentence 和被替换的平庸句 replacedSentence。
+3. 每个数组至少提供 1 条、最多 5 条；newWords 给出 3 到 5 个今天实际出现过的生词。`,
   topic: `请为以下内容生成 Voco 话题卡：
 
 [在此粘贴视频描述、文章内容或链接]
@@ -1830,25 +1870,106 @@ async function importReport(text) {
   const resultEl = document.getElementById('dialog-import-result');
   if (btn) { btn.disabled = true; btn.textContent = '解析中...'; }
 
-  const parsed = parseReport(text);
-  const type = parsed.meta.type || 'daily-report';
+  const trimmed = text.trim();
 
-  if (type === 'daily-report' || (!parsed.meta.type && Object.keys(parsed.meta).length > 0)) {
-    await importDailyReport(parsed);
-  } else if (type === 'topic-card') {
-    await importTopicCard(parsed);
-  } else if (type === 'insight-report') {
-    await importInsightReport(parsed);
+  // 新版 JSON 日报：JSON.parse 成功后走专用入库器（自动打标）
+  let jsonReport = null;
+  if (trimmed.startsWith('{')) {
+    try { jsonReport = JSON.parse(trimmed); } catch (e) { jsonReport = null; }
+  }
+  const isJsonDaily = jsonReport && typeof jsonReport === 'object' &&
+    (jsonReport.mistakes || jsonReport.coreSentences || jsonReport.newWords);
+
+  if (isJsonDaily) {
+    await importJsonDailyReport(jsonReport, trimmed);
   } else {
-    if (resultEl) resultEl.innerHTML = '<span class="toast-error">❌ 无法识别内容格式</span>';
-    if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
-    return;
+    // 传统 Markdown 日报 / 话题卡 / 洞察报告：原链路保持不变
+    const parsed = parseSmartReport(trimmed);
+    const type = parsed.meta.type || 'daily-report';
+    if (type === 'daily-report' || (!parsed.meta.type && Object.keys(parsed.meta).length > 0)) {
+      await importDailyReport(parsed);
+    } else if (type === 'topic-card') {
+      await importTopicCard(parsed);
+    } else if (type === 'insight-report') {
+      await importInsightReport(parsed);
+    } else {
+      if (resultEl) resultEl.innerHTML = '<span class="toast-error">❌ 无法识别内容格式</span>';
+      if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
+      return;
+    }
   }
 
   document.getElementById('dialog-report-input').value = '';
   if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
   if (resultEl) resultEl.innerHTML = '<span class="toast-success">✅ 导入成功！</span>';
   setTimeout(() => { hideImportDialog(); loadHome(); }, 1200);
+}
+
+// ── 新版 JSON 日报入库器：写入时自动打上前端约定标签 ────
+async function importJsonDailyReport(jsonReport, rawText) {
+  const { data: { session } } = await sb.auth.getSession();
+  const uid = session.user.id;
+  const date = new Date().toISOString().slice(0, 10);
+  const topic = (jsonReport.summary && jsonReport.summary.topic) || '';
+
+  // 归一化 + 打标：newWords → isNewToday:true；coreSentences → isTodayCore:true
+  const parsed = normalizeJsonReport(jsonReport, rawText);
+
+  // 1) 今日新词 → vocabulary（打标字段随日报 JSON 流转，表写入保持 schema 安全）
+  if (parsed.vocabulary.length) {
+    await sb.from('vocabulary').insert(parsed.vocabulary.map(v => ({
+      user_id: uid, word: v.word, phonetic: v.phonetic, meaning: v.meaning,
+      example: v.example, date_added: date, source_topic: topic, status: 'new'
+    })));
+  }
+
+  // 2) 语法硬伤（type:'grammar'）→ errors 表
+  const allErrors = [];
+  for (const m of (Array.isArray(jsonReport.mistakes) ? jsonReport.mistakes : [])) {
+    if (!m || !m.original || m.type === 'expression') continue;
+    allErrors.push({
+      user_id: uid, type: 'grammar', original: m.original || '',
+      correction: m.improved || '', rule: m.explanation || '',
+      date_added: date, source_topic: topic,
+      error_pattern: detectErrorPattern(m.original, m.improved)
+    });
+  }
+  if (allErrors.length) await sb.from('errors').insert(allErrors);
+
+  // 3) 地道表达（type:'expression'）+ 核心句型 → patterns 表
+  const patRows = [];
+  for (const c of (Array.isArray(jsonReport.coreSentences) ? jsonReport.coreSentences : [])) {
+    if (!c || !c.targetSentence) continue;
+    patRows.push({
+      user_id: uid, original: c.replacedSentence || '', better: c.targetSentence,
+      scene: c.explanation || '', date_added: date, source_topic: '核心句型'
+    });
+  }
+  for (const m of (Array.isArray(jsonReport.mistakes) ? jsonReport.mistakes : [])) {
+    if (!m || m.type !== 'expression' || !m.original) continue;
+    patRows.push({
+      user_id: uid, original: m.original, better: m.improved || '',
+      scene: m.explanation || '', date_added: date, source_topic: topic
+    });
+  }
+  if (patRows.length) await sb.from('patterns').insert(patRows);
+
+  // 4) 原始 JSON 原样入库（下游 parseSmartReport 每次读取时统一归一化打标 → 上下游绝对对齐）
+  await sb.from('reports').upsert({ user_id: uid, date, content: rawText }, { onConflict: 'user_id,date' });
+  await updateProgress(uid, 0, 0, '', topic, 0);
+
+  if (topic) {
+    const { data: existingTopic } = await sb.from('topics').select('id').eq('title', topic).maybeSingle();
+    if (existingTopic) {
+      await sb.from('topics').update({
+        practice_count: sb.raw('practice_count + 1'),
+        last_practiced_at: new Date().toISOString()
+      }).eq('id', existingTopic.id);
+    }
+  }
+
+  document.getElementById('dialog-import-result').innerHTML =
+    `<span class="toast-success">✅ 入库完成！单词 ${parsed.vocabulary.length} · 语法纠错 ${allErrors.length} · 地道表达/句型 ${patRows.length}</span>`;
 }
 
 async function importDailyReport(parsed) {
@@ -2410,5 +2531,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=48');
+  navigator.serviceWorker.register('/sw.js?v=49');
 }
