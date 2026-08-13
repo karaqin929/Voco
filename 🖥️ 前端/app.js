@@ -189,14 +189,14 @@ const mockDashboardData = {
       '语音语调自然，停顿位置合理，语速适中'
     ],
     improvements: [
-      { issue: '表达纠正', wrong: 'I have went to three interviews last month.', correct: 'I have gone to three interviews last month.', explanation: '过去时态与完成时混淆：现在完成时需用 have + 过去分词（gone），不能用过去式 went', detail: "'I have went' → 应为 'I have gone'", action: '专项攻克', tab: 'speak', filter: '过去时', filterLabel: '时态句型', errorCategory: 'tense' },
-      { issue: '逻辑连接', wrong: 'I wanted to go out. It was raining.', correct: 'I wanted to go out. However, it was raining.', explanation: '缺少逻辑连接词：句子之间缺少 however / therefore 等过渡词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '专项攻克', tab: 'speak', filter: '连接词', filterLabel: '连接词句型', errorCategory: 'connective' },
-      { issue: '表达纠正', wrong: 'I went to store.', correct: 'I went to the store.', explanation: '冠词遗漏：单数可数名词 store 前需要冠词 the', detail: "'I went to store' → 应为 'I went to the store'", action: '查看纠错', tab: 'words', filter: 'errors', filterLabel: '高频错词', errorCategory: 'article' }
+      { issue: '表达纠正', wrong: 'I have went to three interviews last month.', correct: 'I have gone to three interviews last month.', explanation: '过去时态与完成时混淆：现在完成时需用 have + 过去分词（gone），不能用过去式 went', detail: "'I have went' → 应为 'I have gone'", action: '专项攻克', tab: 'speak', filter: 'tense', filterLabel: '时态句型', errorCategory: 'tense' },
+      { issue: '逻辑连接', wrong: 'I wanted to go out. It was raining.', correct: 'I wanted to go out. However, it was raining.', explanation: '缺少逻辑连接词：句子之间缺少 however / therefore 等过渡词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '专项攻克', tab: 'speak', filter: 'connective', filterLabel: '连接词句型', errorCategory: 'connective' },
+      { issue: '表达纠正', wrong: 'I went to store.', correct: 'I went to the store.', explanation: '冠词遗漏：单数可数名词 store 前需要冠词 the', detail: "'I went to store' → 应为 'I went to the store'", action: '查看纠错', tab: 'words', filter: 'mistakes', filterLabel: '高频错词', errorCategory: 'article' }
     ],
     nextSteps: [
-      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项跟读', tab: 'speak', filter: '连接词', filterLabel: '连接词句型' },
-      { step: '刻意练习过去时态与现在完成时的区分', action: '专项跟读', tab: 'speak', filter: '过去时', filterLabel: '时态句型' },
-      { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words', filter: 'today', filterLabel: '今日新词' }
+      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项跟读', tab: 'speak', filter: 'connective', filterLabel: '连接词句型' },
+      { step: '刻意练习过去时态与现在完成时的区分', action: '专项跟读', tab: 'speak', filter: 'tense', filterLabel: '时态句型' },
+      { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words', filter: 'today_new', filterLabel: '今日新词' }
     ],
     // ── v6.0 高管摘要（Card F 重构） ──
     executiveSummary: '整体流利度明显提升，但在时态一致性和逻辑连接词的使用上仍有结构化提升空间。',
@@ -214,9 +214,9 @@ const mockDashboardData = {
   },
   contentCards: [
     // num 不再硬编码 — renderContentCards 从 mockWordsData / mockPatterns 动态计算
-    { icon: 'pen-line', label: '新学单词', tab: 'words', btn: '复习今日单词', filter: 'today', filterLabel: '今日新词' },
-    { icon: 'ruler', label: '核心句型', tab: 'speak', btn: '练习句型', filter: '句型', filterLabel: '核心句型' },
-    { icon: 'wrench', label: '重点纠错', tab: 'words', btn: '查看纠错', filter: 'errors', filterLabel: '高频错词' }
+    { icon: 'pen-line', label: '新学单词', tab: 'words', btn: '复习今日单词', filter: 'today_new', filterLabel: '今日新词' },
+    { icon: 'ruler', label: '核心句型', tab: 'speak', btn: '练习句型', filter: 'core_sentences', filterLabel: '核心句型' },
+    { icon: 'wrench', label: '重点纠错', tab: 'words', btn: '查看纠错', filter: 'mistakes', filterLabel: '高频错词' }
   ],
   todos: [
     { text: '复习 5 个今日新单词', done: false, action: '去复习', tab: 'words' },
@@ -227,42 +227,42 @@ const mockDashboardData = {
 
 // ── Mock Patterns (for speak page demo) ─────────────────
 const mockPatterns = [
-  { id:'mp1', better:"If I were you, I'd give it a shot.", original:'If I am you, I will try.', scene:'给朋友提建议', source_topic:'条件句', date_added: new Date().toISOString().slice(0,10) },
-  { id:'mp2', better:'Had I known earlier, I would have come.', original:'If I knew earlier, I come.', scene:'表达遗憾', source_topic:'条件句', date_added: new Date().toISOString().slice(0,10) },
-  { id:'mp3', better:'I have been practicing for about three months now.', original:'I am practicing for three months.', scene:'描述持续时长', source_topic:'完成时', date_added: new Date().toISOString().slice(0,10) },
-  { id:'mp4', better:"I've been meaning to ask you about that.", original:'I want to ask you that.', scene:'正式对话开场', source_topic:'完成时', date_added: new Date().toISOString().slice(0,10) },
-  { id:'mp5', better:'However, I still struggle with pronunciation sometimes.', original:'But I still difficult with pronunciation.', scene:'使用逻辑连接词', source_topic:'连接词', date_added: new Date().toISOString().slice(0,10) },
-  { id:'mp6', better:'The more you practice, the more fluent you become.', original:'You practice more, you become more fluent.', scene:'做比较', source_topic:'比较级', date_added: new Date().toISOString().slice(0,10) },
-  { id:'mp7', better:'It depends on the context and who you\'re talking to.', original:'It depend context and who you talk.', scene:'解释细微差别', source_topic:'主谓一致', date_added: new Date().toISOString().slice(0,10) },
-  { id:'mp8', better:'I went to the store to pick up some groceries.', original:'I go to store pick up grocery.', scene:'日常叙述', source_topic:'过去时', date_added: new Date().toISOString().slice(0,10) },
-  { id:'mp9', better:'Could you tell me where the nearest subway station is?', original:'Where is subway?', scene:'礼貌问路', source_topic:'句型', date_added: new Date().toISOString().slice(0,10) },
-  { id:'mp10', better:"I'd rather stay home than go out in this weather.", original:'I prefer stay home than go out.', scene:'表达偏好', source_topic:'句型', date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp1', better:"If I were you, I'd give it a shot.", original:'If I am you, I will try.', scene:'给朋友提建议', source_topic:'条件句', isTodayCore:true,  date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp2', better:'Had I known earlier, I would have come.', original:'If I knew earlier, I come.', scene:'表达遗憾', source_topic:'条件句', isTodayCore:true,  date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp3', better:'I have been practicing for about three months now.', original:'I am practicing for three months.', scene:'描述持续时长', source_topic:'完成时', isTodayCore:false, date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp4', better:"I've been meaning to ask you about that.", original:'I want to ask you that.', scene:'正式对话开场', source_topic:'完成时', isTodayCore:false, date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp5', better:'However, I still struggle with pronunciation sometimes.', original:'But I still difficult with pronunciation.', scene:'使用逻辑连接词', source_topic:'连接词', isTodayCore:false, date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp6', better:'The more you practice, the more fluent you become.', original:'You practice more, you become more fluent.', scene:'做比较', source_topic:'比较级', isTodayCore:false, date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp7', better:'It depends on the context and who you\'re talking to.', original:'It depend context and who you talk.', scene:'解释细微差别', source_topic:'主谓一致', isTodayCore:false, date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp8', better:'I went to the store to pick up some groceries.', original:'I go to store pick up grocery.', scene:'日常叙述', source_topic:'过去时', isTodayCore:false, date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp9', better:'Could you tell me where the nearest subway station is?', original:'Where is subway?', scene:'礼貌问路', source_topic:'句型', isTodayCore:true,  date_added: new Date().toISOString().slice(0,10) },
+  { id:'mp10', better:"I'd rather stay home than go out in this weather.", original:'I prefer stay home than go out.', scene:'表达偏好', source_topic:'句型', isTodayCore:true,  date_added: new Date().toISOString().slice(0,10) },
 ];
 
 // ── Mock Words Data (统一数据源 — 首页数字与单词页共用) ──
-// 4 条 isNewToday: true · 16 条 isMistake: true · 共 20 条
+// 4 条 isTodayNew: true · 16 条 isMistake: true · 共 20 条
 const _mockToday = new Date().toISOString().slice(0,10);
 const mockWordsData = [
-  { id:1001, word:'pursue',   phonetic:'/pərˈsuː/',   meaning:'追求；继续进行',     example:'She decided to pursue her dream of studying abroad.', source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isNewToday:true,  isMistake:false },
-  { id:1002, word:'resilience', phonetic:'/rɪˈzɪliəns/', meaning:'韧性；恢复力',      example:'Resilience is the key to overcoming setbacks.',       source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isNewToday:true,  isMistake:false },
-  { id:1003, word:'gratitude', phonetic:'/ˈɡrætɪtuːd/', meaning:'感激；感恩',        example:'I want to express my gratitude for your support.',    source_topic:'daily routines',  status:'new',      review_count:0, date_added:_mockToday, isNewToday:true,  isMistake:false },
-  { id:1004, word:'perspective', phonetic:'/pərˈspektɪv/', meaning:'视角；观点',       example:'Traveling gives you a new perspective on life.',      source_topic:'future plans',    status:'new',      review_count:0, date_added:_mockToday, isNewToday:true,  isMistake:false },
-  { id:1101, word:'advice',   phonetic:'/ədˈvaɪs/',   meaning:'建议（不可数名词）',  example:'She gave me some advice about the interview.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-10', isNewToday:false, isMistake:true },
-  { id:1102, word:'suggest',  phonetic:'/səˈdʒest/',  meaning:'建议；提议',          example:'I suggest going to the park this weekend.',           source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-10', isNewToday:false, isMistake:true },
-  { id:1103, word:'furniture', phonetic:'/ˈfɜːrnɪtʃər/', meaning:'家具（不可数名词）', example:'We need to buy some furniture for the new house.',   source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-09', isNewToday:false, isMistake:true },
-  { id:1104, word:'information', phonetic:'/ˌɪnfərˈmeɪʃn/', meaning:'信息（不可数名词）', example:'Could you give me more information about the course?', source_topic:'daily routines', status:'learning', review_count:2, date_added:'2026-08-09', isNewToday:false, isMistake:true },
-  { id:1105, word:'despite',  phonetic:'/dɪˈspaɪt/',  meaning:'尽管（后接名词/动名词）', example:'Despite the rain, we went for a walk.',            source_topic:'personal growth', status:'learning', review_count:1, date_added:'2026-08-08', isNewToday:false, isMistake:true },
-  { id:1106, word:'worth',    phonetic:'/wɜːrθ/',     meaning:'值得的',               example:'This book is worth reading twice.',                   source_topic:'personal growth', status:'learning', review_count:4, date_added:'2026-08-08', isNewToday:false, isMistake:true },
-  { id:1107, word:'remind',   phonetic:'/rɪˈmaɪnd/',  meaning:'提醒',                example:'Please remind me to call my parents tonight.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-07', isNewToday:false, isMistake:true },
-  { id:1108, word:'afford',   phonetic:'/əˈfɔːrd/',   meaning:'负担得起',             example:'I can\'t afford to miss this opportunity.',          source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-07', isNewToday:false, isMistake:true },
-  { id:1109, word:'deny',     phonetic:'/dɪˈnaɪ/',    meaning:'否认',                example:'He denied breaking the window.',                     source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-06', isNewToday:false, isMistake:true },
-  { id:1110, word:'avoid',    phonetic:'/əˈvɔɪd/',    meaning:'避免',                example:'You should avoid making the same mistake.',           source_topic:'personal growth', status:'learning', review_count:2, date_added:'2026-08-06', isNewToday:false, isMistake:true },
-  { id:1111, word:'enjoy',    phonetic:'/ɪnˈdʒɔɪ/',   meaning:'享受；喜欢',           example:'I enjoy listening to music while working.',          source_topic:'daily routines',  status:'learning', review_count:5, date_added:'2026-08-05', isNewToday:false, isMistake:true },
-  { id:1112, word:'consider', phonetic:'/kənˈsɪdər/', meaning:'考虑',                example:'We are considering moving to another city.',          source_topic:'future plans',    status:'learning', review_count:2, date_added:'2026-08-05', isNewToday:false, isMistake:true },
-  { id:1113, word:'borrow',   phonetic:'/ˈbɔːroʊ/',   meaning:'借入',                example:'Can I borrow your dictionary for a moment?',          source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isNewToday:false, isMistake:true },
-  { id:1114, word:'lend',     phonetic:'/lend/',      meaning:'借出',                example:'Could you lend me your pen?',                        source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isNewToday:false, isMistake:true },
-  { id:1115, word:'listen',   phonetic:'/ˈlɪsn/',     meaning:'听（后接 to）',        example:'I listen to the radio every morning.',               source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-03', isNewToday:false, isMistake:true },
-  { id:1116, word:'arrive',   phonetic:'/əˈraɪv/',    meaning:'到达（后接 in/at）',   example:'We arrived at the airport on time.',                 source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-03', isNewToday:false, isMistake:true },
+  { id:1001, word:'pursue',   phonetic:'/pərˈsuː/',   meaning:'追求；继续进行',     example:'She decided to pursue her dream of studying abroad.', source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false },
+  { id:1002, word:'resilience', phonetic:'/rɪˈzɪliəns/', meaning:'韧性；恢复力',      example:'Resilience is the key to overcoming setbacks.',       source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false },
+  { id:1003, word:'gratitude', phonetic:'/ˈɡrætɪtuːd/', meaning:'感激；感恩',        example:'I want to express my gratitude for your support.',    source_topic:'daily routines',  status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false },
+  { id:1004, word:'perspective', phonetic:'/pərˈspektɪv/', meaning:'视角；观点',       example:'Traveling gives you a new perspective on life.',      source_topic:'future plans',    status:'new',      review_count:0, date_added:_mockToday, isTodayNew:true,  isMistake:false },
+  { id:1101, word:'advice',   phonetic:'/ədˈvaɪs/',   meaning:'建议（不可数名词）',  example:'She gave me some advice about the interview.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-10', isTodayNew:false, isMistake:true },
+  { id:1102, word:'suggest',  phonetic:'/səˈdʒest/',  meaning:'建议；提议',          example:'I suggest going to the park this weekend.',           source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-10', isTodayNew:false, isMistake:true },
+  { id:1103, word:'furniture', phonetic:'/ˈfɜːrnɪtʃər/', meaning:'家具（不可数名词）', example:'We need to buy some furniture for the new house.',   source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-09', isTodayNew:false, isMistake:true },
+  { id:1104, word:'information', phonetic:'/ˌɪnfərˈmeɪʃn/', meaning:'信息（不可数名词）', example:'Could you give me more information about the course?', source_topic:'daily routines', status:'learning', review_count:2, date_added:'2026-08-09', isTodayNew:false, isMistake:true },
+  { id:1105, word:'despite',  phonetic:'/dɪˈspaɪt/',  meaning:'尽管（后接名词/动名词）', example:'Despite the rain, we went for a walk.',            source_topic:'personal growth', status:'learning', review_count:1, date_added:'2026-08-08', isTodayNew:false, isMistake:true },
+  { id:1106, word:'worth',    phonetic:'/wɜːrθ/',     meaning:'值得的',               example:'This book is worth reading twice.',                   source_topic:'personal growth', status:'learning', review_count:4, date_added:'2026-08-08', isTodayNew:false, isMistake:true },
+  { id:1107, word:'remind',   phonetic:'/rɪˈmaɪnd/',  meaning:'提醒',                example:'Please remind me to call my parents tonight.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-07', isTodayNew:false, isMistake:true },
+  { id:1108, word:'afford',   phonetic:'/əˈfɔːrd/',   meaning:'负担得起',             example:'I can\'t afford to miss this opportunity.',          source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-07', isTodayNew:false, isMistake:true },
+  { id:1109, word:'deny',     phonetic:'/dɪˈnaɪ/',    meaning:'否认',                example:'He denied breaking the window.',                     source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-06', isTodayNew:false, isMistake:true },
+  { id:1110, word:'avoid',    phonetic:'/əˈvɔɪd/',    meaning:'避免',                example:'You should avoid making the same mistake.',           source_topic:'personal growth', status:'learning', review_count:2, date_added:'2026-08-06', isTodayNew:false, isMistake:true },
+  { id:1111, word:'enjoy',    phonetic:'/ɪnˈdʒɔɪ/',   meaning:'享受；喜欢',           example:'I enjoy listening to music while working.',          source_topic:'daily routines',  status:'learning', review_count:5, date_added:'2026-08-05', isTodayNew:false, isMistake:true },
+  { id:1112, word:'consider', phonetic:'/kənˈsɪdər/', meaning:'考虑',                example:'We are considering moving to another city.',          source_topic:'future plans',    status:'learning', review_count:2, date_added:'2026-08-05', isTodayNew:false, isMistake:true },
+  { id:1113, word:'borrow',   phonetic:'/ˈbɔːroʊ/',   meaning:'借入',                example:'Can I borrow your dictionary for a moment?',          source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isTodayNew:false, isMistake:true },
+  { id:1114, word:'lend',     phonetic:'/lend/',      meaning:'借出',                example:'Could you lend me your pen?',                        source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isTodayNew:false, isMistake:true },
+  { id:1115, word:'listen',   phonetic:'/ˈlɪsn/',     meaning:'听（后接 to）',        example:'I listen to the radio every morning.',               source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-03', isTodayNew:false, isMistake:true },
+  { id:1116, word:'arrive',   phonetic:'/əˈraɪv/',    meaning:'到达（后接 in/at）',   example:'We arrived at the airport on time.',                 source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-03', isTodayNew:false, isMistake:true },
 ];
 // 错词数据（供 _errorsAll 交叉比对 fallback）
 const mockMistakeErrors = mockWordsData.filter(w => w.isMistake).map(w => ({
@@ -427,11 +427,14 @@ function countMistakeWords(words, errors) {
   return errWords.size;
 }
 
-// 统一今日新词计数：isNewToday 标识优先，回退 date_added
+// 统一今日新词计数：红线2 — 纯布尔驱动，废除日期匹配依赖
 function countTodayWords(words) {
   if (!words || !words.length) return 0;
+  const flagged = words.filter(w => w.isTodayNew === true).length;
+  if (flagged) return flagged; // Mock 数据永不因日期变化失效
+  // 真实 Supabase 数据（无布尔标识）回退 date_added 匹配
   const today = new Date().toISOString().slice(0, 10);
-  return words.filter(w => w.isNewToday || w.date_added === today).length;
+  return words.filter(w => w.date_added === today).length;
 }
 
 function renderMetricsOverview(todayReport, vocab, errors, patterns, prog) {
@@ -615,12 +618,13 @@ function showNextStepDetail(idx) {
   let targetFilter = ns.filter || '';
   let targetFilterLabel = ns.filterLabel || '';
   if (!targetFilter) {
-    if (isVocab) { targetFilter = 'today'; targetFilterLabel = '今日新词'; }
-    else if (/连接词|过渡词|however|therefore|moreover/i.test(ns.step)) { targetFilter = '连接词'; targetFilterLabel = '连接词'; }
-    else if (/过去时|完成时|进行时|时态/i.test(ns.step)) { targetFilter = '过去时'; targetFilterLabel = '时态'; }
-    else if (/条件|if|would|could|虚拟/i.test(ns.step)) { targetFilter = '条件句'; targetFilterLabel = '条件句'; }
-    else if (/比较|more.*than|the more/i.test(ns.step)) { targetFilter = '比较级'; targetFilterLabel = '比较级'; }
-    else { targetFilter = '句型'; targetFilterLabel = '句型练习'; }
+    // 红线3: 一律英文路由键，禁止中文参数
+    if (isVocab) { targetFilter = 'today_new'; targetFilterLabel = '今日新词'; }
+    else if (/连接词|过渡词|however|therefore|moreover/i.test(ns.step)) { targetFilter = 'connective'; targetFilterLabel = '连接词句型'; }
+    else if (/过去时|完成时|进行时|时态/i.test(ns.step)) { targetFilter = 'tense'; targetFilterLabel = '时态句型'; }
+    else if (/条件|if|would|could|虚拟/i.test(ns.step)) { targetFilter = 'conditional'; targetFilterLabel = '条件句'; }
+    else if (/比较|more.*than|the more/i.test(ns.step)) { targetFilter = 'comparative'; targetFilterLabel = '比较级'; }
+    else { targetFilter = 'core_sentences'; targetFilterLabel = '核心句型'; }
   }
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
@@ -641,28 +645,31 @@ function showNextStepDetail(idx) {
 }
 function renderContentCards(todayReport, vocab, errors, patterns) {
   const container = document.getElementById('home-summary-cards');
-  let cards;
-  if(todayReport && isDailyReport(todayReport)){
+  // 红线2: 统一布尔数据源
+  const words = (vocab && vocab.length) ? vocab : mockWordsData;
+  const pats = (patterns && patterns.length) ? patterns : mockPatterns;
+  let newCount = countTodayWords(words);
+  let coreCount = pats.filter(p => p.isTodayCore === true).length;
+  if (!coreCount) coreCount = pats.length; // 真实数据无标识时展示全量句型数
+  let errCount = countMistakeWords(words, errors);
+
+  // 真实日报存在时以解析数据为准
+  if (todayReport && isDailyReport(todayReport)) {
     const p = parseReport(todayReport.content);
     const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
-    cards = [
-      {icon:'pen-line',num:p.vocabulary.length,label:'新学单词',tab:'words',btn:'复习今日单词',filter:'today',filterLabel:'今日新词'},
-      {icon:'ruler',num:(p.sentence_patterns||[]).length,label:'核心句型',tab:'speak',btn:'练习句型',filter:'句型',filterLabel:'核心句型'},
-      {icon:'wrench',num:allErr.length,label:'重点纠错',tab:'words',btn:'查看纠错',filter:'errors',filterLabel:'高频错词'}
-    ].filter(c=>c.num>0);
-  } else {
-    // 无日报：数字必须从统一 Mock 数据源动态计算（禁止硬编码）
-    const words = (vocab && vocab.length) ? vocab : mockWordsData;
-    const pats = (patterns && patterns.length) ? patterns : mockPatterns;
-    cards = [
-      {icon:'pen-line',num:countTodayWords(words),label:'新学单词',tab:'words',btn:'复习今日单词',filter:'today',filterLabel:'今日新词'},
-      {icon:'ruler',num:pats.length,label:'核心句型',tab:'speak',btn:'练习句型',filter:'句型',filterLabel:'核心句型'},
-      {icon:'wrench',num:countMistakeWords(words, errors),label:'重点纠错',tab:'words',btn:'查看纠错',filter:'errors',filterLabel:'高频错词'}
-    ].filter(c=>c.num>0);
+    newCount = p.vocabulary.length;
+    coreCount = (p.sentence_patterns||[]).length || coreCount;
+    errCount = allErr.length;
   }
-  if(!cards.length){ container.innerHTML=''; return; }
+
+  // 红线1: 3 张卡片永驻 grid — 数据为 0 也强制渲染，绝不消失
+  const cards = [
+    { icon:'pen-line', num:newCount,  label:'新学单词', tab:'words', btn:'复习今日单词', filter:'today_new',      filterLabel:'今日新词' },
+    { icon:'ruler',    num:coreCount, label:'核心句型', tab:'speak', btn:'练习句型',   filter:'core_sentences', filterLabel:'核心句型' },
+    { icon:'wrench',   num:errCount,  label:'重点纠错', tab:'words', btn:'查看纠错',   filter:'mistakes',      filterLabel:'高频错词' }
+  ];
   container.innerHTML = cards.map(c=>`
-    <div class="flex-1 bg-[var(--c-surface)] rounded-2xl px-2.5 py-3.5 text-center cursor-pointer transition-all duration-150 border border-[var(--c-border-light)] active:scale-[0.96] active:bg-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" onclick="navigateToTab('${c.tab}','${c.filter||''}','${c.filterLabel||''}')">
+    <div class="bg-[var(--c-surface)] rounded-2xl px-2.5 py-3.5 text-center cursor-pointer transition-all duration-150 border border-[var(--c-border-light)] active:scale-[0.96] active:bg-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" onclick="navigateToTab('${c.tab}','${c.filter||''}','${c.filterLabel||''}')">
       <div class="flex justify-center mb-1">${icon(c.icon,'w-[22px] h-[22px] text-[var(--c-primary)]')}</div>
       <div class="text-[22px] font-extrabold text-[var(--c-primary)]">${c.num}</div>
       <div class="text-[11px] text-[var(--c-text-dim)] mt-0.5">${c.label}</div>
@@ -680,7 +687,7 @@ function renderTodoList(todayReport, vocab, errors, reports, streak) {
   const reviewedToday = (vocab||[]).filter(v=>v.last_reviewed_at&&v.last_reviewed_at.slice(0,10)===today).length;
   todos = [
     {text:'导入今日日报',sub:hasTodayReport?'已完成':'把 ChatGPT 练习报告粘贴进来',done:hasTodayReport,action:hasTodayReport?null:()=>{showImportDialog();},tab:null},
-    {text:'复习 5 个单词',sub:reviewedToday>=5?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/5`,done:reviewedToday>=5,action:()=>{navigateToTab('words','today','今日新词');},tab:'words'},
+    {text:'复习 5 个单词',sub:reviewedToday>=5?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/5`,done:reviewedToday>=5,action:()=>{navigateToTab('words','today_new','今日新词');},tab:'words'},
     {text:'完成一次口语练习',sub:hasTodayReport?'今天练习过了！':'打开 ChatGPT 开口说英语',done:hasTodayReport,action:hasTodayReport?null:()=>{navigateToTab('speak');},tab:'speak'}
   ];
   const done = todos.filter(q=>q.done).length;
@@ -1002,9 +1009,11 @@ async function loadWords() {
   }
 
   // Determine active filter from global state OR URL params (smart routing)
+  // 红线3: 标准英文路由键 → 内部 sub-tab 模式别名
   const params = new URLSearchParams(window.location.search);
   let mode = _activeFilter || params.get('wordsView') || 'all';
-  if (mode === 'mistakes') mode = 'errors'; // 路由别名
+  if (mode === 'today_new' || mode === 'today') mode = 'today';
+  if (mode === 'mistakes' || mode === 'errors') mode = 'errors';
   _wordsFilter = mode;
   renderWordsSubTabs(mode);
   renderVocabList(getFilteredVocab(_wordsAll, mode));
@@ -1020,7 +1029,7 @@ function renderWordsSubTabs(activeMode) {
   const el = document.getElementById('words-subtabs');
   el.style.display = 'flex';
   const today = new Date().toISOString().slice(0,10);
-  // 统一数据源计数：isNewToday / isMistake 标识优先
+  // 统一数据源计数：isTodayNew / isMistake 标识优先
   const todayCount = countTodayWords(_wordsAll);
   const flaggedErr = _wordsAll.filter(v => v.isMistake).length;
   let errorCount = flaggedErr;
@@ -1057,7 +1066,11 @@ function switchWordsView(mode) {
 
 function getFilteredVocab(items, mode) {
   const today = new Date().toISOString().slice(0,10);
-  if (mode === 'today') return items.filter(v => v.isNewToday || v.date_added === today);
+  if (mode === 'today') {
+    const flagged = items.filter(v => v.isTodayNew === true);
+    if (flagged.length) return flagged; // 红线2: 布尔打标，永不因日期失效
+    return items.filter(v => v.date_added === today);
+  }
   if (mode === 'errors' || mode === 'mistakes') {
     // 1) 优先 isMistake 标识（统一数据源）
     const flagged = items.filter(v => v.isMistake);
@@ -1270,21 +1283,26 @@ const SPEAK_PATTERN_TOPICS = ['句型','条件句','连接词','完成时','比�
 const SPEAK_FILTER_ALIASES = {
   'tense': '过去时', 'connective': '连接词', 'article': '冠词', 'preposition': '介词',
   'word-order': '语序', 'vocabulary': '词汇', 'subject-verb': '主谓一致',
-  'singular-plural': '单复数', 'pronunciation': '发音', 'collocation': '搭配'
+  'singular-plural': '单复数', 'pronunciation': '发音', 'collocation': '搭配',
+  'conditional': '条件句', 'comparative': '比较级'
 };
 
 function matchSpeakFilter(p, filter) {
   if (!filter) return true;
-  let q = String(filter).toLowerCase();
-  q = SPEAK_FILTER_ALIASES[q] || q;
+  const q = String(filter).toLowerCase();
+  // 红线3: 标准英文路由键 — 布尔标识精确过滤
+  if (q === 'core_sentences' || q === 'core') {
+    return p.isTodayCore === true || p.is_core === true;
+  }
+  const key = SPEAK_FILTER_ALIASES[q] || q;
   const topic = ((p.source_topic || '') + '').toLowerCase();
-  // 聚合过滤：'句型'/'核心句型' = 所有句型类话题
-  if (q === '句型' || q === '核心句型') {
-    return SPEAK_PATTERN_TOPICS.some(t => topic.includes(t.toLowerCase())) || p.is_core === true;
+  // 聚合过滤（兼容历史中文键）
+  if (key === '句型' || key === '核心句型') {
+    return SPEAK_PATTERN_TOPICS.some(t => topic.includes(t.toLowerCase())) || p.isTodayCore === true;
   }
   const hay = [topic, p.better, p.original, p.scene, p.topic_tag]
     .filter(Boolean).map(x => (x + '').toLowerCase()).join(' ');
-  return hay.includes(q);
+  return hay.includes(key);
 }
 
 async function loadSpeak() {
@@ -2259,5 +2277,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=41');
+  navigator.serviceWorker.register('/sw.js?v=46');
 }
