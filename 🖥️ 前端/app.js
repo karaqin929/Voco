@@ -1498,7 +1498,8 @@ function matchSpeakFilter(p, filter) {
 }
 
 async function loadSpeak() {
-  document.getElementById('speak-content').innerHTML = LoadingState();
+  const container = document.getElementById('speak-player');
+  container.innerHTML = LoadingState();
   const [{ data: patterns }, { data: reports }] = await Promise.all([
     sb.from('patterns').select('*').order('created_at', { ascending: false }),
     sb.from('reports').select('*').order('date', { ascending: false }).limit(1)
@@ -1514,176 +1515,237 @@ async function loadSpeak() {
   const params = new URLSearchParams(window.location.search);
   const urlFilter = params.get('filter') || null;
   const activeFilter = _activeFilter || urlFilter;
+
+  let sentences;
   if (activeFilter) {
     const q = String(activeFilter).toLowerCase();
-    const label = decodeURIComponent(_activeFilterLabel || activeFilter);
     if (q === 'core_sentences' || q === 'core') {
-      // 真实字段：sentence_patterns[] = { pattern, example }
-      // 真实数据存在 → 直接渲染当日核心句型；无日报 → 布尔打标 isTodayCore 兜底
+      // 真实字段：sentence_patterns[] = { pattern, example } → 提词器主句
+      // 真实数据存在 → 直接训练当日核心句型；无日报 → 布尔打标 isTodayCore 兜底
       const realCore = (parsed && parsed.sentence_patterns && parsed.sentence_patterns.length)
         ? parsed.sentence_patterns.map((s, i) => ({
-            id: 'core-' + i, better: s.pattern, original: '', scene: s.example || '',
-            source_topic: '核心句型', isTodayCore: true
+            id: 'core-' + i, targetSentence: s.pattern, replacedSentence: '', explanation: s.example || ''
           }))
         : null;
-      const filtered = realCore || _speakAll.filter(p => matchSpeakFilter(p, activeFilter));
-      showSpeakFilterBar(label || '核心句型');
-      renderSpeakFocused(filtered, activeFilter);
+      sentences = realCore || _speakAll.filter(p => matchSpeakFilter(p, activeFilter)).map(toPlayerItem);
     } else {
-      showSpeakFilterBar(label);
-      renderSpeakFocused(_speakAll.filter(p => matchSpeakFilter(p, activeFilter)), activeFilter);
+      sentences = _speakAll.filter(p => matchSpeakFilter(p, activeFilter)).map(toPlayerItem);
     }
   } else {
-    hideSpeakFilterBar();
-    renderSpeakList(_speakAll);
+    sentences = _speakAll.map(toPlayerItem);
   }
+  renderShadowingPlayer(sentences);
+}
+
+// 词条 → 提词器句子（碎裂防护：主句缺失降级为原句，绝不允许空主句卡片）
+function toPlayerItem(p) {
+  const main = p.better || p.original || '';
+  return {
+    targetSentence: main,
+    replacedSentence: p.better ? (p.original || '') : '',
+    explanation: p.scene || ''
+  };
 }
 
 let _speakAll = [];
 
-// ── 跟读卡片统一渲染器（一张卡片 = 完整上下文，禁止碎裂） ──
-function speakCardHTML(p, i) {
-  // 碎裂防护：主句缺失时降级为原句，绝不允许出现"只有代替"的残卡
-  const main = p.better || p.original || '';
-  const replaced = p.better ? (p.original || '') : '';
-  const scene = p.scene || '';
-  const mainEsc = h(main).replace(/'/g, "\\'");
-  return `
-    <div class="bg-[var(--c-surface)] rounded-2xl p-5 mb-4 border border-[var(--c-border-light)] flex flex-col gap-4 opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${(i * 0.04).toFixed(2)}s;box-shadow:var(--c-shadow-sm)">
-      <p class="text-xl font-serif text-center font-bold text-[var(--c-text)]">${h(main)}</p>
-      <div class="flex flex-col gap-1 text-xs text-[var(--c-text-dim)] text-center bg-[var(--c-bg)] p-2 rounded-lg">
-        ${replaced ? `<p>代替: ${h(replaced)}</p>` : ''}
-        ${scene ? `<p>🎬 ${h(scene)}</p>` : ''}
+// ═══════════════════════════════════════════════════════
+// 沉浸式跟读播放器 — ShadowingPlayer
+// React 组件 1:1 移植为 vanilla JS（本应用无 React 构建步骤）
+// 铁律：单卡片视图，绝不允许 .map 瀑布流列表；DOM 结构与组件逐字对应
+// ═══════════════════════════════════════════════════════
+let _playerSentences = [];
+let _playerIndex = 0;
+let _playerIsRecording = false;
+let _playerHasRecorded = false;
+let _playerRecorder = null;
+let _playerChunks = [];
+let _playerAudioUrl = null;
+
+function renderShadowingPlayer(sentences) {
+  const container = document.getElementById('speak-player');
+  _playerSentences = sentences || [];
+  _playerIndex = 0;
+  _playerIsRecording = false;
+  _playerHasRecorded = false;
+  releasePlayerAudio();
+
+  // 边界处理：没有数据 → 与组件一致的空状态
+  if (_playerSentences.length === 0) {
+    container.innerHTML = '<div class="flex h-full items-center justify-center text-gray-400">没有要训练的内容</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="flex flex-col h-full bg-gray-50 px-5 py-8 min-h-screen">
+      <div class="text-center text-xs font-medium text-gray-400 mb-8 tracking-widest" id="player-progress"></div>
+      <div class="flex-1 flex flex-col justify-center mb-10">
+        <div class="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col items-center text-center relative min-h-[250px] justify-center">
+          <h2 class="text-3xl font-serif font-bold text-gray-800 leading-snug mb-6" id="player-sentence"></h2>
+          <div class="flex flex-col gap-3 w-full pt-6 border-t border-gray-50" id="player-context">
+            <p class="text-sm text-gray-400" id="player-replaced">代替: <span class="line-through"></span></p>
+            <div class="flex justify-center" id="player-explanation-wrap">
+              <p class="text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg" id="player-explanation"></p>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="flex justify-center gap-4 mt-2">
-        <button class="flex-1 py-2.5 bg-[var(--c-bg)] text-[var(--c-text-dim)] rounded-full font-medium text-sm border-0 cursor-pointer active:scale-[0.97] transition-transform" onclick="speakWord('${mainEsc}');event.stopPropagation();">听发音</button>
-        <button class="flex-1 py-2.5 bg-[var(--c-primary)] text-white rounded-full font-medium text-sm border-0 cursor-pointer active:scale-[0.97] transition-transform" onclick="startShadowFromSpeak();event.stopPropagation();">跟读</button>
+      <div class="flex flex-col gap-8 pb-10">
+        <div class="flex items-center justify-center gap-6">
+          <button id="player-listen" class="flex flex-col items-center gap-2 w-20 group">
+            <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-xl text-gray-600 transition-colors group-hover:bg-gray-300">🔊</div>
+            <span class="text-xs text-gray-500">听原音</span>
+          </button>
+          <button id="player-record" class="flex flex-col items-center gap-2 z-10">
+            <div class="w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white shadow-xl transition-all duration-200" id="player-record-btn">🎙️</div>
+            <span class="text-xs font-medium transition-colors" id="player-record-label"></span>
+          </button>
+          <button id="player-hear" disabled class="flex flex-col items-center gap-2 w-20 transition-opacity">
+            <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl transition-colors" id="player-hear-btn">🗣️</div>
+            <span class="text-xs text-gray-500">听自己</span>
+          </button>
+        </div>
+        <button id="player-next" class="w-full py-4 rounded-2xl font-semibold text-base transition-all duration-200"></button>
       </div>
     </div>`;
+  updatePlayerView();
+  wirePlayerHandlers();
 }
 
-function renderSpeakList(items) {
-  const container = document.getElementById('speak-content');
-  const q = (document.getElementById('speak-search')?.value || '').trim().toLowerCase();
-  let filtered = items;
-  if (q) filtered = items.filter(p => [p.better, p.original, p.scene].some(f => f && f.toLowerCase().includes(q)));
+// 状态驱动渲染：对应 React 的 isRecording / hasRecorded / currentIndex 条件分支
+function updatePlayerView() {
+  const item = _playerSentences[_playerIndex];
+  if (!item) return;
 
-  if (!filtered.length) {
-    container.innerHTML = EmptyState({ message: q ? `没有找到"${q}"相关的表达` : '暂无地道表达，去导入日报吧～', size: 80 });
+  // 进度指示器
+  document.getElementById('player-progress').textContent = `🎯 专注训练 (${_playerIndex + 1}/${_playerSentences.length})`;
+
+  // 核心提词器大卡片
+  document.getElementById('player-sentence').textContent = item.targetSentence || '';
+  const replaced = document.getElementById('player-replaced');
+  if (item.replacedSentence) {
+    replaced.style.display = '';
+    replaced.querySelector('span').textContent = item.replacedSentence;
+  } else {
+    replaced.style.display = 'none';
+  }
+  const expWrap = document.getElementById('player-explanation-wrap');
+  if (item.explanation) {
+    expWrap.style.display = '';
+    document.getElementById('player-explanation').textContent = `🎬 ${item.explanation}`;
+  } else {
+    expWrap.style.display = 'none';
+  }
+
+  // 巨大的核心录音键（按下变色缩放）
+  const recBtn = document.getElementById('player-record-btn');
+  const recLabel = document.getElementById('player-record-label');
+  if (_playerIsRecording) {
+    recBtn.className = 'w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white shadow-xl transition-all duration-200 bg-teal-800 scale-90 shadow-inner';
+    recLabel.className = 'text-xs font-medium transition-colors text-teal-700';
+    recLabel.textContent = '松开结束';
+  } else {
+    recBtn.className = 'w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white shadow-xl transition-all duration-200 bg-teal-600 hover:bg-teal-700 hover:scale-105';
+    recLabel.className = 'text-xs font-medium transition-colors text-gray-600';
+    recLabel.textContent = '按住录音';
+  }
+
+  // 听自己（仅在录音后可用）
+  const hear = document.getElementById('player-hear');
+  const hearBtn = document.getElementById('player-hear-btn');
+  if (_playerHasRecorded) {
+    hear.disabled = false;
+    hear.className = 'flex flex-col items-center gap-2 w-20 transition-opacity opacity-100';
+    hearBtn.className = 'w-12 h-12 rounded-full flex items-center justify-center text-xl transition-colors bg-amber-100 text-amber-700 hover:bg-amber-200';
+  } else {
+    hear.disabled = true;
+    hear.className = 'flex flex-col items-center gap-2 w-20 transition-opacity opacity-30 cursor-not-allowed';
+    hearBtn.className = 'w-12 h-12 rounded-full flex items-center justify-center text-xl transition-colors bg-gray-100 text-gray-400';
+  }
+
+  // 流式切换：下一句
+  const next = document.getElementById('player-next');
+  const last = _playerIndex === _playerSentences.length - 1;
+  next.disabled = last;
+  next.textContent = last ? '🎉 训练完成' : '下一句 →';
+  next.className = `w-full py-4 rounded-2xl font-semibold text-base transition-all duration-200 ${last ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 text-white hover:bg-gray-800 shadow-md hover:shadow-lg'}`;
+}
+
+function wirePlayerHandlers() {
+  // 听原音
+  document.getElementById('player-listen').addEventListener('click', () => {
+    const item = _playerSentences[_playerIndex];
+    if (item && item.targetSentence) speakWord(item.targetSentence);
+  });
+
+  // 巨大的核心录音键：按住录音 / 松开结束（鼠标 + 触屏双端）
+  const rec = document.getElementById('player-record');
+  rec.addEventListener('mousedown', e => { e.preventDefault(); startPlayerRecording(); });
+  rec.addEventListener('mouseup', e => { e.preventDefault(); stopPlayerRecording(); });
+  rec.addEventListener('mouseleave', () => { if (_playerIsRecording) stopPlayerRecording(); });
+  rec.addEventListener('touchstart', e => { e.preventDefault(); startPlayerRecording(); }, { passive: false });
+  rec.addEventListener('touchend', e => { e.preventDefault(); stopPlayerRecording(); }, { passive: false });
+
+  // 听自己（仅在录音后可用）
+  document.getElementById('player-hear').addEventListener('click', () => {
+    if (!_playerHasRecorded || !_playerAudioUrl) return;
+    new Audio(_playerAudioUrl).play();
+  });
+
+  // 流式切换：下一句
+  document.getElementById('player-next').addEventListener('click', handlePlayerNext);
+}
+
+// 切换下一句：与组件 handleNext 一致 — 切换句子时重置对比状态
+function handlePlayerNext() {
+  if (_playerIndex < _playerSentences.length - 1) {
+    _playerIndex += 1;
+    _playerHasRecorded = false;
+    releasePlayerAudio();
+    if (window.speechSynthesis) speechSynthesis.cancel(); // 切句即停上一句 TTS，避免串音
+    updatePlayerView();
+  }
+}
+
+async function startPlayerRecording() {
+  if (_playerIsRecording) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+    showToast('当前浏览器不支持录音，请使用 Chrome / Safari');
     return;
   }
-
-  container.innerHTML = filtered.map((p, i) => speakCardHTML(p, i)).join('');
-}
-
-// ── Speak Focus Mode ──────────────────────────────────
-function showSpeakFilterBar(label) {
-  const bar = document.getElementById('speak-filter-bar');
-  document.getElementById('speak-filter-label').textContent = `🎯 正在专注练习：${label}`;
-  bar.classList.remove('hidden');
-  // Hide search bar in focus mode
-  const searchWrap = document.querySelector('#tab-speak .lib-search-wrap');
-  if (searchWrap) searchWrap.style.display = 'none';
-  refreshIcons(bar);
-}
-
-function hideSpeakFilterBar() {
-  const bar = document.getElementById('speak-filter-bar');
-  if (bar) bar.classList.add('hidden');
-  const searchWrap = document.querySelector('#tab-speak .lib-search-wrap');
-  if (searchWrap) searchWrap.style.display = '';
-}
-
-function clearSpeakFilter() {
-  _activeFilter = null;
-  _activeFilterLabel = '';
-  window.history.replaceState({}, '', '/');
-  loadSpeak();
-}
-
-function renderSpeakFocused(items, filterKey) {
-  const container = document.getElementById('speak-content');
-  if (!items.length) {
-    container.innerHTML = EmptyState({ message: `没有"${filterKey}"相关的表达`, size: 80 });
-    return;
-  }
-
-  container.innerHTML = items.map((p, i) => speakCardHTML(p, i)).join('');
-}
-
-// ── Shadow Speaking ────────────────────────────────────
-let _shadowDeck = []; let _shadowIdx = 0; let _shadowRatings = {};
-
-async function startShadowMode() {
-  const [{ data: patterns }, { data: vocab }] = await Promise.all([
-    sb.from('patterns').select('*'), sb.from('vocabulary').select('*').not('example', 'is', null)
-  ]);
-  _shadowDeck = [];
-  (patterns || []).forEach(p => { if (p.better) _shadowDeck.push({ phrase: p.better, context: p.scene || p.original || '', source: 'pattern' }); });
-  (vocab || []).forEach(v => { if (v.example) _shadowDeck.push({ phrase: v.example, context: `${v.word}: ${v.meaning || ''}`, source: 'vocab' }); });
-
-  if (_shadowDeck.length === 0) { showToast('暂无跟读内容，请先导入日报'); return; }
-
-  _shadowIdx = 0; _shadowRatings = {};
-  document.getElementById('speak-shadow').style.display = 'block';
-  document.getElementById('speak-actions').style.display = 'none';
-  document.getElementById('speak-content').style.display = 'none';
-  document.getElementById('speak-search').parentElement.style.display = 'none';
-  document.getElementById('speak-shadow-summary').style.display = 'none';
-  showShadowPhrase(0);
-}
-
-function startShadowFromSpeak() {
-  // Already on the speak tab — start shadow mode directly
-  startShadowMode();
-}
-
-function showShadowPhrase(idx) {
-  _shadowIdx = idx;
-  const item = _shadowDeck[idx];
-  document.getElementById('speak-shadow-progress').textContent = `${idx + 1} / ${_shadowDeck.length}`;
-  document.getElementById('speak-shadow-phrase').textContent = item.phrase;
-  document.getElementById('speak-shadow-context').textContent = item.context || '';
-  document.getElementById('btn-speak-play').style.display = 'block';
-  document.getElementById('btn-speak-next').style.display = 'none';
-  document.getElementById('speak-self-rate').style.display = 'none';
-}
-
-function speakShadowPhrase() {
-  speakWord(_shadowDeck[_shadowIdx].phrase);
-  document.getElementById('btn-speak-play').style.display = 'none';
-  document.getElementById('btn-speak-next').style.display = 'block';
-  document.getElementById('speak-self-rate').style.display = 'flex';
-}
-
-function nextShadowPhrase() {
-  if (_shadowIdx + 1 < _shadowDeck.length) { showShadowPhrase(_shadowIdx + 1); } else {
-    document.getElementById('speak-shadow-summary').style.display = 'block';
-    document.getElementById('speak-shadow').style.display = 'none';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _playerChunks = [];
+    const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+      : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+    _playerRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    _playerRecorder.ondataavailable = e => { if (e.data && e.data.size) _playerChunks.push(e.data); };
+    _playerRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      if (!_playerChunks.length) { updatePlayerView(); return; }
+      const blob = new Blob(_playerChunks, { type: _playerRecorder.mimeType || 'audio/webm' });
+      releasePlayerAudio();
+      _playerAudioUrl = URL.createObjectURL(blob);
+      _playerHasRecorded = true;
+      updatePlayerView();
+    };
+    _playerRecorder.start();
+    _playerIsRecording = true;
+    updatePlayerView();
+  } catch (err) {
+    showToast('无法访问麦克风，请检查浏览器权限设置');
   }
 }
 
-function restartShadow() {
-  _shadowIdx = 0; _shadowRatings = {};
-  document.getElementById('speak-shadow-summary').style.display = 'none';
-  document.getElementById('speak-shadow').style.display = 'block';
-  showShadowPhrase(0);
+function stopPlayerRecording() {
+  if (!_playerIsRecording || !_playerRecorder) return;
+  _playerIsRecording = false;
+  try { _playerRecorder.stop(); } catch (e) {}
+  updatePlayerView();
 }
 
-function doneShadow() {
-  document.getElementById('speak-shadow-summary').style.display = 'none';
-  document.getElementById('speak-search').parentElement.style.display = 'flex';
-  document.getElementById('speak-content').style.display = 'block';
-  document.getElementById('speak-actions').style.display = 'flex';
-  loadSpeak();
-}
-
-function rateShadow(rating) {
-  _shadowRatings[_shadowIdx] = rating;
-  // Visual feedback
-  document.querySelectorAll('.self-rate-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector(`.self-rate-btn[data-rate="${rating}"]`).classList.add('active');
-  setTimeout(() => nextShadowPhrase(), 300);
+function releasePlayerAudio() {
+  if (_playerAudioUrl) { URL.revokeObjectURL(_playerAudioUrl); _playerAudioUrl = null; }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2516,7 +2578,6 @@ document.querySelectorAll('#font-size-toggle button').forEach(b => {
 
 // Search
 document.getElementById('words-search')?.addEventListener('input', () => renderVocabList(getFilteredVocab(_wordsAll, _wordsFilter)));
-document.getElementById('speak-search')?.addEventListener('input', () => renderSpeakList(_speakAll));
 
 // Words SRS review
 document.getElementById('btn-words-review-start')?.addEventListener('click', startWordsReview);
@@ -2526,15 +2587,7 @@ document.getElementById('btn-words-good')?.addEventListener('click', () => rateW
 document.getElementById('btn-words-easy')?.addEventListener('click', () => rateWordsCard('easy'));
 document.getElementById('btn-words-review-done')?.addEventListener('click', doneWordsReview);
 
-// Speak
-document.getElementById('btn-shadow-mode')?.addEventListener('click', startShadowMode);
-document.getElementById('btn-speak-play')?.addEventListener('click', speakShadowPhrase);
-document.getElementById('btn-speak-next')?.addEventListener('click', nextShadowPhrase);
-document.getElementById('btn-speak-repeat')?.addEventListener('click', () => speakShadowPhrase());
-document.getElementById('btn-speak-shadow-done')?.addEventListener('click', doneShadow);
-document.querySelectorAll('.self-rate-btn').forEach(b => {
-  b.addEventListener('click', () => rateShadow(b.dataset.rate));
-});
+// Speak — 沉浸式跟读播放器（renderShadowingPlayer 内部自接线，无全局按钮绑定）
 
 // ═══════════════════════════════════════════════════════
 // Init
@@ -2553,5 +2606,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=50');
+  navigator.serviceWorker.register('/sw.js?v=51');
 }

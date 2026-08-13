@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=50">
+  <link rel="stylesheet" href="/style.css?v=51">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -246,54 +246,8 @@
 
   <!-- ── Tab 3: Speak ──────────────────────────── -->
   <section id="tab-speak" class="tab-content">
-    <!-- Quick actions -->
-    <div class="speak-actions" id="speak-actions">
-      <button class="speak-action-btn" id="btn-shadow-mode"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg> 影子跟读模式</button>
-    </div>
-
-    <!-- Shadow speaking (inline) -->
-    <div id="speak-shadow" style="display:none;">
-      <div class="shadow-progress" id="speak-shadow-progress"></div>
-      <div class="shadow-card" id="speak-shadow-card">
-        <div class="shadow-phrase" id="speak-shadow-phrase"></div>
-        <div class="shadow-context" id="speak-shadow-context"></div>
-      </div>
-      <div class="shadow-actions">
-        <button class="btn-speak-primary" id="btn-speak-play"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:3px"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg> 播放</button>
-        <button class="btn-speak-primary" id="btn-speak-next" style="display:none;">下一个 →</button>
-        <button class="btn-soft" id="btn-speak-repeat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> 重播</button>
-      </div>
-      <div class="speak-self-rate" id="speak-self-rate" style="display:none;">
-        <span class="self-rate-label">自评：</span>
-        <button class="self-rate-btn good" data-rate="good">👍 流利</button>
-        <button class="self-rate-btn ok" data-rate="ok">😐 一般</button>
-        <button class="self-rate-btn again" data-rate="again">🔄 再练</button>
-      </div>
-      <div class="shadow-summary" id="speak-shadow-summary" style="display:none;">
-        <div class="shadow-summary-icon">🎉</div>
-        <div class="shadow-summary-title">跟读完成！</div>
-        <button class="btn-primary" id="btn-speak-shadow-done">再来一轮</button>
-      </div>
-    </div>
-
-    <!-- Expression list -->
-    <div class="lib-search-wrap">
-      <span class="lib-search-icon">🔍</span>
-      <input id="speak-search" class="lib-search" type="text" placeholder="搜索表达...">
-    </div>
-    <div class="lib-subtabs" id="speak-subtabs" style="display:none;"></div>
-
-    <!-- Focus mode filter bar (hidden by default, shown when filter active) -->
-    <div id="speak-filter-bar" class="hidden flex items-center justify-between bg-[var(--c-primary-light)] rounded-2xl px-4 py-2.5 mb-3 border-l-[3px] border-l-[var(--c-primary)]">
-      <span class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--c-text)]">
-        <i data-lucide="target" class="w-4 h-4 text-[var(--c-primary)]"></i>
-        <span id="speak-filter-label">专注模式</span>
-      </span>
-      <button onclick="clearSpeakFilter()" class="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--c-primary)] bg-transparent border border-[var(--c-primary)] rounded-full px-3 py-1 cursor-pointer hover:bg-[var(--c-primary)]/10 transition-colors">
-        <i data-lucide="x" class="w-3 h-3"></i> 退出专注
-      </button>
-    </div>
-    <div id="speak-content" class="loading">加载中...</div>
+    <!-- 沉浸式跟读播放器（ShadowingPlayer）— 单卡片视图，禁止瀑布流列表 -->
+    <div id="speak-player" class="min-h-[50vh]"></div>
   </section>
 
   <!-- ── Tab 4: Me (v5.0 Tailwind — Grouped List) ─────── -->
@@ -466,15 +420,15 @@
   <!-- ── Tab Bar ──────────────────────────────── -->
   <nav class="tab-bar">
     <button class="tab active inline-flex items-center justify-center gap-1" data-tab="home"><i data-lucide="home" class="w-4 h-4"></i> 首页</button>
-    <button class="tab inline-flex items-center justify-center gap-1" data-tab="words"><i data-lucide="book-open" class="w-4 h-4"></i> 单词</button>
-    <button class="tab inline-flex items-center justify-center gap-1" data-tab="speak"><i data-lucide="mic" class="w-4 h-4"></i> 口语</button>
+    <button class="tab inline-flex items-center justify-center gap-1" data-tab="words"><i data-lucide="book-open" class="w-4 h-4"></i> 复习</button>
+    <button class="tab inline-flex items-center justify-center gap-1" data-tab="speak"><i data-lucide="mic" class="w-4 h-4"></i> 跟读</button>
     <button class="tab inline-flex items-center justify-center gap-1" data-tab="me"><i data-lucide="user" class="w-4 h-4"></i> 我的</button>
   </nav>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
-<script src="/supabase-client.js?v=50"></script>
-<script src="/parser.js?v=50"></script>
-<script src="/app.js?v=50"></script>
+<script src="/supabase-client.js?v=51"></script>
+<script src="/parser.js?v=51"></script>
+<script src="/app.js?v=51"></script>
 </body>
 </html>
