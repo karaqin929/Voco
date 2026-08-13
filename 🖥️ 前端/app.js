@@ -875,7 +875,13 @@ function parseSmartReport(content) {
         // ① 原始数据清洗：老格式字符串/残缺字段 → 结构补齐（无损，绝不丢行）
         const cleanedRaw = normalizeDailyData(j);
         // ② 归一化产物兜底清洗：UI 契约字段必有值
-        return normalizeDailyData(normalizeJsonReport(cleanedRaw, t));
+        const normalized = normalizeJsonReport(cleanedRaw, t);
+        // ③ 评分无损透传：summary.fluency/accuracy/naturalness 归一化层不携带，原样补回（仪表盘指标用）
+        const s = (cleanedRaw && typeof cleanedRaw.summary === 'object' && cleanedRaw.summary) || {};
+        for (const k of ['fluency', 'accuracy', 'naturalness']) {
+          if (typeof s[k] === 'number' && normalized.summary[k] === undefined) normalized.summary[k] = s[k];
+        }
+        return normalizeDailyData(normalized);
       }
     } catch (e) { /* 非法 JSON → 回退 Markdown 解析器 */ }
   }
@@ -2717,5 +2723,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=53');
+  navigator.serviceWorker.register('/sw.js?v=54');
 }
