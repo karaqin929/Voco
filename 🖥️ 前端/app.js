@@ -189,13 +189,13 @@ const mockDashboardData = {
       '语音语调自然，停顿位置合理，语速适中'
     ],
     improvements: [
-      { issue: '表达纠正', wrong: 'I have went to three interviews last month.', correct: 'I have gone to three interviews last month.', explanation: '过去时态与完成时混淆：现在完成时需用 have + 过去分词（gone），不能用过去式 went', detail: "'I have went' → 应为 'I have gone'", action: '专项攻克', tab: 'speak', filter: 'tense', filterLabel: '时态句型', errorCategory: 'tense' },
-      { issue: '逻辑连接', wrong: 'I wanted to go out. It was raining.', correct: 'I wanted to go out. However, it was raining.', explanation: '缺少逻辑连接词：句子之间缺少 however / therefore 等过渡词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '专项攻克', tab: 'speak', filter: 'connective', filterLabel: '连接词句型', errorCategory: 'connective' },
+      { issue: '表达纠正', wrong: 'I have went to three interviews last month.', correct: 'I have gone to three interviews last month.', explanation: '过去时态与完成时混淆：现在完成时需用 have + 过去分词（gone），不能用过去式 went', detail: "'I have went' → 应为 'I have gone'", action: '专项攻克', tab: 'speak', filter: '过去时', filterLabel: '时态句型', errorCategory: 'tense' },
+      { issue: '逻辑连接', wrong: 'I wanted to go out. It was raining.', correct: 'I wanted to go out. However, it was raining.', explanation: '缺少逻辑连接词：句子之间缺少 however / therefore 等过渡词', detail: '多处句子之间缺乏 however/therefore 等过渡词', action: '专项攻克', tab: 'speak', filter: '连接词', filterLabel: '连接词句型', errorCategory: 'connective' },
       { issue: '表达纠正', wrong: 'I went to store.', correct: 'I went to the store.', explanation: '冠词遗漏：单数可数名词 store 前需要冠词 the', detail: "'I went to store' → 应为 'I went to the store'", action: '查看纠错', tab: 'words', filter: 'errors', filterLabel: '高频错词', errorCategory: 'article' }
     ],
     nextSteps: [
-      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项跟读', tab: 'speak', filter: 'connective', filterLabel: '连接词句型' },
-      { step: '刻意练习过去时态与现在完成时的区分', action: '专项跟读', tab: 'speak', filter: 'tense', filterLabel: '时态句型' },
+      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项跟读', tab: 'speak', filter: '连接词', filterLabel: '连接词句型' },
+      { step: '刻意练习过去时态与现在完成时的区分', action: '专项跟读', tab: 'speak', filter: '过去时', filterLabel: '时态句型' },
       { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words', filter: 'today', filterLabel: '今日新词' }
     ],
     // ── v6.0 高管摘要（Card F 重构） ──
@@ -213,9 +213,10 @@ const mockDashboardData = {
     overallReview: "本次练习围绕个人成长展开，用户能够表达较复杂的观点，在描述抽象概念时展现了较好的语言组织能力。整体流利度有明显提升，但在语法细节和连接词使用上仍有优化空间。建议在下次练习中刻意关注时态一致性和逻辑连接词的运用。"
   },
   contentCards: [
-    { icon: 'pen-line', num: 4, label: '新学单词', tab: 'words', btn: '复习今日单词', filter: 'today', filterLabel: '今日新词' },
-    { icon: 'ruler', num: 10, label: '核心句型', tab: 'speak', btn: '练习句型', filter: '句型', filterLabel: '核心句型' },
-    { icon: 'wrench', num: 2, label: '重点纠错', tab: 'words', btn: '查看纠错', filter: 'errors', filterLabel: '高频错词' }
+    // num 不再硬编码 — renderContentCards 从 mockWordsData / mockPatterns 动态计算
+    { icon: 'pen-line', label: '新学单词', tab: 'words', btn: '复习今日单词', filter: 'today', filterLabel: '今日新词' },
+    { icon: 'ruler', label: '核心句型', tab: 'speak', btn: '练习句型', filter: '句型', filterLabel: '核心句型' },
+    { icon: 'wrench', label: '重点纠错', tab: 'words', btn: '查看纠错', filter: 'errors', filterLabel: '高频错词' }
   ],
   todos: [
     { text: '复习 5 个今日新单词', done: false, action: '去复习', tab: 'words' },
@@ -237,6 +238,42 @@ const mockPatterns = [
   { id:'mp9', better:'Could you tell me where the nearest subway station is?', original:'Where is subway?', scene:'礼貌问路', source_topic:'句型', date_added: new Date().toISOString().slice(0,10) },
   { id:'mp10', better:"I'd rather stay home than go out in this weather.", original:'I prefer stay home than go out.', scene:'表达偏好', source_topic:'句型', date_added: new Date().toISOString().slice(0,10) },
 ];
+
+// ── Mock Words Data (统一数据源 — 首页数字与单词页共用) ──
+// 4 条 isNewToday: true · 16 条 isMistake: true · 共 20 条
+const _mockToday = new Date().toISOString().slice(0,10);
+const mockWordsData = [
+  { id:1001, word:'pursue',   phonetic:'/pərˈsuː/',   meaning:'追求；继续进行',     example:'She decided to pursue her dream of studying abroad.', source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isNewToday:true,  isMistake:false },
+  { id:1002, word:'resilience', phonetic:'/rɪˈzɪliəns/', meaning:'韧性；恢复力',      example:'Resilience is the key to overcoming setbacks.',       source_topic:'personal growth', status:'new',      review_count:0, date_added:_mockToday, isNewToday:true,  isMistake:false },
+  { id:1003, word:'gratitude', phonetic:'/ˈɡrætɪtuːd/', meaning:'感激；感恩',        example:'I want to express my gratitude for your support.',    source_topic:'daily routines',  status:'new',      review_count:0, date_added:_mockToday, isNewToday:true,  isMistake:false },
+  { id:1004, word:'perspective', phonetic:'/pərˈspektɪv/', meaning:'视角；观点',       example:'Traveling gives you a new perspective on life.',      source_topic:'future plans',    status:'new',      review_count:0, date_added:_mockToday, isNewToday:true,  isMistake:false },
+  { id:1101, word:'advice',   phonetic:'/ədˈvaɪs/',   meaning:'建议（不可数名词）',  example:'She gave me some advice about the interview.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-10', isNewToday:false, isMistake:true },
+  { id:1102, word:'suggest',  phonetic:'/səˈdʒest/',  meaning:'建议；提议',          example:'I suggest going to the park this weekend.',           source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-10', isNewToday:false, isMistake:true },
+  { id:1103, word:'furniture', phonetic:'/ˈfɜːrnɪtʃər/', meaning:'家具（不可数名词）', example:'We need to buy some furniture for the new house.',   source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-09', isNewToday:false, isMistake:true },
+  { id:1104, word:'information', phonetic:'/ˌɪnfərˈmeɪʃn/', meaning:'信息（不可数名词）', example:'Could you give me more information about the course?', source_topic:'daily routines', status:'learning', review_count:2, date_added:'2026-08-09', isNewToday:false, isMistake:true },
+  { id:1105, word:'despite',  phonetic:'/dɪˈspaɪt/',  meaning:'尽管（后接名词/动名词）', example:'Despite the rain, we went for a walk.',            source_topic:'personal growth', status:'learning', review_count:1, date_added:'2026-08-08', isNewToday:false, isMistake:true },
+  { id:1106, word:'worth',    phonetic:'/wɜːrθ/',     meaning:'值得的',               example:'This book is worth reading twice.',                   source_topic:'personal growth', status:'learning', review_count:4, date_added:'2026-08-08', isNewToday:false, isMistake:true },
+  { id:1107, word:'remind',   phonetic:'/rɪˈmaɪnd/',  meaning:'提醒',                example:'Please remind me to call my parents tonight.',        source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-07', isNewToday:false, isMistake:true },
+  { id:1108, word:'afford',   phonetic:'/əˈfɔːrd/',   meaning:'负担得起',             example:'I can\'t afford to miss this opportunity.',          source_topic:'future plans',    status:'learning', review_count:1, date_added:'2026-08-07', isNewToday:false, isMistake:true },
+  { id:1109, word:'deny',     phonetic:'/dɪˈnaɪ/',    meaning:'否认',                example:'He denied breaking the window.',                     source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-06', isNewToday:false, isMistake:true },
+  { id:1110, word:'avoid',    phonetic:'/əˈvɔɪd/',    meaning:'避免',                example:'You should avoid making the same mistake.',           source_topic:'personal growth', status:'learning', review_count:2, date_added:'2026-08-06', isNewToday:false, isMistake:true },
+  { id:1111, word:'enjoy',    phonetic:'/ɪnˈdʒɔɪ/',   meaning:'享受；喜欢',           example:'I enjoy listening to music while working.',          source_topic:'daily routines',  status:'learning', review_count:5, date_added:'2026-08-05', isNewToday:false, isMistake:true },
+  { id:1112, word:'consider', phonetic:'/kənˈsɪdər/', meaning:'考虑',                example:'We are considering moving to another city.',          source_topic:'future plans',    status:'learning', review_count:2, date_added:'2026-08-05', isNewToday:false, isMistake:true },
+  { id:1113, word:'borrow',   phonetic:'/ˈbɔːroʊ/',   meaning:'借入',                example:'Can I borrow your dictionary for a moment?',          source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isNewToday:false, isMistake:true },
+  { id:1114, word:'lend',     phonetic:'/lend/',      meaning:'借出',                example:'Could you lend me your pen?',                        source_topic:'daily routines',  status:'learning', review_count:1, date_added:'2026-08-04', isNewToday:false, isMistake:true },
+  { id:1115, word:'listen',   phonetic:'/ˈlɪsn/',     meaning:'听（后接 to）',        example:'I listen to the radio every morning.',               source_topic:'daily routines',  status:'learning', review_count:3, date_added:'2026-08-03', isNewToday:false, isMistake:true },
+  { id:1116, word:'arrive',   phonetic:'/əˈraɪv/',    meaning:'到达（后接 in/at）',   example:'We arrived at the airport on time.',                 source_topic:'daily routines',  status:'learning', review_count:2, date_added:'2026-08-03', isNewToday:false, isMistake:true },
+];
+// 错词数据（供 _errorsAll 交叉比对 fallback）
+const mockMistakeErrors = mockWordsData.filter(w => w.isMistake).map(w => ({
+  id: 'me_' + w.id,
+  type: 'grammar',
+  original: w.example,
+  correction: w.example,
+  rule: '搭配 / 词性易错',
+  date_added: w.date_added,
+  source_topic: w.source_topic
+}));
 
 let _homeLoading = false;
 async function loadHome() {
@@ -376,12 +413,37 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
 }
 
 // ── Section 3: Metrics Overview ─────────────────────────
+// 统一错词计数：优先 isMistake 标识，无标识时回退到 errors 交叉比对
+function countMistakeWords(words, errors) {
+  if (!words || !words.length) return 0;
+  const flagged = words.filter(w => w.isMistake).length;
+  if (flagged) return flagged;
+  if (!errors || !errors.length) return 0;
+  const errWords = new Set();
+  errors.forEach(e => {
+    const text = ((e.original || '') + ' ' + (e.correction || '')).toLowerCase();
+    words.forEach(v => { if (text.includes((v.word || '').toLowerCase())) errWords.add(v.word.toLowerCase()); });
+  });
+  return errWords.size;
+}
+
+// 统一今日新词计数：isNewToday 标识优先，回退 date_added
+function countTodayWords(words) {
+  if (!words || !words.length) return 0;
+  const today = new Date().toISOString().slice(0, 10);
+  return words.filter(w => w.isNewToday || w.date_added === today).length;
+}
+
 function renderMetricsOverview(todayReport, vocab, errors, patterns, prog) {
   const grid = document.getElementById('home-metrics');
   if(!todayReport || !isDailyReport(todayReport)) {
-    // Show mock data when no report
+    // Show mock data when no report — 数字全部动态计算，严禁硬编码
     const m = mockDashboardData.metrics;
-    grid.innerHTML = metricsHTML(m.overall, m.speakMin, m.totalMin, m.fluency, m.grammar, m.vocab, m.natural, m.topics, m.newWords, m.expressions, m.corrections);
+    const words = (vocab && vocab.length) ? vocab : mockWordsData;
+    const newWords = countTodayWords(words);
+    const corrections = countMistakeWords(words, errors);
+    const expressions = (patterns && patterns.length) ? patterns.length : mockPatterns.length;
+    grid.innerHTML = metricsHTML(m.overall, m.speakMin, m.totalMin, m.fluency, m.grammar, m.vocab, m.natural, m.topics, newWords, expressions, corrections);
     refreshIcons(grid);
     return;
   }
@@ -579,14 +641,23 @@ function showNextStepDetail(idx) {
 }
 function renderContentCards(todayReport, vocab, errors, patterns) {
   const container = document.getElementById('home-summary-cards');
-  let cards = mockDashboardData.contentCards;
+  let cards;
   if(todayReport && isDailyReport(todayReport)){
     const p = parseReport(todayReport.content);
     const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
     cards = [
       {icon:'pen-line',num:p.vocabulary.length,label:'新学单词',tab:'words',btn:'复习今日单词',filter:'today',filterLabel:'今日新词'},
-      {icon:'ruler',num:(p.sentence_patterns||[]).length,label:'核心句型',tab:'speak',btn:'练习句型',filter:p.meta.topic||'句型',filterLabel:p.meta.topic||'句型练习'},
+      {icon:'ruler',num:(p.sentence_patterns||[]).length,label:'核心句型',tab:'speak',btn:'练习句型',filter:'句型',filterLabel:'核心句型'},
       {icon:'wrench',num:allErr.length,label:'重点纠错',tab:'words',btn:'查看纠错',filter:'errors',filterLabel:'高频错词'}
+    ].filter(c=>c.num>0);
+  } else {
+    // 无日报：数字必须从统一 Mock 数据源动态计算（禁止硬编码）
+    const words = (vocab && vocab.length) ? vocab : mockWordsData;
+    const pats = (patterns && patterns.length) ? patterns : mockPatterns;
+    cards = [
+      {icon:'pen-line',num:countTodayWords(words),label:'新学单词',tab:'words',btn:'复习今日单词',filter:'today',filterLabel:'今日新词'},
+      {icon:'ruler',num:pats.length,label:'核心句型',tab:'speak',btn:'练习句型',filter:'句型',filterLabel:'核心句型'},
+      {icon:'wrench',num:countMistakeWords(words, errors),label:'重点纠错',tab:'words',btn:'查看纠错',filter:'errors',filterLabel:'高频错词'}
     ].filter(c=>c.num>0);
   }
   if(!cards.length){ container.innerHTML=''; return; }
@@ -901,11 +972,13 @@ async function loadWords() {
     sb.from('vocabulary').select('*').order('created_at', { ascending: false }),
     sb.from('errors').select('*')
   ]);
-  _errorsAll = errors || [];
+  // 统一数据源：Supabase 为空时回退 Mock（绝不允许 0 数据空状态）
+  _errorsAll = (errors && errors.length) ? errors : mockMistakeErrors;
+  const vocabSource = (vocab && vocab.length) ? vocab : mockWordsData;
 
   // Deduplicate by word — keep most recent entry (first in desc order)
   const seen = new Map();
-  _wordsAll = (vocab || []).filter(v => {
+  _wordsAll = vocabSource.filter(v => {
     const key = (v.word || '').toLowerCase().trim();
     if (seen.has(key)) return false;
     seen.set(key, true);
@@ -928,8 +1001,10 @@ async function loadWords() {
     entry.style.display = 'none';
   }
 
-  // Determine active filter from URL/state
-  const mode = _activeFilter || 'all';
+  // Determine active filter from global state OR URL params (smart routing)
+  const params = new URLSearchParams(window.location.search);
+  let mode = _activeFilter || params.get('wordsView') || 'all';
+  if (mode === 'mistakes') mode = 'errors'; // 路由别名
   _wordsFilter = mode;
   renderWordsSubTabs(mode);
   renderVocabList(getFilteredVocab(_wordsAll, mode));
@@ -945,14 +1020,19 @@ function renderWordsSubTabs(activeMode) {
   const el = document.getElementById('words-subtabs');
   el.style.display = 'flex';
   const today = new Date().toISOString().slice(0,10);
-  const todayCount = _wordsAll.filter(v => v.date_added === today).length;
-  // Cross-reference errors with vocab
-  const errWords = new Set();
-  _errorsAll.forEach(e => {
-    const text = ((e.original||'') + ' ' + (e.correction||'')).toLowerCase();
-    _wordsAll.forEach(v => { if (text.includes(v.word.toLowerCase())) errWords.add(v.word.toLowerCase()); });
-  });
-  const errorCount = errWords.size;
+  // 统一数据源计数：isNewToday / isMistake 标识优先
+  const todayCount = countTodayWords(_wordsAll);
+  const flaggedErr = _wordsAll.filter(v => v.isMistake).length;
+  let errorCount = flaggedErr;
+  if (!errorCount) {
+    // Cross-reference errors with vocab (legacy fallback)
+    const errWords = new Set();
+    _errorsAll.forEach(e => {
+      const text = ((e.original||'') + ' ' + (e.correction||'')).toLowerCase();
+      _wordsAll.forEach(v => { if (text.includes(v.word.toLowerCase())) errWords.add(v.word.toLowerCase()); });
+    });
+    errorCount = errWords.size;
+  }
   const tabs = [
     { key:'all', label:'全部词库', count:_wordsAll.length },
     { key:'today', label:'今日新词', count:todayCount },
@@ -977,8 +1057,12 @@ function switchWordsView(mode) {
 
 function getFilteredVocab(items, mode) {
   const today = new Date().toISOString().slice(0,10);
-  if (mode === 'today') return items.filter(v => v.date_added === today);
-  if (mode === 'errors') {
+  if (mode === 'today') return items.filter(v => v.isNewToday || v.date_added === today);
+  if (mode === 'errors' || mode === 'mistakes') {
+    // 1) 优先 isMistake 标识（统一数据源）
+    const flagged = items.filter(v => v.isMistake);
+    if (flagged.length) return flagged;
+    // 2) 回退：与 _errorsAll 交叉比对（真实 Supabase 数据）
     const errWords = new Set();
     _errorsAll.forEach(e => {
       const text = ((e.original||'') + ' ' + (e.correction||'')).toLowerCase();
@@ -1162,7 +1246,8 @@ function sm2(easeFactor, interval, repetitions, quality) {
 }
 
 async function markMastered(id) {
-  const { data: v } = await sb.from('vocabulary').select('*').eq('id', id).single();
+  const { data: v, error } = await sb.from('vocabulary').select('*').eq('id', id).single();
+  if (error || !v) { showToast('演示数据：此操作仅对云端词库生效'); return; }
   const result = sm2(v.ease_factor, v.sm2_interval, v.sm2_repetitions, 3);
   const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
   const status = result.repetitions >= 5 ? 'mastered' : 'learning';
@@ -1179,22 +1264,43 @@ async function markMastered(id) {
 // ═══════════════════════════════════════════════════════
 // TAB 3: SPEAK
 // ═══════════════════════════════════════════════════════
+// ── Speak 智能过滤匹配（路由 → 严格 .filter()） ─────────
+const SPEAK_PATTERN_TOPICS = ['句型','条件句','连接词','完成时','比较级','过去时','主谓一致','时态','虚拟语气'];
+// English ErrorCategory 键 → 中文话题别名（兼容历史路由参数）
+const SPEAK_FILTER_ALIASES = {
+  'tense': '过去时', 'connective': '连接词', 'article': '冠词', 'preposition': '介词',
+  'word-order': '语序', 'vocabulary': '词汇', 'subject-verb': '主谓一致',
+  'singular-plural': '单复数', 'pronunciation': '发音', 'collocation': '搭配'
+};
+
+function matchSpeakFilter(p, filter) {
+  if (!filter) return true;
+  let q = String(filter).toLowerCase();
+  q = SPEAK_FILTER_ALIASES[q] || q;
+  const topic = ((p.source_topic || '') + '').toLowerCase();
+  // 聚合过滤：'句型'/'核心句型' = 所有句型类话题
+  if (q === '句型' || q === '核心句型') {
+    return SPEAK_PATTERN_TOPICS.some(t => topic.includes(t.toLowerCase())) || p.is_core === true;
+  }
+  const hay = [topic, p.better, p.original, p.scene, p.topic_tag]
+    .filter(Boolean).map(x => (x + '').toLowerCase()).join(' ');
+  return hay.includes(q);
+}
+
 async function loadSpeak() {
   document.getElementById('speak-content').innerHTML = LoadingState();
   const { data: patterns } = await sb.from('patterns').select('*').order('created_at', { ascending: false });
   _speakAll = (patterns && patterns.length) ? patterns : mockPatterns;
 
-  // Apply filter from URL or global state
-  if (_activeFilter) {
-    const label = decodeURIComponent(_activeFilterLabel || _activeFilter);
+  // 过滤参数来源：全局状态 OR URL 参数（智能路由双通道）
+  const params = new URLSearchParams(window.location.search);
+  const urlFilter = params.get('filter') || null;
+  const activeFilter = _activeFilter || urlFilter;
+  if (activeFilter) {
+    const label = decodeURIComponent(_activeFilterLabel || activeFilter);
     showSpeakFilterBar(label);
-    const q = _activeFilter.toLowerCase();
-    const filtered = _speakAll.filter(p =>
-      (p.source_topic || '').toLowerCase().includes(q) ||
-      (p.better || '').toLowerCase().includes(q) ||
-      (p.scene || '').toLowerCase().includes(q)
-    );
-    renderSpeakFocused(filtered, _activeFilter);
+    const filtered = _speakAll.filter(p => matchSpeakFilter(p, activeFilter));
+    renderSpeakFocused(filtered, activeFilter);
   } else {
     hideSpeakFilterBar();
     renderSpeakList(_speakAll);
@@ -1202,6 +1308,28 @@ async function loadSpeak() {
 }
 
 let _speakAll = [];
+
+// ── 跟读卡片统一渲染器（一张卡片 = 完整上下文，禁止碎裂） ──
+function speakCardHTML(p, i) {
+  // 碎裂防护：主句缺失时降级为原句，绝不允许出现"只有代替"的残卡
+  const main = p.better || p.original || '';
+  const replaced = p.better ? (p.original || '') : '';
+  const scene = p.scene || '';
+  const mainEsc = h(main).replace(/'/g, "\\'");
+  return `
+    <div class="bg-[var(--c-surface)] rounded-2xl p-5 mb-4 border border-[var(--c-border-light)] flex flex-col gap-4 opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${(i * 0.04).toFixed(2)}s;box-shadow:var(--c-shadow-sm)">
+      <p class="text-xl font-serif text-center font-bold text-[var(--c-text)]">${h(main)}</p>
+      <div class="flex flex-col gap-1 text-xs text-[var(--c-text-dim)] text-center bg-[var(--c-bg)] p-2 rounded-lg">
+        ${replaced ? `<p>代替: ${h(replaced)}</p>` : ''}
+        ${scene ? `<p>🎬 ${h(scene)}</p>` : ''}
+      </div>
+      <div class="flex justify-center gap-4 mt-2">
+        <button class="flex-1 py-2.5 bg-[var(--c-bg)] text-[var(--c-text-dim)] rounded-full font-medium text-sm border-0 cursor-pointer active:scale-[0.97] transition-transform" onclick="speakWord('${mainEsc}');event.stopPropagation();">听发音</button>
+        <button class="flex-1 py-2.5 bg-[var(--c-primary)] text-white rounded-full font-medium text-sm border-0 cursor-pointer active:scale-[0.97] transition-transform" onclick="startShadowFromSpeak();event.stopPropagation();">跟读</button>
+      </div>
+    </div>`;
+}
+
 function renderSpeakList(items) {
   const container = document.getElementById('speak-content');
   const q = (document.getElementById('speak-search')?.value || '').trim().toLowerCase();
@@ -1213,23 +1341,13 @@ function renderSpeakList(items) {
     return;
   }
 
-  container.innerHTML = filtered.map(p => `
-    <div class="expression-card">
-      <div class="expr-better">${h(p.better)}</div>
-      <div class="expr-orig">代替: ${h(p.original)}</div>
-      ${p.scene ? `<div class="expr-scene">🎬 ${h(p.scene)}</div>` : ''}
-      <div class="expr-actions">
-        <button class="btn-speak-secondary" onclick="speakWord('${h(p.better).replace(/'/g, "\\'")}');event.stopPropagation();">${ICO_SPEAKER} 听发音</button>
-        <button class="btn-speak-primary" onclick="startShadowFromSpeak();event.stopPropagation();">${ICO_MIC} 跟读</button>
-      </div>
-    </div>
-  `).join('');
+  container.innerHTML = filtered.map((p, i) => speakCardHTML(p, i)).join('');
 }
 
 // ── Speak Focus Mode ──────────────────────────────────
 function showSpeakFilterBar(label) {
   const bar = document.getElementById('speak-filter-bar');
-  document.getElementById('speak-filter-label').textContent = `正在专注练习：${label}`;
+  document.getElementById('speak-filter-label').textContent = `🎯 正在专注练习：${label}`;
   bar.classList.remove('hidden');
   // Hide search bar in focus mode
   const searchWrap = document.querySelector('#tab-speak .lib-search-wrap');
@@ -1258,23 +1376,7 @@ function renderSpeakFocused(items, filterKey) {
     return;
   }
 
-  container.innerHTML = items.map((p, i) => `
-    <div class="bg-[var(--c-surface)] rounded-2xl p-5 mb-4 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${i*0.04}s;box-shadow:var(--c-shadow-sm)">
-      <div class="font-[Georgia,serif] text-[21px] italic text-[var(--c-text)] leading-[1.6] mb-3">${h(p.better)}</div>
-      <div class="text-[13px] text-[var(--c-text-dim)] mb-1">代替：${h(p.original)}</div>
-      ${p.scene ? `<div class="text-[12px] text-[var(--c-text-ultradim)] mb-3">🎬 ${h(p.scene)}</div>` : '<div class="mb-3"></div>'}
-      ${p.source_topic ? `<span class="inline-block px-2.5 py-0.5 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-[10px] font-medium mb-3">${h(p.source_topic)}</span>` : ''}
-      <div class="flex gap-3 pt-3 border-t border-[var(--c-border-light)]">
-        <button class="flex-1 inline-flex items-center justify-center gap-1.5 py-3 bg-[var(--c-blue-light)] text-[var(--c-blue)] border-0 rounded-xl text-[13px] font-semibold cursor-pointer active:scale-[0.97] transition-transform" onclick="speakWord('${h(p.better).replace(/'/g, "\\'")}');event.stopPropagation()">
-          ${icon('volume-2','w-4 h-4')} 听发音
-        </button>
-        <button class="flex-[1.5] inline-flex items-center justify-center gap-1.5 py-3 bg-[var(--c-primary)] text-white border-0 rounded-xl text-[13px] font-bold cursor-pointer active:scale-[0.97] transition-transform" onclick="startShadowFromSpeak();event.stopPropagation()">
-          ${icon('mic','w-4 h-4')} 跟读
-        </button>
-      </div>
-    </div>
-  `).join('');
-  refreshIcons(container);
+  container.innerHTML = items.map((p, i) => speakCardHTML(p, i)).join('');
 }
 
 // ── Shadow Speaking ────────────────────────────────────
