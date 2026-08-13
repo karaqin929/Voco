@@ -39,9 +39,18 @@ let _navigatingViaProgram = false;  // guards against state pollution from progr
 
 function navigateToTab(tab, filter, label) {
   if (filter) {
-    _activeFilter = filter;
-    _activeFilterLabel = label || filter;
-    window.history.replaceState({}, '', `/?tab=${tab}&filter=${encodeURIComponent(filter)}`);
+    if (tab === 'words' && (filter === 'new' || filter === 'mistakes')) {
+      // /words?tab=new · /words?tab=mistakes — 单词视图参数只进 URL，
+      // 严禁写入 _activeFilter（那是口语页专注状态的专属变量）
+      _activeFilter = null;
+      _activeFilterLabel = '';
+      _wordsFilter = filter;
+      window.history.replaceState({}, '', `/?tab=${filter}`);
+    } else {
+      _activeFilter = filter;
+      _activeFilterLabel = label || filter;
+      window.history.replaceState({}, '', `/?tab=${tab}&filter=${encodeURIComponent(filter)}`);
+    }
   } else {
     _activeFilter = null;
     _activeFilterLabel = '';
@@ -61,10 +70,18 @@ function clearFilter() {
 // Handle browser back/forward
 window.addEventListener('popstate', () => {
   const params = new URLSearchParams(window.location.search);
-  const tab = params.get('tab') || 'home';
+  let tab = params.get('tab') || 'home';
   const filter = params.get('filter') || null;
-  _activeFilter = filter;
-  _activeFilterLabel = filter || '';
+  if (tab === 'new' || tab === 'mistakes') {
+    // /words?tab=new · /words?tab=mistakes → 回单词页并恢复内部视图
+    _wordsFilter = tab;
+    _activeFilter = null;
+    _activeFilterLabel = '';
+    tab = 'words';
+  } else {
+    _activeFilter = filter;
+    _activeFilterLabel = filter || '';
+  }
   _navigatingViaProgram = true;
   document.querySelector(`.tab[data-tab=${tab}]`).click();
   _navigatingViaProgram = false;
@@ -196,7 +213,7 @@ const mockDashboardData = {
     nextSteps: [
       { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项跟读', tab: 'speak', filter: 'connective', filterLabel: '连接词句型' },
       { step: '刻意练习过去时态与现在完成时的区分', action: '专项跟读', tab: 'speak', filter: 'tense', filterLabel: '时态句型' },
-      { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words', filter: 'today_new', filterLabel: '今日新词' }
+      { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words', filter: 'new', filterLabel: '今日新词' }
     ],
     // ── v6.0 高管摘要（Card F 重构） ──
     executiveSummary: '整体流利度明显提升，但在时态一致性和逻辑连接词的使用上仍有结构化提升空间。',
@@ -208,13 +225,13 @@ const mockDashboardData = {
     targetAreas: [
       { category:'tense', label:'时态混淆', keyword:'过去时 vs 完成时', count:3, filterKey:'tense', filterLabel:'时态句型', actionLabel:'专项跟读' },
       { category:'connective', label:'连接词缺失', keyword:'however / therefore', count:2, filterKey:'connective', filterLabel:'连接词句型', actionLabel:'专项跟读' },
-      { category:'article', label:'冠词遗漏', keyword:'a / an / the', count:2, filterKey:'errors', filterLabel:'高频错词', actionLabel:'去纠错' }
+      { category:'article', label:'冠词遗漏', keyword:'a / an / the', count:2, filterKey:'mistakes', filterLabel:'高频错词', actionLabel:'去纠错' }
     ],
     overallReview: "本次练习围绕个人成长展开，用户能够表达较复杂的观点，在描述抽象概念时展现了较好的语言组织能力。整体流利度有明显提升，但在语法细节和连接词使用上仍有优化空间。建议在下次练习中刻意关注时态一致性和逻辑连接词的运用。"
   },
   contentCards: [
     // num 不再硬编码 — renderContentCards 从 mockWordsData / mockPatterns 动态计算
-    { icon: 'pen-line', label: '新学单词', tab: 'words', btn: '复习今日单词', filter: 'today_new', filterLabel: '今日新词' },
+    { icon: 'pen-line', label: '新学单词', tab: 'words', btn: '复习今日单词', filter: 'new', filterLabel: '今日新词' },
     { icon: 'ruler', label: '核心句型', tab: 'speak', btn: '练习句型', filter: 'core_sentences', filterLabel: '核心句型' },
     { icon: 'wrench', label: '重点纠错', tab: 'words', btn: '查看纠错', filter: 'mistakes', filterLabel: '高频错词' }
   ],
@@ -524,7 +541,7 @@ function renderInsightsSection(todayReport) {
         label: e.rule || e.type || '表达纠正',
         keyword: (e.correction || '').slice(0, 20),
         count: 1,
-        filterKey: 'errors',
+        filterKey: 'mistakes',
         filterLabel: '高频错词',
         actionLabel: '去纠错'
       }));
@@ -597,7 +614,7 @@ function showImprovementDetail(idx) {
       <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-bg)] rounded-xl">${hf(im.detail)}</div>
       <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">建议</div>
       <div class="text-sm text-[var(--c-text-dim)] leading-relaxed mb-3">在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。</div>
-      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateToTab('${im.tab||'words'}','${im.filter||'errors'}','${im.filterLabel||'高频错词'}');this.closest('.fixed').remove()">去单词本复习相关词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>
+      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateToTab('${im.tab||'words'}','${im.filter||'mistakes'}','${im.filterLabel||'高频错词'}');this.closest('.fixed').remove()">去单词本复习相关词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
@@ -619,7 +636,7 @@ function showNextStepDetail(idx) {
   let targetFilterLabel = ns.filterLabel || '';
   if (!targetFilter) {
     // 红线3: 一律英文路由键，禁止中文参数
-    if (isVocab) { targetFilter = 'today_new'; targetFilterLabel = '今日新词'; }
+    if (isVocab) { targetFilter = 'new'; targetFilterLabel = '今日新词'; }
     else if (/连接词|过渡词|however|therefore|moreover/i.test(ns.step)) { targetFilter = 'connective'; targetFilterLabel = '连接词句型'; }
     else if (/过去时|完成时|进行时|时态/i.test(ns.step)) { targetFilter = 'tense'; targetFilterLabel = '时态句型'; }
     else if (/条件|if|would|could|虚拟/i.test(ns.step)) { targetFilter = 'conditional'; targetFilterLabel = '条件句'; }
@@ -664,7 +681,7 @@ function renderContentCards(todayReport, vocab, errors, patterns) {
 
   // 红线1: 3 张卡片永驻 grid — 数据为 0 也强制渲染，绝不消失
   const cards = [
-    { icon:'pen-line', num:newCount,  label:'新学单词', tab:'words', btn:'复习今日单词', filter:'today_new',      filterLabel:'今日新词' },
+    { icon:'pen-line', num:newCount,  label:'新学单词', tab:'words', btn:'复习今日单词', filter:'new',            filterLabel:'今日新词' },
     { icon:'ruler',    num:coreCount, label:'核心句型', tab:'speak', btn:'练习句型',   filter:'core_sentences', filterLabel:'核心句型' },
     { icon:'wrench',   num:errCount,  label:'重点纠错', tab:'words', btn:'查看纠错',   filter:'mistakes',      filterLabel:'高频错词' }
   ];
@@ -687,7 +704,7 @@ function renderTodoList(todayReport, vocab, errors, reports, streak) {
   const reviewedToday = (vocab||[]).filter(v=>v.last_reviewed_at&&v.last_reviewed_at.slice(0,10)===today).length;
   todos = [
     {text:'导入今日日报',sub:hasTodayReport?'已完成':'把 ChatGPT 练习报告粘贴进来',done:hasTodayReport,action:hasTodayReport?null:()=>{showImportDialog();},tab:null},
-    {text:'复习 5 个单词',sub:reviewedToday>=5?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/5`,done:reviewedToday>=5,action:()=>{navigateToTab('words','today_new','今日新词');},tab:'words'},
+    {text:'复习 5 个单词',sub:reviewedToday>=5?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/5`,done:reviewedToday>=5,action:()=>{navigateToTab('words','new','今日新词');},tab:'words'},
     {text:'完成一次口语练习',sub:hasTodayReport?'今天练习过了！':'打开 ChatGPT 开口说英语',done:hasTodayReport,action:hasTodayReport?null:()=>{navigateToTab('speak');},tab:'speak'}
   ];
   const done = todos.filter(q=>q.done).length;
@@ -975,10 +992,15 @@ async function loadWords() {
 
   document.getElementById('words-content').innerHTML = LoadingState();
 
-  const [{ data: vocab }, { data: errors }] = await Promise.all([
+  const [{ data: vocab }, { data: errors }, { data: reports }] = await Promise.all([
     sb.from('vocabulary').select('*').order('created_at', { ascending: false }),
-    sb.from('errors').select('*')
+    sb.from('errors').select('*'),
+    sb.from('reports').select('*').order('date', { ascending: false }).limit(1)
   ]);
+  // 真实解析数据源：parseReport 原样输出，只消费、不修改解析逻辑
+  const todayReport = (reports || []).find(r => r.date === today && isDailyReport(r));
+  _reportParsed = todayReport ? parseReport(todayReport.content) : null;
+
   // 统一数据源：Supabase 为空时回退 Mock（绝不允许 0 数据空状态）
   _errorsAll = (errors && errors.length) ? errors : mockMistakeErrors;
   const vocabSource = (vocab && vocab.length) ? vocab : mockWordsData;
@@ -1008,31 +1030,48 @@ async function loadWords() {
     entry.style.display = 'none';
   }
 
-  // Determine active filter from global state OR URL params (smart routing)
-  // 红线3: 标准英文路由键 → 内部 sub-tab 模式别名
+  // URL 是唯一事实源：/words?tab=new · /words?tab=mistakes（首页卡片携带的 query 参数）
   const params = new URLSearchParams(window.location.search);
-  let mode = _activeFilter || params.get('wordsView') || 'all';
-  if (mode === 'today_new' || mode === 'today') mode = 'today';
-  if (mode === 'mistakes' || mode === 'errors') mode = 'errors';
+  const activeTab = params.get('tab') || 'all';
+  let mode = (activeTab === 'new' || activeTab === 'mistakes') ? activeTab : 'all';
+  if (mode === 'all') {
+    // 兼容旧参数 wordsView/view 与历史键名（today→new / errors→mistakes）
+    const legacy = (params.get('wordsView') || params.get('view') || '').toLowerCase();
+    if (legacy === 'today' || legacy === 'today_new' || legacy === 'new') mode = 'new';
+    else if (legacy === 'errors' || legacy === 'mistakes') mode = 'mistakes';
+  }
   _wordsFilter = mode;
   renderWordsSubTabs(mode);
-  renderVocabList(getFilteredVocab(_wordsAll, mode));
+  renderWordsList(mode);
 }
 
 // ── Words list ─────────────────────────────────────────
 let _wordsAll = [];
 let _errorsAll = [];
 let _wordsFilter = 'all';
+let _reportParsed = null; // 当日日报的 parseReport() 结果（只读消费，不修改解析逻辑）
+
+// ── 真实纠错数据源：日报解析 grammar + pronunciation ───
+// 真实字段：item.original（错句）/ item.correction（正句）/ item.rule（规则）
+function realReportErrors() {
+  if (!_reportParsed) return [];
+  const g = (_reportParsed.grammar || []).map(e => Object.assign({ issue: '语法纠正' }, e));
+  const p = (_reportParsed.pronunciation || []).map(e => Object.assign({ issue: '发音纠正' }, e));
+  return [...g, ...p].filter(e => e && (e.original || e.correction));
+}
 
 // ── Words sub-tab helpers ────────────────────────────
 function renderWordsSubTabs(activeMode) {
   const el = document.getElementById('words-subtabs');
   el.style.display = 'flex';
   const today = new Date().toISOString().slice(0,10);
-  // 统一数据源计数：isTodayNew / isMistake 标识优先
-  const todayCount = countTodayWords(_wordsAll);
+  // 统一数据源计数：真实日报解析优先，isTodayNew / isMistake 标识次之
+  const todayCount = (_reportParsed && (_reportParsed.vocabulary || []).length)
+    ? _reportParsed.vocabulary.length
+    : countTodayWords(_wordsAll);
+  const realErrCount = realReportErrors().length;
   const flaggedErr = _wordsAll.filter(v => v.isMistake).length;
-  let errorCount = flaggedErr;
+  let errorCount = realErrCount || flaggedErr;
   if (!errorCount) {
     // Cross-reference errors with vocab (legacy fallback)
     const errWords = new Set();
@@ -1044,8 +1083,8 @@ function renderWordsSubTabs(activeMode) {
   }
   const tabs = [
     { key:'all', label:'全部词库', count:_wordsAll.length },
-    { key:'today', label:'今日新词', count:todayCount },
-    { key:'errors', label:'高频错词', count:errorCount },
+    { key:'new', label:'今日新词', count:todayCount },
+    { key:'mistakes', label:'高频错词', count:errorCount },
   ];
   el.innerHTML = tabs.map(t =>
     `<span class="lib-subtab${t.key===activeMode?' active':''}" data-words-filter="${t.key}" onclick="switchWordsView('${t.key}')">${t.label}<small style="opacity:0.6;margin-left:3px">${t.count}</small></span>`
@@ -1054,24 +1093,57 @@ function renderWordsSubTabs(activeMode) {
 
 function switchWordsView(mode) {
   _wordsFilter = mode;
-  // Update URL without touching global _activeFilter (state isolation)
-  if (mode === 'all') {
-    window.history.replaceState({}, '', '/?tab=words');
-  } else {
-    window.history.replaceState({}, '', `/?tab=words&wordsView=${mode}`);
-  }
+  // /words?tab=new · /words?tab=mistakes — 单词视图参数只影响本页，绝不写入 _activeFilter
+  window.history.replaceState({}, '', mode === 'all' ? '/?tab=words' : `/?tab=${mode}`);
   renderWordsSubTabs(mode);
+  renderWordsList(mode);
+}
+
+// ── 单词页视图分发：高频错词渲染真实纠错卡片，其余渲染词卡 ──
+function renderWordsList(mode) {
+  if (mode === 'mistakes') {
+    const real = realReportErrors();
+    if (real.length) { renderErrorCards(real); return; }
+  }
   renderVocabList(getFilteredVocab(_wordsAll, mode));
+}
+
+// 一条纠错 = 一张卡片：错句(删除线)在上、正句(绿)在下、规则垫底
+function renderErrorCards(items) {
+  const container = document.getElementById('words-content');
+  container.innerHTML = items.map((e, i) => `
+    <div class="bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${(i * 0.04).toFixed(2)}s;box-shadow:var(--c-shadow-sm)">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex flex-col gap-1.5 flex-1 min-w-0">
+          <span class="text-xs font-medium text-amber-600">${h(e.issue || '表达纠正')}</span>
+          ${e.original ? `<p class="text-sm line-through text-[var(--c-red)]">${h(e.original)}</p>` : ''}
+          ${e.correction ? `<p class="text-sm font-semibold text-[var(--c-green)]">→ ${h(e.correction)}</p>` : ''}
+          ${e.rule ? `<p class="text-xs text-[var(--c-text-ultradim)] mt-1">${h(e.rule)}</p>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+  refreshIcons(container);
 }
 
 function getFilteredVocab(items, mode) {
   const today = new Date().toISOString().slice(0,10);
-  if (mode === 'today') {
+  if (mode === 'new' || mode === 'today') {
+    // 1) 真实日报解析的「今日生词」—— parser 输出即为当日数据
+    //    真实字段：item.word / item.phonetic / item.meaning / item.example
+    const realVocab = (_reportParsed && _reportParsed.vocabulary) || [];
+    if (realVocab.length) {
+      return realVocab.map((w, i) => ({
+        id: 'rep-' + i, word: w.word, phonetic: w.phonetic, meaning: w.meaning,
+        example: w.example, source_topic: '今日日报', status: 'new', review_count: 0, isTodayNew: true
+      }));
+    }
+    // 2) 云端词库布尔打标 → 3) 日期兜底
     const flagged = items.filter(v => v.isTodayNew === true);
-    if (flagged.length) return flagged; // 红线2: 布尔打标，永不因日期失效
+    if (flagged.length) return flagged;
     return items.filter(v => v.date_added === today);
   }
-  if (mode === 'errors' || mode === 'mistakes') {
+  if (mode === 'mistakes' || mode === 'errors') {
     // 1) 优先 isMistake 标识（统一数据源）
     const flagged = items.filter(v => v.isMistake);
     if (flagged.length) return flagged;
@@ -1307,18 +1379,40 @@ function matchSpeakFilter(p, filter) {
 
 async function loadSpeak() {
   document.getElementById('speak-content').innerHTML = LoadingState();
-  const { data: patterns } = await sb.from('patterns').select('*').order('created_at', { ascending: false });
+  const [{ data: patterns }, { data: reports }] = await Promise.all([
+    sb.from('patterns').select('*').order('created_at', { ascending: false }),
+    sb.from('reports').select('*').order('date', { ascending: false }).limit(1)
+  ]);
   _speakAll = (patterns && patterns.length) ? patterns : mockPatterns;
 
-  // 过滤参数来源：全局状态 OR URL 参数（智能路由双通道）
+  // 真实解析数据源：当日日报的核心句型（parser 原样输出，只消费不修改）
+  const today = new Date().toISOString().slice(0, 10);
+  const todayReport = (reports || []).find(r => r.date === today && isDailyReport(r));
+  const parsed = todayReport ? parseReport(todayReport.content) : null;
+
+  // /speaking?filter=core_sentences — 专注模式的唯一事实源是 URL 的 filter 参数
   const params = new URLSearchParams(window.location.search);
   const urlFilter = params.get('filter') || null;
   const activeFilter = _activeFilter || urlFilter;
   if (activeFilter) {
+    const q = String(activeFilter).toLowerCase();
     const label = decodeURIComponent(_activeFilterLabel || activeFilter);
-    showSpeakFilterBar(label);
-    const filtered = _speakAll.filter(p => matchSpeakFilter(p, activeFilter));
-    renderSpeakFocused(filtered, activeFilter);
+    if (q === 'core_sentences' || q === 'core') {
+      // 真实字段：sentence_patterns[] = { pattern, example }
+      // 真实数据存在 → 直接渲染当日核心句型；无日报 → 布尔打标 isTodayCore 兜底
+      const realCore = (parsed && parsed.sentence_patterns && parsed.sentence_patterns.length)
+        ? parsed.sentence_patterns.map((s, i) => ({
+            id: 'core-' + i, better: s.pattern, original: '', scene: s.example || '',
+            source_topic: '核心句型', isTodayCore: true
+          }))
+        : null;
+      const filtered = realCore || _speakAll.filter(p => matchSpeakFilter(p, activeFilter));
+      showSpeakFilterBar(label || '核心句型');
+      renderSpeakFocused(filtered, activeFilter);
+    } else {
+      showSpeakFilterBar(label);
+      renderSpeakFocused(_speakAll.filter(p => matchSpeakFilter(p, activeFilter)), activeFilter);
+    }
   } else {
     hideSpeakFilterBar();
     renderSpeakList(_speakAll);
@@ -2277,5 +2371,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=46');
+  navigator.serviceWorker.register('/sw.js?v=47');
 }
