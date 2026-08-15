@@ -180,129 +180,29 @@ body {
    ═══════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════
-   WORDS Tab
+   SPEAK Tab — 模块四：沉浸式播放器（单卡片视口）
    ═══════════════════════════════════════════════════════ */
-.words-review-entry {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  background: var(--primary-light); border-radius: var(--radius);
-  padding: 14px 16px; margin-bottom: 14px;
+/* 满屏高、禁滚动：主句卡片垂直居中，交互台固定在视口底部 */
+#speak-player {
+  height: calc(100dvh - 92px);
+  min-height: 420px;
+  overflow: hidden;
 }
-.words-review-info { display: flex; align-items: center; gap: 10px; }
-.words-review-icon { font-size: 28px; }
-.words-review-title { font-size: 14px; font-weight: 600; color: var(--text); }
-.words-review-sub { font-size: 12px; color: var(--text-dim); }
-
-/* ═══════════════════════════════════════════════════════
-   SPEAK Tab — Immersive Training Ground
-   ═══════════════════════════════════════════════════════ */
-.speak-actions { display: flex; gap: 8px; margin-bottom: 14px; }
-.speak-action-btn {
-  flex: 1; padding: 12px; background: var(--surface);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer;
-  transition: all 0.2s; text-align: center;
+/* 主句衬线体切换动画：下一句时重触发（JS reflow 手法） */
+#player-sentence { font-family: Georgia, "Times New Roman", serif; animation: playerSwitch 0.28s ease-out; }
+@keyframes playerSwitch {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.speak-action-btn:active { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
-
-/* Expression card — serif English, layered hierarchy */
-.expression-card {
-  background: var(--card); border-radius: var(--radius);
-  padding: 16px 18px; margin-bottom: 10px;
-  box-shadow: var(--shadow-sm); border-left: 4px solid var(--orange);
-  animation: fadeInUp 0.3s ease-out both;
-}
-.expression-card .expr-better {
-  font-family: "Georgia", "Times New Roman", serif;
-  font-size: 19px; font-style: italic; color: var(--text);
-  margin-bottom: 4px; line-height: 1.5;
-}
-.expression-card .expr-orig {
-  font-size: 11px; color: var(--text-ultradim); margin-bottom: 4px;
-}
-.expression-card .expr-scene {
-  font-size: 11px; color: var(--text-ultradim); margin-bottom: 10px;
-}
-.expression-card .expr-actions { display: flex; gap: 8px; }
-.expression-card .expr-actions button { flex: 1; }
-
-/* Primary/Secondary capsule buttons for speaking */
-.btn-speak-primary {
-  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  padding: 10px 20px; background: var(--primary); color: #fff;
-  border: none; border-radius: 22px; font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: all 0.2s; font-family: inherit; flex: 1;
-}
-.btn-speak-primary:active { opacity: 0.8; transform: scale(0.97); }
-.btn-speak-secondary {
-  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  padding: 10px 20px; background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); border-radius: 22px; font-size: 14px;
-  font-weight: 500; cursor: pointer; transition: all 0.2s; font-family: inherit; flex: 1;
-}
-.btn-speak-secondary:active { background: var(--bg); transform: scale(0.97); }
-
-/* Self-rate buttons */
-.speak-self-rate { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 12px 0; }
-.self-rate-label { font-size: 13px; color: var(--text-dim); }
-.self-rate-btn { padding: 8px 16px; border: 1px solid var(--border); border-radius: 20px; font-size: 13px; cursor: pointer; background: var(--surface); color: var(--text); transition: all 0.15s; }
-.self-rate-btn.good:active, .self-rate-btn.good.active { background: var(--green-light); border-color: var(--green); color: var(--green); }
-.self-rate-btn.ok:active, .self-rate-btn.ok.active { background: var(--orange-light); border-color: var(--orange); color: var(--orange); }
-.self-rate-btn.again:active, .self-rate-btn.again.active { background: var(--red); border-color: var(--red); color: #fff; opacity: 0.8; }
+/* 交互台：锚定视口底部，绝不随卡片滚动；玻璃台面内 四键一行 + 下一句 竖排 */
+#player-dock { margin-top: auto; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+#player-dock > div { display: flex; flex-direction: column; gap: 10px; background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(8px); border-radius: 24px; padding: 12px; box-shadow: var(--shadow-sm); }
+[data-mode="dark"] #player-dock > div { background: rgba(30, 30, 30, 0.75); }
+[data-mode="eye-care"] #player-dock > div { background: rgba(251, 243, 232, 0.85); }
 
 /* ═══════════════════════════════════════════════════════
    [v5.0] Me Tab & Theme Picker CSS removed — now Tailwind-only.
    ═══════════════════════════════════════════════════════ */
-
-/* ═══════════════════════════════════════════════════════
-   Review / Flashcard
-   ═══════════════════════════════════════════════════════ */
-.review-progress { margin-bottom: 16px; }
-.review-progress span { font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 6px; }
-.review-progress-bar { height: 4px; background: var(--border-light); border-radius: 2px; overflow: hidden; }
-.review-progress-fill { height: 100%; background: var(--primary); border-radius: 2px; transition: width 0.3s; }
-.flashcard { perspective: 800px; margin-bottom: 16px; }
-.flashcard-inner { position: relative; width: 100%; min-height: 200px; transition: transform 0.5s cubic-bezier(0.4,0,0.2,1); transform-style: preserve-3d; }
-.flashcard-inner.flipped { transform: rotateY(180deg); }
-.flashcard-front, .flashcard-back { position: absolute; top: 0; left: 0; width: 100%; min-height: 200px; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: var(--shadow); }
-.flashcard-back { transform: rotateY(180deg); }
-.flashcard-word { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 8px; text-align: center; }
-.flashcard-phonetic { font-size: 15px; color: var(--primary); margin-bottom: 20px; }
-.flashcard-hint { font-size: 12px; color: var(--text-ultradim); }
-.flashcard-meaning { font-size: 18px; color: var(--text); font-weight: 600; margin-bottom: 10px; text-align: center; }
-.flashcard-example { font-size: 13px; color: var(--text-dim); font-style: italic; text-align: center; margin-bottom: 10px; background: var(--bg); padding: 8px 12px; border-radius: 8px; width: 100%; }
-.flashcard-meta { font-size: 11px; color: var(--text-ultradim); }
-.review-actions { display: flex; gap: 8px; margin-top: 8px; }
-.review-btn { flex: 1; padding: 12px 8px; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; color: #fff; text-align: center; }
-.review-btn small { font-size: 10px; opacity: 0.8; font-weight: 400; display: block; margin-top: 2px; }
-.review-btn.again { background: var(--red); }
-.review-btn.good { background: var(--orange); }
-.review-btn.easy { background: var(--green); }
-.review-btn:active { transform: scale(0.96); }
-.review-summary-done { text-align: center; padding: 20px; }
-.review-summary-icon { font-size: 56px; margin-bottom: 12px; }
-.review-summary-title { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
-.review-summary-stats { font-size: 14px; color: var(--text-dim); margin-bottom: 20px; line-height: 1.8; text-align: center; }
-.review-summary-stats strong { color: var(--text); }
-
-/* ═══════════════════════════════════════════════════════
-   Shadow Speaking — serif text, generous whitespace
-   ═══════════════════════════════════════════════════════ */
-.shadow-progress { font-size: 12px; color: var(--text-dim); text-align: center; margin-bottom: 16px; }
-.shadow-card {
-  margin: 0 0 20px; padding: 32px 24px;
-  background: var(--surface); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow); text-align: center;
-}
-.shadow-phrase {
-  font-family: "Georgia", "Times New Roman", serif;
-  font-size: 24px; font-weight: 400; color: var(--text);
-  margin-bottom: 8px; line-height: 1.6; letter-spacing: 0.3px;
-}
-.shadow-context { font-size: 12px; color: var(--text-ultradim); font-style: italic; }
-.shadow-actions { display: flex; gap: 10px; justify-content: center; padding: 0 0 8px; }
-.shadow-summary { text-align: center; padding: 20px 16px; }
-.shadow-summary-icon { font-size: 56px; margin-bottom: 12px; }
-.shadow-summary-title { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
 
 /* ═══════════════════════════════════════════════════════
    Shared: Search, Sub-tabs, Cards
@@ -334,9 +234,11 @@ body {
   display: flex; gap: 6px; margin-top: 12px; padding-top: 10px;
   border-top: 1px solid var(--border-light); align-items: center; justify-content: space-between;
 }
-.card-toolbar { display: flex; align-items: center; gap: 8px; width: 100%; }
-.card-toolbar-left { display: flex; align-items: center; gap: 6px; }
-.card-toolbar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+/* 模块三：词卡底栏布局分离——熟练度星级/圆点靠左，操作按钮靠右，出处标签独立一行截断 */
+.card-proficiency { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.card-count { font-size: 10px; color: var(--text-ultradim); white-space: nowrap; }
+.card-action-buttons { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.card-source-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; min-width: 0; overflow: hidden; }
 .vocab-card .card-detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-light); }
 .vocab-card.expanded .card-detail { display: block; }
 .card-detail-row { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
@@ -347,7 +249,7 @@ body {
 .badge-status.mastered { background: var(--green-light); color: var(--green); }
 .badge-status.learning { background: var(--orange-light); color: var(--orange); }
 .badge-status.new { background: var(--blue-light); color: var(--blue); }
-.badge-source { font-size: 10px; padding: 2px 8px; background: var(--bg); color: var(--text-ultradim); border-radius: 12px; margin-left: auto; }
+.badge-source { font-size: 10px; padding: 2px 8px; background: var(--bg); color: var(--text-ultradim); border-radius: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge-done { font-size: 11px; padding: 3px 8px; background: var(--green-light); color: var(--green); border-radius: 20px; }
 
 /* Error card */
@@ -474,15 +376,14 @@ textarea::placeholder { color: var(--text-ultradim); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Dark mode overrides (v5.0: Home/Me removed; keep Words/Speak/Flashcard) */
+/* Dark mode overrides */
 [data-mode="dark"] body { background: var(--bg); color: var(--text); }
 [data-mode="dark"] .app-header, [data-mode="dark"] .tab-bar { background: var(--surface); border-color: var(--border); }
 [data-mode="dark"] .vocab-card,
-[data-mode="dark"] .error-card, [data-mode="dark"] .expression-card { background: var(--surface); }
+[data-mode="dark"] .error-card { background: var(--surface); }
 [data-mode="dark"] input, [data-mode="dark"] textarea, [data-mode="dark"] select { background: var(--bg); color: var(--text); border-color: var(--border); }
-[data-mode="dark"] .flashcard-front, [data-mode="dark"] .flashcard-back { background: var(--surface); }
 
-/* Eye-care mode overrides (v5.0: Home/Me removed; keep Words/Speak/Flashcard) */
+/* Eye-care mode overrides */
 [data-mode="eye-care"] body { background: #F5E6D3; }
 [data-mode="eye-care"] .app-header { background: #FBF3E8; border-color: #E8D8C0; }
 [data-mode="eye-care"] .tab-bar { background: #FBF3E8; border-color: #E8D8C0; }

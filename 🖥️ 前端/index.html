@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=54">
+  <link rel="stylesheet" href="/style.css?v=55">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -188,53 +188,6 @@
 
   <!-- ── Tab 2: Words ──────────────────────────── -->
   <section id="tab-words" class="tab-content">
-    <!-- SRS Review entry -->
-    <div id="words-review-entry" class="words-review-entry" style="display:none;">
-      <div class="words-review-info">
-        <div class="words-review-icon">🃏</div>
-        <div class="words-review-text">
-          <div class="words-review-title">SM-2 间隔复习</div>
-          <div class="words-review-sub" id="words-review-sub">0 个单词待复习</div>
-        </div>
-      </div>
-      <button class="btn-primary" style="width:auto;padding:10px 20px;" id="btn-words-review-start">开始复习</button>
-    </div>
-
-    <!-- Flashcard review (inline) -->
-    <div id="words-review-active" style="display:none;">
-      <div class="review-progress">
-        <span id="words-review-progress-text">1/10</span>
-        <div class="review-progress-bar"><div class="review-progress-fill" id="words-review-progress-fill"></div></div>
-      </div>
-      <div class="flashcard" id="words-flashcard">
-        <div class="flashcard-inner" id="words-flashcard-inner">
-          <div class="flashcard-front">
-            <div class="flashcard-word" id="fc-word"></div>
-            <div class="flashcard-phonetic" id="fc-phonetic"></div>
-            <div class="flashcard-hint">点击翻转查看释义</div>
-          </div>
-          <div class="flashcard-back">
-            <div class="flashcard-word" id="fc-word-back"></div>
-            <div class="flashcard-meaning" id="fc-meaning"></div>
-            <div class="flashcard-example" id="fc-example"></div>
-            <div class="flashcard-meta" id="fc-meta"></div>
-          </div>
-        </div>
-      </div>
-      <div class="review-actions" id="words-review-actions" style="display:none;">
-        <button class="review-btn again" id="btn-words-again">🔄 再来<br><small>10分钟后</small></button>
-        <button class="review-btn good" id="btn-words-good">👍 不错<br><small>按 SM-2</small></button>
-        <button class="review-btn easy" id="btn-words-easy">✅ 简单<br><small>延长间隔</small></button>
-      </div>
-      <button class="btn-primary" id="btn-words-reveal" style="margin-top:12px;">查看释义</button>
-      <div id="words-review-summary" style="display:none;" class="review-summary-done">
-        <div class="review-summary-icon">🎉</div>
-        <div class="review-summary-title">复习完成！</div>
-        <div class="review-summary-stats" id="words-review-summary-stats"></div>
-        <button class="btn-primary" id="btn-words-review-done">返回单词库</button>
-      </div>
-    </div>
-
     <!-- Vocab list -->
     <div class="lib-search-wrap">
       <span class="lib-search-icon">🔍</span>
@@ -246,8 +199,8 @@
 
   <!-- ── Tab 3: Speak ──────────────────────────── -->
   <section id="tab-speak" class="tab-content">
-    <!-- 沉浸式跟读播放器（ShadowingPlayer）— 单卡片视图，禁止瀑布流列表 -->
-    <div id="speak-player" class="min-h-[50vh]"></div>
+    <!-- 模块四：沉浸式跟读播放器（ShadowingPlayer）— 严格单卡片视口，禁止瀑布流列表 -->
+    <div id="speak-player"></div>
   </section>
 
   <!-- ── Tab 4: Me (v5.0 Tailwind — Grouped List) ─────── -->
@@ -427,8 +380,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
-<script src="/supabase-client.js?v=54"></script>
-<script src="/parser.js?v=54"></script>
-<script src="/app.js?v=54"></script>
+<script src="/supabase-client.js?v=55"></script>
+<script src="/parser.js?v=55"></script>
+<script src="/app.js?v=55"></script>
 </body>
 </html>

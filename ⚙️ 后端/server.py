@@ -282,6 +282,20 @@ def icon_png():
     return FileResponse(os.path.join(FRONTEND_DIR, "icon.png"))
 
 
+# ─── SPA 兜底路由（决策2 铁律）───────────────────────────
+# 必须声明在所有 API 接口与静态资源路由之后，否则会吞掉 /api/* 与静态文件请求。
+# /review、/shadowing 等前端路由直达/刷新时返回 index.html，由 app.js 接管；
+# 未列出的真实静态文件（未来新增资源）优先按文件返回，其余一律回退首页。
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+def spa_fallback(full_path: str):
+    if full_path:
+        base = os.path.normpath(FRONTEND_DIR)
+        candidate = os.path.normpath(os.path.join(base, full_path))
+        if candidate.startswith(base) and os.path.isfile(candidate):
+            return FileResponse(candidate)
+    return index()
+
+
 # ─── Startup ───────────────────────────────────────────
 if __name__ == "__main__":
     def get_ip():
