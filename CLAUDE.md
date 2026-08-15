@@ -47,15 +47,15 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v56）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v66）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v57）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v67）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v56 / voco-v66**。
+- 当前线上：**v57 / voco-v67**。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
 - 路由即状态（URL 单一数据源，P2 规范化路由中枢）：
-  - 规范路由：`/review?tab=all|grammar|due`（复习页）、`/review?filter=today`（首页「复习今日单词」过滤态，正交于三 Tab）、`/shadowing?id=xxx`（跟读页锚定）、`/`（首页）
+  - 规范路由：`/review?tab=all|grammar|due`（复习页）、`/review?filter=today`（首页「复习今日单词」过滤态，正交于三 Tab）、`/shadowing?id=xxx`（跟读页锚定）、`/shadowing?sentence=xxx`（教练卡点击句动态单句队列）、`/`（首页）
   - 导航器：`navigateReview` / `navigateShadowing` / `navigateToTab`（兼容层）/ `normalizeLegacyUrl()` / `handleRoute()` / popstate
   - 旧参数兼容：`?tab=new→all`、`?tab=mistakes→grammar`、`?tab=review→due`（loadWords 归一）、`?tab=words→/review`、`?tab=speak→/shadowing`
   - server.py SPA catch-all 在全部 API 路由之后（最后一条路由）
@@ -72,9 +72,11 @@
   - 死代码物理清理铁律：删掉的 DOM/CSS/JS 必须三处同步物理删除，不留残影
 - **真实数据流铁律（v56 紧急整改后固化）**：
   - `resolveActiveReport(reports)`：日报解析一律经此网关（今天 → _viewDate 历史视图 → 最新有效日报 → null），播放器/生词/错题共用，禁止 `r.date === today` 直连
+  - `mergeReportVocab(snapshot, reportParsed)`：日报 newWords 完整并入全局词库（同名继承真实 id + 打 isNewToday，缺词 `rep-N` 追加）——首页/复习页绝对同源；`getFilteredVocab 'today'` 以日报生词为唯一事实源（与首页 `newCount = parsed.vocabulary.length` 一致），禁止打标词短路
   - `standardizeErrorCards(rawItems)`：所有错题渲染前必经清洗——碎片合并（`→`/`➡️`/`-` 开头的延续行并入前一条）+ 结构归一 `{id, original, correction, rule, type}`；单卡单外层容器
   - `classifyErrorType(o, c, rule)`（parser.js 唯一分类源）：发音纠偏/时态语态/冠词使用/逻辑衔接/地道表达/其他 六类关键词+特征推断，`aggregateErrorPatterns` 与解析入库共用
   - 学习建议分流 `classifySuggestion`：sentence → `navigateShadowing('core-N')` 锚定 / vocab → `navigateReview` / coach → 私教任务弹窗（指引 + 一键复制 ChatGPT Prompt），**禁止盲跳播放器**
+  - 教练卡跟读入口 `startImprovementSpeak(idx)`：携带用户点击句经 `navigateShadowing(undefined, sentence)` → `?sentence=` → loadSpeak 单句队列最高优先，**禁止无参 navigateShadowing 默认句开头**
   - 字段名唯一：`isNewToday`（打标/计数/过滤/兜底四处同源，历史教训 isTodayNew 分叉已修）
 - 计数铁律（单一数据源，绝不分叉）：
   - 今日新词 `countTodayWords`：isNewToday 布尔优先，date_added 兜底
