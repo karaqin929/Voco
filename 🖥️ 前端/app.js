@@ -1468,7 +1468,7 @@ function allGrammarErrors() {
 // ── 错题标准化清洗层：任何数据源在进入渲染前收敛为 {id, issue, original, correction, rule, type} ──
 // ① 碎片合并：以 →/-/（ 开头且无独立正句的条目 = 上一条记录的前后文延续，并入上一条 —— 一条记录绝不拆成两张卡
 // ② 形状归一：字符串/元组/残缺对象 → 标准六字段；original/correction 为数组时合并为单字符串
-// ③ 分类提取：type 缺失时按内容动态推断（发音纠偏/时态语态/冠词使用/逻辑衔接/地道表达/其他）
+// ③ 分类提取：type 缺失时按内容动态推断（发音与重音/语法与句式/地道表达/逻辑与衔接/其他）
 function standardizeErrorCards(rawItems) {
   const std = [];
   for (const raw of rawItems || []) {
@@ -1491,7 +1491,10 @@ function standardizeErrorCards(rawItems) {
     r = String(r || '').trim();
     if (!o && !c) continue;
     if (!t) t = classifyErrorType(o, c, r);
-    const autoIssue = t === '地道表达' ? '地道表达' : (t === '发音纠偏' ? '发音纠正' : '语法纠错');
+    else t = normalizeErrorCategory(t, o, c, r); // 存量旧标签（发音纠偏/时态语态/冠词使用/逻辑衔接…）强制归一化为 4 标准分类
+    const autoIssue = t === '地道表达' ? '地道表达'
+      : (t === '发音与重音' ? '发音纠正'
+      : (t === '逻辑与衔接' ? '逻辑衔接' : '语法纠错'));
     std.push({ id, original: o, correction: c, rule: r, type: t, issue: issue || autoIssue });
   }
   const merged = [];
@@ -2302,15 +2305,32 @@ function renderAchievements(prog, vocab, errors, streak) {
 }
 
 // ── Error patterns ─────────────────────────────────────
-// 高频错误模式聚合（纯函数，UI 与测试共用）：历史行没有 error_pattern（或存了「其他」）时按内容动态推断
+// 强制分类归一化（Normalizer）：聚合统计前，所有错题 type 必须经本映射函数收敛为
+// 且仅收敛为 4 标准分类：发音与重音 / 语法与句式 / 地道表达 / 逻辑与衔接（未命中 → 其他）。
+// 存量标签快查（旧 6 分类 发音纠偏/时态语态/冠词使用/逻辑衔接 及历史 error_pattern 别名）→ 标准名；
+// 未识别标签 → 内容动态推断（存量「其他」同样重算，绝不无条件保留）。
+function normalizeErrorCategory(type, original, correction, rule) {
+  const t = String(type || '').trim();
+  const tl = t.toLowerCase();
+  if (tl) {
+    if (/发音|重音|读音|音标|音节|pronunc/.test(tl)) return '发音与重音';
+    if (/语法|句式|时态|语态|单复数|复数|冠词|介词|grammar|tense|article|preposition|singular|plural|过去式|完成时|进行时/.test(tl)) return '语法与句式';
+    if (/地道|搭配|用词|表达|collocation|wording/.test(tl)) return '地道表达';
+    if (/逻辑|衔接|连接|连贯|转折|coherence|connector|however|therefore/.test(tl)) return '逻辑与衔接';
+    // 存量「其他」或未识别标签 → 内容重算（标签并入规则文本参与关键词匹配）
+    return classifyErrorType(original, correction, [rule, t].filter(Boolean).join(' '));
+  }
+  return classifyErrorType(original, correction, rule);
+}
+
+// 高频错误模式聚合（纯函数，UI 与测试共用）：每一行先过归一化器再计数 ——
+// 输出键只可能是 4 标准分类 + 其他，杜绝「时态语态/时态/冠词」等同义重复分桶
 function aggregateErrorPatterns(errors) {
   const patternCount = {};
   (errors || []).forEach(e => {
-    const raw = (e.error_pattern && e.error_pattern !== '其他') ? e.error_pattern
-      : classifyErrorType(e.original || '', e.correction || '', e.rule || '');
-    raw.split(',').map(s => s.trim()).filter(Boolean).forEach(p => {
-      patternCount[p] = (patternCount[p] || 0) + 1;
-    });
+    if (!e) return;
+    const cat = normalizeErrorCategory(e.error_pattern, e.original, e.correction, e.rule);
+    patternCount[cat] = (patternCount[cat] || 0) + 1;
   });
   return Object.entries(patternCount).sort((a, b) => b[1] - a[1]);
 }
@@ -2323,6 +2343,8 @@ function showErrorPatterns(errors) {
   const max = sorted[0]?.[1] || 1;
   const fixedCount = errors.filter(e => e.correct_in_review).length;
   const fixRate = errors.length > 0 ? Math.round((fixedCount / errors.length) * 100) : 0;
+  // 建议生成：剔除「其他」—— 选取真实排名最高的具体弱点（绝不让「其他」充当建议）
+  const topPick = (sorted.find(([n]) => n !== '其他') || [])[0] || '无';
 
   epDiv.innerHTML = `
     <div class="flex gap-3 mb-4">${[
@@ -2336,14 +2358,16 @@ function showErrorPatterns(errors) {
         <span class="w-[30px] text-[11px] text-[var(--c-text-ultradim)] shrink-0">${count}次</span>
       </div>`
     ).join('')}</div>
-    <div class="text-xs text-[var(--c-primary)] px-3 py-2 bg-[var(--c-primary-light)] rounded-lg inline-flex items-center gap-1">${icon('lightbulb','w-3.5 h-3.5')} 建议优先练习 <strong>${sorted[0]?.[0] || '无'}</strong> 类型的错误</div>`;
+    <div class="text-xs text-[var(--c-primary)] px-3 py-2 bg-[var(--c-primary-light)] rounded-lg inline-flex items-center gap-1">${icon('lightbulb','w-3.5 h-3.5')} 建议优先练习 <strong>${topPick}</strong> 类型的错误</div>`;
   refreshIcons(epDiv);
 }
 
 async function showErrorDetail(pattern) {
-  const { data: errors } = await sb.from('errors').select('*').filter('error_pattern', 'ilike', `%${pattern}%`);
-  const items = (errors || []).slice(0, 5);
-  let msg = `${pattern} 类型错误 (共 ${errors?.length || 0} 个):\n\n`;
+  // 归一化过滤：DB 存量 error_pattern 可能是旧标签（时态语态/冠词…），逐行过 Normalizer 后按 4 标准分类匹配
+  const { data: errors } = await sb.from('errors').select('*');
+  const matches = (errors || []).filter(e => normalizeErrorCategory(e.error_pattern, e.original, e.correction, e.rule) === pattern);
+  const items = matches.slice(0, 5);
+  let msg = `${pattern} 类型错误 (共 ${matches.length} 个):\n\n`;
   items.forEach(e => { msg += `• ${e.original} → ${e.correction}${e.rule ? ' (' + e.rule + ')' : ''}\n`; });
   showToast(msg);
 }
@@ -2622,7 +2646,7 @@ function detectErrorCategory(original, correction) {
   return 'vocabulary';
 }
 
-// 单一分类源：全部错误模式归类收敛于 parser.js 的 classifyErrorType（发音纠偏/时态语态/冠词使用/逻辑衔接/地道表达/其他）
+// 单一分类源：全部错误模式归类收敛于 parser.js 的 classifyErrorType（发音与重音/语法与句式/地道表达/逻辑与衔接/其他）
 // 旧实现的零散正则已废弃 —— 严禁与分类引擎分叉
 function detectErrorPattern(original, correction) {
   return classifyErrorType(original, correction, '') || '其他';
@@ -3068,5 +3092,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=57');
+  navigator.serviceWorker.register('/sw.js?v=58');
 }
