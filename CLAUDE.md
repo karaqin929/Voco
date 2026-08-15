@@ -47,10 +47,10 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v61）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v71）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v61 / voco-v71**（v61：打分分母对齐 + 今日待办三闭环）。
+- 当前线上：**v62 / voco-v72**（v62：今日对话想法去硬编码 + dailyThought 动态渲染）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -92,6 +92,7 @@
   - 桥接：mistakes 的 wrongSentence/correctSentence ↔ 内部 original/improved 契约；评分 fluency/accuracy/naturalness 无损透传
 - JSON 日报 schema：`{summary:{topic,thought,strengths[],nextSteps[],fluency,accuracy,naturalness}, mistakes:[{type:'grammar'|'expression',original,improved,explanation}], coreSentences:[{targetSentence,replacedSentence,explanation}], newWords:[{word,phonetic,meaning,example}]}`
   - 自动打标：newWords→isNewToday、coreSentences→isTodayCore、mistakes→grammar/patterns 分流
+- 今日对话想法（v62，零硬编码金句）：`parseDailyThought(text)`（parser.js）产出 `{en, zh}`（支持 EN/ZH 双行标注、单行按中英文占比判断）；Markdown「对话想法/今日心得」→ `summary.dailyThought`；JSON `summary.dailyThought` 对象透传，否则从 `thought` 提取；首页 Card B 优先读 `_reportParsed.summary.dailyThought`，空值显示引导文案「💡 导入今日日报后…」；**parser 铁律：`表现总结` 分支必须 Object.assign 原地合并，严禁整体替换 summary（会抹掉 dailyThought/thoughts）**
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist
