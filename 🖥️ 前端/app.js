@@ -2314,8 +2314,8 @@ function normalizeErrorCategory(type, original, correction, rule) {
   const tl = t.toLowerCase();
   if (tl) {
     if (/发音|重音|读音|音标|音节|pronunc/.test(tl)) return '发音与重音';
-    if (/语法|句式|时态|语态|单复数|单数|复数|冠词|介词|grammar|tense|article|preposition|singular|plural|过去式|完成时|进行时/.test(tl)) return '语法与句式';
-    if (/地道|搭配|用词|表达|collocation|wording/.test(tl)) return '地道表达';
+    if (/语法|句式|时态|语态|单复数|单数|复数|冠词|介词|主谓|词性|搭配|grammar|tense|article|preposition|singular|plural|过去式|完成时|进行时|in\/on\/at/.test(tl)) return '语法与句式';
+    if (/地道|用词|表达|换成|建议|更自然|更好的说法|better|collocation|wording/.test(tl)) return '地道表达';
     if (/逻辑|衔接|连接|连贯|转折|coherence|connector|however|therefore/.test(tl)) return '逻辑与衔接';
     // 存量「其他」或未识别标签 → 内容重算（标签并入规则文本参与关键词匹配）
     return classifyErrorType(original, correction, [rule, t].filter(Boolean).join(' '));
@@ -2332,7 +2332,10 @@ function aggregateErrorPatterns(errors) {
     const cat = normalizeErrorCategory(e.error_pattern, e.original, e.correction, e.rule);
     patternCount[cat] = (patternCount[cat] || 0) + 1;
   });
-  return Object.entries(patternCount).sort((a, b) => b[1] - a[1]);
+  // 排序铁律：明确分类按次数降序；「其他」固定沉底排最后一行（即使次数最多）
+  const rest = Object.entries(patternCount).filter(([n]) => n !== '其他').sort((a, b) => b[1] - a[1]);
+  const others = Object.entries(patternCount).filter(([n]) => n === '其他');
+  return rest.concat(others);
 }
 
 function showErrorPatterns(errors) {
@@ -2353,7 +2356,7 @@ function showErrorPatterns(errors) {
     ].join('')}</div>
     <div class="mb-3"><div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">高频错误模式</div>${sorted.map(([name, count]) =>
       `<div class="flex items-center gap-2.5 mb-2 cursor-pointer" onclick="showErrorDetail('${name}')">
-        <span class="w-[50px] text-xs text-[var(--c-text-dim)] text-right shrink-0">${name}</span>
+        <span class="whitespace-nowrap min-w-[72px] text-xs text-[var(--c-text-dim)] text-right shrink-0">${name}</span>
         <div class="flex-1 h-2 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-500" style="width:${(count/max)*100}%;"></div></div>
         <span class="w-[30px] text-[11px] text-[var(--c-text-ultradim)] shrink-0">${count}次</span>
       </div>`
@@ -3092,5 +3095,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=59');
+  navigator.serviceWorker.register('/sw.js?v=60');
 }

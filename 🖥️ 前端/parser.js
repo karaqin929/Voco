@@ -10,13 +10,18 @@ function classifyErrorType(original, correction, rule) {
   const c = (correction || '').toLowerCase();
   // ① 发音与重音：读音/音标/重音/音节/pronunciation
   if (/pronunciation|pronunc|读音|音标|重音|音节|发音/.test(text)) return '发音与重音';
-  // ② 语法与句式：grammar/tense/article/时态/语态/单复数/冠词/介词 关键词
+  // ② 语法与句式：grammar/tense/article/plural/时态/语态/单复数/单数/复数/冠词/介词/主谓/词性/搭配 关键词
   //    或 时态助动词/词尾特征 或 原句/正句仅冠词差集
-  if (/grammar|tense|article|preposition|时态|语态|单复数|单数|复数|冠词|介词|过去式|完成时|进行时|过去时|(\bed\b)/.test(text)
+  //    in/on/at：规则文本出现字面 "in/on/at"，或单独介词词（in/on/at）与介词语义词（用法/混淆/搭配/区别/用错/误用）共现才命中 ——
+  //    防止误伤地道表达例句里普通的 in（如 breathtaking in IMAX）
+  const r = (rule || '').toLowerCase();
+  if (/grammar|tense|article|preposition|plural|时态|语态|单复数|单数|复数|冠词|介词|主谓|词性|搭配|过去式|完成时|进行时|过去时|(\bed\b)/.test(text)
+      || /in\/on\/at/.test(text)
+      || (/\b(in|on|at)\b/.test(r) && /介词|用法|混淆|搭配|区别|用错|误用/.test(r))
       || /\b(was|were|had|have|has|will|would|did)\b/.test(o + ' ' + c)
       || (/\b(a|an|the)\b/.test(o) && o.replace(/\b(a|an|the)\b/gi, '') === c.replace(/\b(a|an|the)\b/gi, ''))) return '语法与句式';
-  // ③ 地道表达：collocation/wording/地道/搭配/用词
-  if (/collocation|wording|地道|搭配|用词|更自然/.test(text)) return '地道表达';
+  // ③ 地道表达：collocation/wording/地道/用词/表达/换成/建议/更自然/更好的说法/better
+  if (/collocation|wording|地道|用词|表达|换成|建议|更自然|更好的说法|better/.test(text)) return '地道表达';
   // ④ 逻辑与衔接：however/coherence/逻辑/连接/衔接/连贯/转折
   if (/connector|however|therefore|coherence|逻辑|连接|衔接|连贯|转折/.test(text)) return '逻辑与衔接';
   return '其他';
