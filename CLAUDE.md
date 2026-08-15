@@ -32,7 +32,7 @@
 ## Tech Stack
 - **Frontend**: Vanilla JS + HTML + Tailwind CSS (CDN) + Lucide icons (CDN)
 - **Backend**: Supabase (client: `supabase-client.js`)
-- **Parser**: `parser.js` (Markdown daily report → structured data) — **铁律：NEVER MODIFY**
+- **Parser**: `parser.js` (Markdown daily report → structured data) — 唯一分类源 `classifyErrorType` 驻留于此（经用户授权可修改；其余解析逻辑仍保持不动）
 - **Service Worker**: `sw.js` (cache-first, version in `CACHE` const)
 - **No build step** — static files served directly
 
@@ -42,20 +42,20 @@
 | `🖥️ 前端/app.js` | All app logic (~2850 lines) |
 | `🖥️ 前端/index.html` | Single-page shell |
 | `🖥️ 前端/sw.js` | Service worker (bump CACHE + all `?v=` when deploying) |
-| `🖥️ 前端/parser.js` | Markdown 解析引擎（不修改，清洗层在 app.js 包一层） |
+| `🖥️ 前端/parser.js` | Markdown 解析引擎 + `classifyErrorType` 分类规则提取（唯一分类源） |
 | `🖥️ 前端/supabase-client.js` | Supabase init |
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v55）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v65）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v56）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v66）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v55 / voco-v65**。
+- 当前线上：**v56 / voco-v66**。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
 - 路由即状态（URL 单一数据源，P2 规范化路由中枢）：
-  - 规范路由：`/review?tab=all|grammar|due`（复习页）、`/shadowing?id=xxx`（跟读页锚定）、`/`（首页）
+  - 规范路由：`/review?tab=all|grammar|due`（复习页）、`/review?filter=today`（首页「复习今日单词」过滤态，正交于三 Tab）、`/shadowing?id=xxx`（跟读页锚定）、`/`（首页）
   - 导航器：`navigateReview` / `navigateShadowing` / `navigateToTab`（兼容层）/ `normalizeLegacyUrl()` / `handleRoute()` / popstate
   - 旧参数兼容：`?tab=new→all`、`?tab=mistakes→grammar`、`?tab=review→due`（loadWords 归一）、`?tab=words→/review`、`?tab=speak→/shadowing`
   - server.py SPA catch-all 在全部 API 路由之后（最后一条路由）
@@ -70,6 +70,12 @@
   - 底部固定流式交互台：[🔊 听原音] 次按钮 / [🎙️ 按住录音] 主按钮（按压缩放反馈）/ [🗣️ 听自己] 未录音 disabled / [下一句 →] 递增并重置录音态 / 末句 [🎉 训练完成] disabled
   - `resolveAnchorIndex`：?id= 驱动首卡，找不到/越界钳制回 0
   - 死代码物理清理铁律：删掉的 DOM/CSS/JS 必须三处同步物理删除，不留残影
+- **真实数据流铁律（v56 紧急整改后固化）**：
+  - `resolveActiveReport(reports)`：日报解析一律经此网关（今天 → _viewDate 历史视图 → 最新有效日报 → null），播放器/生词/错题共用，禁止 `r.date === today` 直连
+  - `standardizeErrorCards(rawItems)`：所有错题渲染前必经清洗——碎片合并（`→`/`➡️`/`-` 开头的延续行并入前一条）+ 结构归一 `{id, original, correction, rule, type}`；单卡单外层容器
+  - `classifyErrorType(o, c, rule)`（parser.js 唯一分类源）：发音纠偏/时态语态/冠词使用/逻辑衔接/地道表达/其他 六类关键词+特征推断，`aggregateErrorPatterns` 与解析入库共用
+  - 学习建议分流 `classifySuggestion`：sentence → `navigateShadowing('core-N')` 锚定 / vocab → `navigateReview` / coach → 私教任务弹窗（指引 + 一键复制 ChatGPT Prompt），**禁止盲跳播放器**
+  - 字段名唯一：`isNewToday`（打标/计数/过滤/兜底四处同源，历史教训 isTodayNew 分叉已修）
 - 计数铁律（单一数据源，绝不分叉）：
   - 今日新词 `countTodayWords`：isNewToday 布尔优先，date_added 兜底
   - 错词 `countMistakeWords`：isMistake 优先，errors 交叉比对兜底
