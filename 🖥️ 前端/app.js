@@ -78,10 +78,13 @@ function navigateReview(tab, filter) {
 }
 
 // /shadowing?id=${item.id} — 跟读页按 id 锚定到指定句（绝不从第 0 句开始）
-function navigateShadowing(id) {
+function navigateShadowing(id, sentence) {
   _activeFilter = null; _activeFilterLabel = '';
-  const hasId = id !== undefined && id !== null && id !== '';
-  window.history.pushState({}, '', '/shadowing' + (hasId ? `?id=${encodeURIComponent(id)}` : ''));
+  const qs = [];
+  if (id !== undefined && id !== null && id !== '') qs.push('id=' + encodeURIComponent(id));
+  // sentence：首页「今天需要提升」点击的句文本 —— 播放器动态加载这一句，禁止从默认句开始
+  if (sentence) qs.push('sentence=' + encodeURIComponent(sentence));
+  window.history.pushState({}, '', '/shadowing' + (qs.length ? '?' + qs.join('&') : ''));
   _navigatingViaProgram = true;
   document.querySelector('.tab[data-tab=speak]').click();
   _navigatingViaProgram = false;
@@ -527,6 +530,37 @@ function mergeDemoVocab(vocabList) {
 function buildWordSnapshot(vocabList, errorsList) {
   return stampDailyTags(mergeDemoVocab(vocabList), errorsList);
 }
+// 日报生词合并网关：把当前日报解析出的 newWords 完整追加/更新进全局词库 ——
+// 同名行（按 word 小写匹配）继承真实 id 并打 isNewToday:true（复习+1 可写回）；
+// 缺词以 rep-N 唯一 id 追加（source_topic=今日日报），首页计数与复习页渲染绝对同源
+function mergeReportVocab(snapshot, reportParsed) {
+  const reportWords = (reportParsed && reportParsed.vocabulary) || [];
+  if (!reportWords.length) return snapshot;
+  const out = [...(snapshot || [])];
+  const byWord = new Map(out.map(v => [String(v.word || '').toLowerCase().trim(), v]));
+  reportWords.forEach((w, i) => {
+    const key = String(w.word || '').toLowerCase().trim();
+    if (!key) return;
+    const existing = byWord.get(key);
+    if (existing) {
+      existing.isNewToday = true; // 词库已有该词 → 今日日报再学一次，标签同步
+      existing.isMistake = false;
+      return;
+    }
+    const item = {
+      id: 'rep-' + i,
+      word: w.word,
+      phonetic: w.phonetic || '',
+      meaning: w.meaning || '',
+      example: w.example || '',
+      source_topic: '今日日报',
+      isNewToday: true, isMistake: false, needsReview: false
+    };
+    out.push(item);
+    byWord.set(key, item);
+  });
+  return out;
+}
 // 句型/表达条目打标：唯一 id + isTodayCore + 标准嵌套字段（targetSentence/replacedSentence/explanation）
 // 碎片数组合并映射：better→targetSentence / original→replacedSentence / scene→explanation
 function stampPatternTags(patterns) {
@@ -738,10 +772,10 @@ function showImprovementDetail(idx) {
     expression: '你这样说语法完全没错，只是不够地道。下次尝试替换成母语者的自然说法，并跟读 3 遍形成语感。',
     structure:  '长段表达时留意句子之间的逻辑衔接。练习用 however / therefore 等连接词，让层次更分明。'
   }[im.type] || '在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。';
-  // 模块二：教练卡按钮精准锚定 — 语法纠错 → /review?tab=grammar；地道表达/逻辑结构 → /shadowing?id=对应句型
+  // 模块二：教练卡按钮精准锚定 — 语法纠错 → /review?tab=grammar；地道表达/逻辑结构 → startImprovementSpeak 携带用户点击的句文本
   const navArgs = im.type === 'grammar'
     ? `navigateReview('grammar')`
-    : (im.itemId ? `navigateShadowing('${String(im.itemId).replace(/'/g, "\\'")}')` : `navigateShadowing()`);
+    : `startImprovementSpeak(${idx})`;
   const btnLabel = im.type === 'grammar' ? '去复习页查看语法错题' : '去跟读页专项跟读';
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
@@ -761,6 +795,16 @@ function showImprovementDetail(idx) {
   </div>`;
   document.body.appendChild(modal);
   refreshIcons(modal);
+}
+
+// 教练卡跟读入口：携带用户点击的这一句（correct 优先）经 ?sentence= 路由参数动态加载播放器
+// 禁止 navigateShadowing() 无参调用 —— 那会从写死的默认句（核心句型第 0 句）开始播放，与点击内容完全错位
+function startImprovementSpeak(idx) {
+  const d = _currentInsights || mockDashboardData.insights;
+  const im = d.improvements && d.improvements[idx];
+  if (!im) { navigateShadowing(); return; }
+  if (im.itemId) { navigateShadowing(String(im.itemId)); return; }
+  navigateShadowing(undefined, im.correct || im.wrong || '');
 }
 
 // ── 学习建议类型分流：sentence=句型练习(锚定跟读) / vocab=词汇(复习页) / coach=私教任务弹窗 ──
@@ -1353,8 +1397,9 @@ async function loadWords() {
   _reportParsed = todayReport ? parseSmartReport(todayReport.content) : null;
 
   // 打标网关：内置词库合并 + 布尔标签一次性注入（渲染层只读布尔值，零时间判断）
+  // 断流修复：日报 12 生词在此合并进全局词库 —— 首页/复习页数据源绝对一致
   _errorsAll = (errors && errors.length) ? errors : mockMistakeErrors;
-  _wordsAll = buildWordSnapshot(vocab, _errorsAll);
+  _wordsAll = mergeReportVocab(buildWordSnapshot(vocab, _errorsAll), _reportParsed);
 
   // URL 是唯一事实源：/review?tab=all|grammar|due（规范三 Tab；兼容旧 new|mistakes|review 参数）+ filter=today 过滤态
   const params = new URLSearchParams(window.location.search);
@@ -1474,8 +1519,10 @@ function renderWordsSubTabs(activeMode) {
     { key: 'grammar', label: '语法错题', count: grammarCount },
     { key: 'due', label: '待复习', count: dueCount },
   ];
+  // filter=today 是「全部词汇」的过滤视图，高亮归 all
+  const activeKey = activeMode === 'today' ? 'all' : activeMode;
   el.innerHTML = tabs.map(t =>
-    `<span class="lib-subtab${t.key===activeMode?' active':''}" data-words-filter="${t.key}" onclick="switchWordsView('${t.key}')">${t.label}<small style="opacity:0.6;margin-left:3px">${t.count}</small></span>`
+    `<span class="lib-subtab${t.key===activeKey?' active':''}" data-words-filter="${t.key}" onclick="switchWordsView('${t.key}')">${t.label}<small style="opacity:0.6;margin-left:3px">${t.count}</small></span>`
   ).join('');
 }
 
@@ -1698,23 +1745,25 @@ function getFilteredVocab(items, mode) {
     return items.filter(v => v.needsReview === true);
   }
   if (mode === 'new' || mode === 'today') {
-    // 1) 词库中 isNewToday 打标词优先（纯布尔过滤，与首页计数同源）
-    const tagged = items.filter(v => v.isNewToday === true);
-    if (tagged.length) return tagged;
-    // 2) 兜底：真实日报解析的「今日生词」—— 词库尚未入库时依然渲染当日 12 词（按词名回填真实 id，复习+1 可写回）
+    // 真实日报生词 = 「今日新词」唯一事实源（与首页 newCount = parsed.vocabulary.length 绝对一致）
+    // 断流修复：移除「打标词优先短路」—— mock 2 词曾短路掉日报 12 词，导致首页 12 / 复习页 2
     const realVocab = (_reportParsed && _reportParsed.vocabulary) || [];
     if (realVocab.length) {
       return realVocab.map((w, i) => {
         const existing = items.find(x => String(x.word || '').toLowerCase() === String(w.word || '').toLowerCase());
         return {
+          ...w,
           id: (existing && existing.id !== undefined) ? existing.id : 'rep-' + i,
-          word: w.word, phonetic: w.phonetic, meaning: w.meaning,
-          example: w.example, source_topic: '今日日报', status: existing ? existing.status : 'new',
-          review_count: existing ? (existing.review_count || 0) : 0, isNewToday: true
+          word: w.word, phonetic: w.phonetic || '', meaning: w.meaning || '', example: w.example || '',
+          source_topic: (existing && existing.source_topic) || '今日日报',
+          status: existing ? existing.status : 'new',
+          review_count: existing ? (existing.review_count || 0) : 0,
+          isNewToday: true, isMistake: false
         };
       });
     }
-    return [];
+    // 无真实日报（演示态）：词库 isNewToday 打标词（与首页 countTodayWords 同规则）
+    return items.filter(v => v.isNewToday === true);
   }
   if (mode === 'mistakes' || mode === 'errors' || mode === 'grammar') {
     return items.filter(v => v.isMistake === true);
@@ -1875,8 +1924,18 @@ async function loadSpeak() {
   const urlFilter = params.get('filter') || null;
   const activeFilter = _activeFilter || urlFilter;
 
+  // 首页教练卡点击句（?sentence=）：动态单句队列，最高优先 —— 播放用户点击的这一句，禁止默认句开头
+  const anchorSentence = params.get('sentence') || null;
+
   let sentences;
-  if (activeFilter) {
+  if (anchorSentence) {
+    sentences = [{
+      id: 'sentence-anchor',
+      targetSentence: anchorSentence,
+      replacedSentence: '',
+      explanation: '来自首页「今天需要提升」的专项句'
+    }];
+  } else if (activeFilter) {
     const q = String(activeFilter).toLowerCase();
     if (q === 'core_sentences' || q === 'core') {
       // 核心句型队列：真实解析 > isTodayCore 打标 > 内置核心句型（嵌套对象，绝不拆分）
@@ -3009,5 +3068,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=56');
+  navigator.serviceWorker.register('/sw.js?v=57');
 }
