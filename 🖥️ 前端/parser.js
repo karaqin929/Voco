@@ -86,7 +86,8 @@ function parseDailyReport(body, result) {
     } else if (header.includes('今日生词') || header.includes('生词')) {
       result.vocabulary = parseVocabulary(content);
     } else if (header.includes('表现总结') || header.includes('总结')) {
-      result.summary = parseSummary(content);
+      // 原地合并：严禁整体替换 summary —— 否则会抹掉前面已解析的 dailyThought/thoughts 等字段
+      Object.assign(result.summary, parseSummary(content));
     } else if (header.includes('表现亮点')) {
       result.summary.strengths = content.trim();
     } else if (header.includes('AI 复盘评语') || header.includes('复盘评语')) {
@@ -95,6 +96,8 @@ function parseDailyReport(body, result) {
       result.summary.next_suggestions = content.trim();
     } else if (header.includes('对话想法') || header.includes('今日心得')) {
       result.summary.thoughts = content.trim();
+      // 归一化提取：今日对话想法 → dailyThought { en, zh }（首页 Card B 动态渲染）
+      result.summary.dailyThought = parseDailyThought(content);
     }
   }
 }
@@ -196,6 +199,21 @@ function parseVocabulary(text) {
     }
   }
   return words;
+}
+
+// 今日对话想法提取：产出归一化 dailyThought { en, zh }（缺失侧为空字符串）
+// 支持 "EN: ... / ZH: ..."、"英文：... / 中文：..." 双行标注；
+// 无标注的单行内容按中英文占比判断（中文占优 → zh，否则 → en）
+function parseDailyThought(text) {
+  const t = (text || '').trim();
+  if (!t) return { en: '', zh: '' };
+  // 惰性捕获 + 前瞻截断：EN 捕获止于 ZH 标记（或行尾），反之亦然 —— 防止贪婪吞并另一半
+  const enM = t.match(/(?:EN|English|英文)\s*[:：]\s*(.+?)(?=\s*(?:ZH|中文|译文)\s*[:：]|$)/i);
+  const zhM = t.match(/(?:ZH|中文|译文)\s*[:：]\s*(.+?)(?=\s*(?:EN|English|英文)\s*[:：]|$)/i);
+  if (enM || zhM) return { en: (enM ? enM[1] : '').trim(), zh: (zhM ? zhM[1] : '').trim() };
+  const ascii = (t.match(/[A-Za-z]/g) || []).length;
+  const cjk = (t.match(/[一-鿿]/g) || []).length;
+  return cjk > ascii ? { en: '', zh: t } : { en: t, zh: '' };
 }
 
 function parseSummary(text) {

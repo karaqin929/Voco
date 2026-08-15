@@ -254,10 +254,8 @@ const mockDashboardData = {
   },
   insights: {
     topics: ['personal growth', 'daily routines', 'future plans'],
-    thoughts: {
-      en: "Personal growth requires patience and time — there's no shortcut to becoming a better version of yourself.",
-      zh: "个人成长需要时间和耐心——成为更好的自己，没有捷径可走。"
-    },
+    // 零硬编码：今日对话想法由日报 summary.dailyThought 动态驱动（v62），空值走引导卡
+    thoughts: { en: '', zh: '' },
     strengths: [
       '能够表达抽象观点，如"个人成长需要时间沉淀"',
       '遇到表达困难时，能主动替换近义词汇绕过障碍',
@@ -682,6 +680,8 @@ function renderInsightsSection(todayReport) {
     _insightsParsed = p;
     if(p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
     if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
+    // 今日对话想法：日报 dailyThought 覆盖 mock 空占位（Card B 动态数据源之一）
+    if (p.summary.dailyThought && (p.summary.dailyThought.en || p.summary.dailyThought.zh)) d.thoughts = p.summary.dailyThought;
     if(p.summary.strengths){ const lines = p.summary.strengths.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*]\s*/,'')); if(lines.length) d.strengths = lines; }
     const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
     // 双维度打标：grammar = 硬性错误（红线纠正）；expression = 地道升级（语法没错，只替换不判错）
@@ -729,8 +729,14 @@ function renderInsightsSection(todayReport) {
   let html = '';
   // Card A: Topics
   html += card(0.03, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('message-circle','w-3.5 h-3.5')} 今日对话主题</div><div class="flex gap-2 flex-wrap">${d.topics.map(t=>`<span class="px-3 py-1 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-xs font-medium">#${h(t)}</span>`).join('')}</div>`);
-  // Card B: Thoughts
-  html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div><div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(d.thoughts.en)}"</div><div class="text-[13px] text-[var(--c-text-dim)]">${h(d.thoughts.zh)}</div>`);
+  // Card B: 今日对话想法 —— 动态渲染：优先 _reportParsed.summary.dailyThought，次取本函数解析的日报 dailyThought；零硬编码金句
+  const dt = (((_reportParsed && _reportParsed.summary && _reportParsed.summary.dailyThought) || null) || d.thoughts) || {};
+  if (dt.en || dt.zh) {
+    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div>${dt.en ? `<div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(dt.en)}"</div>` : ''}<div class="text-[13px] text-[var(--c-text-dim)]">${h(dt.zh)}</div>`);
+  } else {
+    // 空状态：今日未导入日报或无该字段 → 引导卡（不显示任何假数据）
+    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div><div class="text-[13px] text-[var(--c-text-dim)]">💡 导入今日日报后，在此提炼你的核心表达观点</div>`);
+  }
   // Card C: Strengths
   html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} 今天做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
   // Card D: 进阶引导 — 一条 = 一卡，按 type 分流教练视角（硬伤红线 / 软性升级 / 逻辑结构）
@@ -1166,6 +1172,10 @@ function normalizeJsonReport(j, raw) {
     summary: {
       topic: s.topic || '',
       thoughts: s.thought || '',
+      // 今日对话想法归一化：上游已是 { en, zh } 对象则透传；否则从 thought 字符串提取
+      dailyThought: (s.dailyThought && typeof s.dailyThought === 'object' && (s.dailyThought.en || s.dailyThought.zh))
+        ? { en: String(s.dailyThought.en || ''), zh: String(s.dailyThought.zh || '') }
+        : parseDailyThought(String(s.thought || '')),
       strengths: Array.isArray(s.strengths) ? s.strengths.join('\n') : '',
       next_suggestions: Array.isArray(s.nextSteps) ? s.nextSteps.join('\n') : ''
     },
@@ -3110,5 +3120,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=61');
+  navigator.serviceWorker.register('/sw.js?v=62');
 }
