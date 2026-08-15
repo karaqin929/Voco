@@ -47,10 +47,10 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v60）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v70）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v61）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v71）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v60 / voco-v70**（v60：错误模式标签禁折行 + 「其他」沉底 + 词表扩充）。
+- 当前线上：**v61 / voco-v71**（v61：打分分母对齐 + 今日待办三闭环）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -79,6 +79,8 @@
   - 学习建议分流 `classifySuggestion`：sentence → `navigateShadowing('core-N')` 锚定 / vocab → `navigateReview` / coach → 私教任务弹窗（指引 + 一键复制 ChatGPT Prompt），**禁止盲跳播放器**
   - 教练卡跟读入口 `startImprovementSpeak(idx)`：携带用户点击句经 `navigateShadowing(undefined, sentence)` → `?sentence=` → loadSpeak 单句队列最高优先，**禁止无参 navigateShadowing 默认句开头**
   - 字段名唯一：`isNewToday`（打标/计数/过滤/兜底四处同源，历史教训 isTodayNew 分叉已修）
+- 首页打分（v61）：`metricsHTML` 四维度（流利度/语法/词汇/自然度）统一 `norm100()` 归一 0–100 后展示 `${score}/100`，进度条宽度 = 分数本身（%）；**严禁 /10 硬编码分母**；`norm100` 对 ≤10 的 0–10 刻度自动 ×10 对齐
+- 今日待办三闭环（v61）：`renderTodoList` 动态生成，mock todos 字段已物理删除——① 对练打卡·导入今日日报（hasTodayReport 自动完成）② 跟读打卡·完成核心句型跟读 (${coreCount}句)（点击 navigateShadowing 直达今日队列；播放器 `updatePlayerView` 在最后一句已录音时写 `voco-speak-done` 当日戳，加载层比对传入 speakDoneToday）③ 复习打卡·完成今日到期复习 (${dueCount}词)（countReviewWords 纯布尔计数，文案标明「到期复习」区别于「今日新词」；点击 navigateReview('due')）
 - 计数铁律（单一数据源，绝不分叉）：
   - 今日新词 `countTodayWords`：isNewToday 布尔优先，date_added 兜底
   - 错词 `countMistakeWords`：isMistake 优先，errors 交叉比对兜底
