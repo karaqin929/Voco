@@ -2314,7 +2314,7 @@ function normalizeErrorCategory(type, original, correction, rule) {
   const tl = t.toLowerCase();
   if (tl) {
     if (/发音|重音|读音|音标|音节|pronunc/.test(tl)) return '发音与重音';
-    if (/语法|句式|时态|语态|单复数|复数|冠词|介词|grammar|tense|article|preposition|singular|plural|过去式|完成时|进行时/.test(tl)) return '语法与句式';
+    if (/语法|句式|时态|语态|单复数|单数|复数|冠词|介词|grammar|tense|article|preposition|singular|plural|过去式|完成时|进行时/.test(tl)) return '语法与句式';
     if (/地道|搭配|用词|表达|collocation|wording/.test(tl)) return '地道表达';
     if (/逻辑|衔接|连接|连贯|转折|coherence|connector|however|therefore/.test(tl)) return '逻辑与衔接';
     // 存量「其他」或未识别标签 → 内容重算（标签并入规则文本参与关键词匹配）
@@ -3092,5 +3092,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=58');
+  navigator.serviceWorker.register('/sw.js?v=59');
 }

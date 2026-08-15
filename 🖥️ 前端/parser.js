@@ -12,7 +12,7 @@ function classifyErrorType(original, correction, rule) {
   if (/pronunciation|pronunc|读音|音标|重音|音节|发音/.test(text)) return '发音与重音';
   // ② 语法与句式：grammar/tense/article/时态/语态/单复数/冠词/介词 关键词
   //    或 时态助动词/词尾特征 或 原句/正句仅冠词差集
-  if (/grammar|tense|article|preposition|时态|语态|单复数|复数|冠词|介词|过去式|完成时|进行时|过去时|(\bed\b)/.test(text)
+  if (/grammar|tense|article|preposition|时态|语态|单复数|单数|复数|冠词|介词|过去式|完成时|进行时|过去时|(\bed\b)/.test(text)
       || /\b(was|were|had|have|has|will|would|did)\b/.test(o + ' ' + c)
       || (/\b(a|an|the)\b/.test(o) && o.replace(/\b(a|an|the)\b/gi, '') === c.replace(/\b(a|an|the)\b/gi, ''))) return '语法与句式';
   // ③ 地道表达：collocation/wording/地道/搭配/用词
