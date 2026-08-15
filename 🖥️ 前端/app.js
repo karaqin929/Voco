@@ -297,11 +297,7 @@ const mockDashboardData = {
     { icon: 'ruler', label: '核心句型', tab: 'speak', btn: '练习句型', filter: 'core_sentences', filterLabel: '核心句型' },
     { icon: 'wrench', label: '重点纠错', tab: 'words', btn: '查看纠错', filter: 'mistakes', filterLabel: '高频错词' }
   ],
-  todos: [
-    { text: '复习 5 个今日新单词', done: false, action: '去复习', tab: 'words' },
-    { text: '完成影子跟读练习', done: false, action: '开始练习', tab: 'speak' },
-    { text: '导入今日 ChatGPT 日报', done: true }
-  ]
+  // todos 字段已删除：今日待办由 renderTodoList 三闭环动态生成（v61），不留硬编码残存
 };
 
 // 2. 跟读/口语数据 (绝对不允许拆分，必须是嵌套对象)
@@ -367,6 +363,8 @@ async function loadHome() {
   const hasTodayReport = rList.some(r => r.date === today && isDailyReport(r));
   // 时间计算上收加载层：渲染组件零 new Date() 过滤
   const reviewedToday = vList.filter(v => v.last_reviewed_at && v.last_reviewed_at.slice(0, 10) === today).length;
+  // 跟读打卡戳：播放器录完最后一句写入 voco-speak-done，此处只读比对（时间判断仍在加载层）
+  const speakDoneToday = (() => { try { return localStorage.getItem('voco-speak-done') === today; } catch (e) { return false; } })();
 
   // Section 1: Header
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
@@ -385,7 +383,7 @@ async function loadHome() {
 
   // Section 5: Content Cards + Todos
   renderContentCards(activeReport, vList, eList, pList);
-  renderTodoList(todayReport, vList, eList, rList, streak, reviewedToday);
+  renderTodoList(todayReport, vList, eList, rList, streak, reviewedToday, speakDoneToday);
   _homeLoading = false;
 }
 
@@ -620,6 +618,13 @@ function renderMetricsOverview(todayReport, vocab, errors, patterns, prog) {
   refreshIcons(grid);
 }
 
+// 分母对齐铁律（v61）：四维度统一 0–100 刻度展示 ${score}/100，严禁 /10 硬编码；
+// 若上游误传 0–10 刻度（≤10）自动 ×10 对齐，进度条宽度 = 分数本身（0–100%）
+function norm100(v) {
+  const n = Number(v) || 0;
+  return Math.max(0, Math.min(100, Math.round(n <= 10 ? n * 10 : n)));
+}
+
 function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natural, topics, newWords, expressions, corrections) {
   return `
     <div class="flex items-center gap-5 mb-4">
@@ -630,17 +635,17 @@ function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natur
       </div>
     </div>
     <div class="grid grid-cols-2 gap-x-6 gap-y-4 mb-3.5">${[
-      {l:'流利度',s:fluency,c:'var(--c-primary)'},
-      {l:'语法',s:grammar,c:'var(--c-blue)'},
-      {l:'词汇',s:vocab,c:'var(--c-green)'},
-      {l:'自然度',s:natural,c:'var(--c-orange)'}
+      {l:'流利度',s:norm100(fluency),c:'var(--c-primary)'},
+      {l:'语法',s:norm100(grammar),c:'var(--c-blue)'},
+      {l:'词汇',s:norm100(vocab),c:'var(--c-green)'},
+      {l:'自然度',s:norm100(natural),c:'var(--c-orange)'}
     ].map(b=>`
       <div class="flex flex-col">
         <div class="flex justify-between text-xs text-[var(--c-text-dim)] mb-1.5">
-          <span class="font-medium">${b.l}</span><span>${b.s}/10</span>
+          <span class="font-medium">${b.l}</span><span>${b.s}/100</span>
         </div>
         <div class="w-full bg-[var(--c-border-light)] rounded-full h-1.5 overflow-hidden">
-          <div class="h-1.5 rounded-full transition-all duration-[0.6s]" style="width:${(b.s/10)*100}%;background:${b.c}"></div>
+          <div class="h-1.5 rounded-full transition-all duration-[0.6s]" style="width:${b.s}%;background:${b.c}"></div>
         </div>
       </div>`).join('')}
     </div>
@@ -937,18 +942,24 @@ function renderContentCards(todayReport, vocab, errors, patterns) {
   refreshIcons(container);
 }
 
-function renderTodoList(todayReport, vocab, errors, reports, streak, reviewedToday) {
-  let todos = JSON.parse(JSON.stringify(mockDashboardData.todos));
-  // Merge real state
+function renderTodoList(todayReport, vocab, errors, reports, streak, reviewedToday, speakDoneToday) {
+  // ── 今日待办三闭环（v61）：对练打卡 / 跟读打卡 / 复习打卡 —— 全部动态生成，零硬编码 ──
   const hasTodayReport = todayReport && isDailyReport(todayReport);
-  // reviewedToday 由加载层计算传入（时间逻辑收敛于打标网关，渲染组件零 new Date()）
-  // 与复习页 SM-2 卡片、tab=review 列表共用同一计数规则（纯布尔读取）
+  const parsed = hasTodayReport ? parseSmartReport(todayReport.content) : null;
+  // 任务 2 分母：今日核心句型数（真实日报优先，无日报回退内置核心句）
+  const coreCount = (parsed && parsed.sentence_patterns && parsed.sentence_patterns.length)
+    ? parsed.sentence_patterns.length
+    : (mockSentences.filter(s => s.isTodayCore === true).length || mockSentences.length);
+  // 任务 3 分母：到期复习词（needsReview 纯布尔计数）—— 与「今日新词」彻底区分，同复习页 tab=due 同源
   const reviewSource = (_wordsAll && _wordsAll.length) ? _wordsAll : (vocab || []);
-  const reviewCount = countReviewWords(reviewSource);
-  todos = [
-    {text:'导入今日日报',sub:hasTodayReport?'已完成':'把 ChatGPT 练习报告粘贴进来',done:hasTodayReport,action:hasTodayReport?null:()=>{showImportDialog();},tab:null},
-    {text:`复习 ${reviewCount} 个单词`,sub:reviewedToday>=reviewCount?`已复习 ${reviewedToday} 个`:`今日进度: ${reviewedToday}/${reviewCount}`,done:reviewedToday>=reviewCount,action:()=>{navigateReview('due');},tab:'words'},
-    {text:'完成一次口语练习',sub:hasTodayReport?'今天练习过了！':'打开 ChatGPT 开口说英语',done:hasTodayReport,action:hasTodayReport?null:()=>{navigateShadowing();},tab:'speak'}
+  const dueCount = countReviewWords(reviewSource);
+  const todos = [
+    // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
+    { text: '对练打卡 · 导入今日日报', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
+    // 任务 2（跟读打卡）：完成核心句型跟读 —— 点击直达今日跟读队列；录完最后一句自动打卡
+    { text: `跟读打卡 · 完成核心句型跟读 (${coreCount}句)`, sub: speakDoneToday ? '今日跟读已完成' : '点击进入今日跟读队列', done: !!speakDoneToday, action: () => { navigateShadowing(); } },
+    // 任务 3（复习打卡）：完成今日到期复习 —— 标明「到期复习」区别于「今日新词」，点击直达待复习队列
+    { text: `复习打卡 · 完成今日到期复习 (${dueCount}词)`, sub: dueCount === 0 ? '今日无到期词' : (reviewedToday >= dueCount ? `已复习 ${reviewedToday} 个到期词` : `到期复习进度 ${reviewedToday}/${dueCount} · 到期词，非今日新词`), done: dueCount === 0 || reviewedToday >= dueCount, action: () => { navigateReview('due'); } }
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -2136,6 +2147,10 @@ function updatePlayerView() {
   // 流式切换：下一句
   const next = document.getElementById('player-next');
   const last = _playerIndex === _playerSentences.length - 1;
+  // 跟读打卡闭环：录完最后一句 → 打当日完成戳（首页待办任务 2 自动完成）
+  if (last && _playerHasRecorded) {
+    try { localStorage.setItem('voco-speak-done', new Date().toISOString().slice(0, 10)); } catch (e) {}
+  }
   next.disabled = last;
   next.textContent = last ? '🎉 训练完成' : '下一句 →';
   next.className = `w-full py-4 rounded-2xl font-semibold text-base transition-all duration-200 ${last ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 text-white hover:bg-gray-800 shadow-md hover:shadow-lg'}`;
@@ -3095,5 +3110,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=60');
+  navigator.serviceWorker.register('/sw.js?v=61');
 }
