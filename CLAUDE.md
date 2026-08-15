@@ -47,10 +47,10 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v57）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v67）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v58）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v68）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v57 / voco-v67**。
+- 当前线上：**v58 / voco-v68**。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -74,7 +74,7 @@
   - `resolveActiveReport(reports)`：日报解析一律经此网关（今天 → _viewDate 历史视图 → 最新有效日报 → null），播放器/生词/错题共用，禁止 `r.date === today` 直连
   - `mergeReportVocab(snapshot, reportParsed)`：日报 newWords 完整并入全局词库（同名继承真实 id + 打 isNewToday，缺词 `rep-N` 追加）——首页/复习页绝对同源；`getFilteredVocab 'today'` 以日报生词为唯一事实源（与首页 `newCount = parsed.vocabulary.length` 一致），禁止打标词短路
   - `standardizeErrorCards(rawItems)`：所有错题渲染前必经清洗——碎片合并（`→`/`➡️`/`-` 开头的延续行并入前一条）+ 结构归一 `{id, original, correction, rule, type}`；单卡单外层容器
-  - `classifyErrorType(o, c, rule)`（parser.js 唯一分类源）：发音纠偏/时态语态/冠词使用/逻辑衔接/地道表达/其他 六类关键词+特征推断，`aggregateErrorPatterns` 与解析入库共用
+  - `classifyErrorType(o, c, rule)`（parser.js 唯一分类源）：**4 标准分类**——发音与重音/语法与句式/地道表达/逻辑与衔接（未命中→其他）；`normalizeErrorCategory(type,o,c,r)` 归一化器：旧标签（发音纠偏/时态语态/冠词使用/逻辑衔接/时态/冠词/preposition…）强制映射为 4 标准，存量「其他」按内容重算；`aggregateErrorPatterns` 聚合前必经归一化器（输出键只可能是 4 标准+其他，零同义分桶）；`showErrorPatterns` 建议优先练习**剔除「其他」**取真实最高具体弱点；`showErrorDetail` 逐行归一化过滤
   - 学习建议分流 `classifySuggestion`：sentence → `navigateShadowing('core-N')` 锚定 / vocab → `navigateReview` / coach → 私教任务弹窗（指引 + 一键复制 ChatGPT Prompt），**禁止盲跳播放器**
   - 教练卡跟读入口 `startImprovementSpeak(idx)`：携带用户点击句经 `navigateShadowing(undefined, sentence)` → `?sentence=` → loadSpeak 单句队列最高优先，**禁止无参 navigateShadowing 默认句开头**
   - 字段名唯一：`isNewToday`（打标/计数/过滤/兜底四处同源，历史教训 isTodayNew 分叉已修）
