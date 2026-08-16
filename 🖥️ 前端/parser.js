@@ -1,6 +1,31 @@
 // Voco — Daily Report / Topic Card / Insight Parser (JS version)
 // Parses ChatGPT-generated Markdown reports
 
+// ── 对话占比（Voco 2.0）：统计 User 与 Assistant 的角色词数 ──
+// 词数口径：英文按空格分词计数 + 中文按单字计数（混合语料公平）
+function countTranscriptWords(s) {
+  const latin = (String(s).match(/[A-Za-z]+(?:['’-][A-Za-z]+)*/g) || []).length;
+  const cjk = (String(s).match(/[一-鿿]/g) || []).length;
+  return latin + cjk;
+}
+
+// 扫描 Transcript：行首角色标注（User/Assistant/AI/Me/You/你/我/用户）统计双方词数
+// 无角色标注或总词数为 0 → 返回 null（UI 优雅降级，不硬造占比）
+function parseSpeakingRatio(text) {
+  const t = String(text || '');
+  let user = 0, ai = 0, hits = 0;
+  const lineRe = /^\s*\[?(User|Assistant|AI|Me|You|你|我|用户)\]?\s*[:：]\s*(.+?)\s*$/gim;
+  let m;
+  while ((m = lineRe.exec(t)) !== null) {
+    const role = String(m[1]).toLowerCase();
+    const words = countTranscriptWords(m[2]);
+    if (role === 'user' || role === 'me' || role === 'you' || role === '你' || role === '我' || role === '用户') user += words;
+    else ai += words;
+    hits++;
+  }
+  return (hits > 0 && (user + ai) > 0) ? { user, ai } : null;
+}
+
 // ── 分类规则提取引擎（4 标准分类归一化）────────────────────
 // 收敛为且仅收敛为：发音与重音 / 语法与句式 / 地道表达 / 逻辑与衔接，全部未命中才归「其他」。
 // 供解析器（parseItems）、app.js normalizeErrorCategory（存量标签映射）、高频错误模式聚合共用 —— 单一分类源。
@@ -98,6 +123,9 @@ function parseDailyReport(body, result) {
       result.summary.thoughts = content.trim();
       // 归一化提取：今日对话想法 → dailyThought { en, zh }（首页 Card B 动态渲染）
       result.summary.dailyThought = parseDailyThought(content);
+    } else if (header.includes('对话记录') || header.includes('Transcript') || header.includes('对话原文') || header.includes('逐字稿')) {
+      // Voco 2.0：对话占比 —— User/Assistant 角色词数（无有效记录 → null，UI 优雅降级）
+      result.summary.speakingRatio = parseSpeakingRatio(content);
     }
   }
 }
@@ -221,7 +249,7 @@ function parseSummary(text) {
   const m1 = text.match(/流利度[：:]\s*(\d+)/);
   const m2 = text.match(/准确度[：:]\s*(\d+)/);
   const m3 = text.match(/需要加强[：:]\s*(.+)/);
-  const m4 = text.match(/自然度[：:]\s*(\d+)/);
+  const m4 = text.match(/(?:自然度|地道与英文思维)[：:]\s*(\d+)/);
 
   if (m1) summary.fluency = parseInt(m1[1]);
   if (m2) summary.accuracy = parseInt(m2[1]);

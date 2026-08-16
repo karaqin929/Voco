@@ -616,11 +616,11 @@ function renderMetricsOverview() {
   const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds);
   // 时间网关（Voco 2.0）：今日未导入日报 → 数字全部清零（四维度 0/100、综合 --），绝不回退 Mock 或历史数据
   if (!ms.hasRealTodayReport) {
-    grid.innerHTML = metricsHTML('--', '--', '--', 0, 0, 0, 0, 0, 0, 0, 0);
+    grid.innerHTML = metricsHTML('--', '--', '--', 0, 0, 0, 0, 0, 0, 0, 0, null);
     refreshIcons(grid);
     return;
   }
-  const parsed = _reportParsed; // 单一事实源：loadWords 已强制 = 今日日报解析，禁止重新解析
+  const parsed = _reportParsed; // 单一事实源：buildGlobalMissionInputs 已强制 = 今日日报解析，禁止重新解析
   const fluency = Math.min((parsed.summary.fluency||0) * 10, 100);
   const accuracy = Math.min((parsed.summary.accuracy||0) * 10, 100);
   const natural = Math.min((parsed.summary.naturalness||Math.round((parsed.summary.fluency||0)*0.8)) * 10, 100);
@@ -632,7 +632,9 @@ function renderMetricsOverview() {
   const newWords = ms.todayNewWordsCount;
   const expressions = (parsed.patterns || []).length;
   const corrections = ms.todayCorrectionsCount;
-  grid.innerHTML = metricsHTML(overall, speakTime, duration, fluency, accuracy, vocabScore, natural, topics, newWords, expressions, corrections);
+  // Voco 2.0 对话占比：parser.js parseSpeakingRatio 的角色词数（无记录 → null，条内优雅降级）
+  const ratio = (parsed.summary && parsed.summary.speakingRatio) || null;
+  grid.innerHTML = metricsHTML(overall, speakTime, duration, fluency, accuracy, vocabScore, natural, topics, newWords, expressions, corrections, ratio);
   refreshIcons(grid);
 }
 
@@ -643,20 +645,36 @@ function norm100(v) {
   return Math.max(0, Math.min(100, Math.round(n <= 10 ? n * 10 : n)));
 }
 
-function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natural, topics, newWords, expressions, corrections) {
+function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natural, topics, newWords, expressions, corrections, ratio) {
+  // Voco 2.0 对话占比：你 X% | AI Y%（双色条，数据来自 parser.js parseSpeakingRatio 角色词数）
+  const ratioHTML = (ratio && (ratio.user + ratio.ai) > 0)
+    ? (() => {
+        const userPct = Math.max(0, Math.min(100, Math.round(ratio.user / (ratio.user + ratio.ai) * 100)));
+        const aiPct = 100 - userPct;
+        return `<div class="mt-2">
+          <div class="flex justify-between text-[11px] font-semibold mb-1"><span class="text-[var(--c-primary)]">你 ${userPct}%</span><span class="text-[var(--c-text-dim)]">AI ${aiPct}%</span></div>
+          <div class="w-full h-2 rounded-full overflow-hidden flex bg-[var(--c-border-light)]">
+            <div class="h-full transition-all duration-700" style="width:${userPct}%;background:var(--c-primary)"></div>
+            <div class="h-full transition-all duration-700" style="width:${aiPct}%;background:var(--c-blue)"></div>
+          </div>
+          <div class="text-[10px] text-[var(--c-text-ultradim)] mt-1">对话占比 · 你 ${ratio.user} 词 / AI ${ratio.ai} 词</div>
+        </div>`;
+      })()
+    : `<div class="mt-2 text-[10px] text-[var(--c-text-ultradim)]">对话占比 · 导入含对话记录的日报后展示</div>`;
   return `
     <div class="flex items-center gap-5 mb-4">
       <div class="relative shrink-0 w-[88px] h-[88px]">${metricsDonut(overall)}</div>
-      <div class="flex flex-col gap-0.5">
+      <div class="flex flex-col gap-0.5 flex-1">
         <div class="text-xl font-bold text-[var(--c-text)] flex items-center gap-1">${icon('mic','w-[18px] h-[18px] text-[var(--c-primary)]')} ${speakMin||'--'}m / 共 ${totalMin||'--'}m</div>
         <div class="text-xs text-[var(--c-text-dim)]">开口时长 / 总时长</div>
+        ${ratioHTML}
       </div>
     </div>
     <div class="grid grid-cols-2 gap-x-6 gap-y-4 mb-3.5">${[
       {l:'流利度',s:norm100(fluency),c:'var(--c-primary)'},
       {l:'语法',s:norm100(grammar),c:'var(--c-blue)'},
       {l:'词汇',s:norm100(vocab),c:'var(--c-green)'},
-      {l:'自然度',s:norm100(natural),c:'var(--c-orange)'}
+      {l:'地道与英文思维',s:norm100(natural),c:'var(--c-orange)'}
     ].map(b=>`
       <div class="flex flex-col">
         <div class="flex justify-between text-xs text-[var(--c-text-dim)] mb-1.5">
@@ -793,8 +811,8 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
       </div>
     `);
   }).join('');
-  // Card E: Next Steps — contextual action per suggestion
-  html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 下一次学习建议</div>${d.nextSteps.map((ns,i)=>`<div class="flex justify-between items-center py-2.5 border-b border-[var(--c-border-light)] gap-3 last:border-b-0 cursor-pointer active:bg-[var(--c-border-light)] -mx-4 px-4 transition-colors" onclick="showNextStepDetail(${i})"><div class="flex items-start gap-2.5 flex-1 min-w-0"><div class="w-[22px] h-[22px] rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] text-xs font-bold flex items-center justify-center shrink-0">${i+1}</div><div class="text-[13px] text-[var(--c-text)] leading-[1.5] line-clamp-2">${h(ns.step)}</div></div><div class="shrink-0 inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 rounded-2xl whitespace-nowrap transition-all duration-150">${h(ns.action)} ${icon('arrow-right','w-3 h-3')}</div></div>`).join('')}`);
+  // Card E: 今日对战胶囊（Voco 2.0）—— 取代原「下一次学习建议」3 条分散列表，一个超级按钮直出私教 Prompt
+  html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 今日私教对战</div>${missionCapsuleHTML()}`);
   container.innerHTML = html;
   refreshIcons(container);
 }
@@ -1146,12 +1164,36 @@ function parseSmartReport(content) {
         for (const k of ['fluency', 'accuracy', 'naturalness']) {
           if (typeof s[k] === 'number' && normalized.summary[k] === undefined) normalized.summary[k] = s[k];
         }
+        // ④ 对话占比（Voco 2.0）：优先 JSON transcript 数组（role/content），否则扫原始文本角色标注行
+        if (!normalized.summary.speakingRatio) {
+          const tr = j.transcript || j.conversation;
+          if (Array.isArray(tr)) {
+            let u = 0, a = 0;
+            tr.forEach(line => {
+              const role = String((line && (line.role || line.speaker)) || '').toLowerCase();
+              const w = countTranscriptWords(String((line && (line.content || line.text)) || ''));
+              if (role.includes('user') || role.includes('me') || role === '你' || role === '我') u += w;
+              else if (role.includes('assistant') || role.includes('ai')) a += w;
+            });
+            if (u + a > 0) normalized.summary.speakingRatio = { user: u, ai: a };
+          }
+          if (!normalized.summary.speakingRatio) {
+            const ratio = parseSpeakingRatio(t);
+            if (ratio) normalized.summary.speakingRatio = ratio;
+          }
+        }
         return normalizeDailyData(normalized);
       }
     } catch (e) { /* 非法 JSON → 回退 Markdown 解析器 */ }
   }
   // ③ 传统 Markdown 解析产物同样过清洗层（原解析引擎 parser.js 不修改）
-  return normalizeDailyData(parseReport(t));
+  const markdownParsed = normalizeDailyData(parseReport(t));
+  // 对话占比兜底：Markdown 未含「对话记录」节时，全文扫角色标注行（User:/AI: 等）
+  if (!markdownParsed.summary.speakingRatio) {
+    const ratio = parseSpeakingRatio(t);
+    if (ratio) markdownParsed.summary.speakingRatio = ratio;
+  }
+  return markdownParsed;
 }
 
 // ── JSON 日报归一化 + 前端约定标签自动打标 ──────────────
@@ -1525,6 +1567,7 @@ function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocab
     todayCorrectionsCount,
     totalDueVocabCount,
     reviewedVocabToday,
+    dueVocabList, // 真实待复习词表（对战胶囊 3+1+1 组装数据字典：取前 3 词）
     // 只有总数大于 0，且实际复习数达标，才算真正完成打卡（dueCount===0 保持未完成，禁止加载默认值误判）
     isReviewFinished: totalDueVocabCount > 0 && reviewedVocabToday >= totalDueVocabCount
   };
@@ -1550,6 +1593,44 @@ function generateDailyMissionPrompt(dueVocabList, corePatterns, grammarErrors) {
 
   return `作为我的英语口语私教，请开启今天的对话。在接下来的交流中，请你自然地引导我使用以下词汇：[${targetWords}]，以及句型：[${targetPattern}]。并且在对话结束时，请严格检查我是否犯了关于 [${targetError}] 的语法毛病，给出反馈。`;
 }
+// ── 今日对战胶囊（Voco 2.0）：一个主视觉大按钮 → SSOT 数据字典 → 私教 Prompt → 剪贴板 ──
+function missionCapsuleHTML() {
+  return `<button id="btn-mission-prompt" onclick="fireDailyMissionPrompt(this)" class="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]" style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
+    🎯 获取今日私教对战 Prompt ${icon('sparkles','w-4 h-4')}
+  </button>`;
+}
+
+async function fireDailyMissionPrompt(btn) {
+  // 数据字典一律直取任务状态中心（SSOT）：3 个待复习词 + 今日核心句型 + 历史语法错误
+  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds);
+  const prompt = generateDailyMissionPrompt(ms.dueVocabList, _dailyPatterns, _errorsAll || []);
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(prompt);
+    copied = true;
+  } catch (e) {
+    // 降级：非安全上下文 / 权限拒绝 → 隐藏 textarea 复制
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = prompt;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      copied = document.execCommand('copy');
+      ta.remove();
+    } catch (e2) { copied = false; }
+  }
+  if (!copied) { showToast('复制失败，请长按文本手动复制'); return; }
+  const originalHTML = btn.innerHTML;
+  const originalStyle = btn.getAttribute('style') || '';
+  btn.innerHTML = `✅ 已复制！去 ChatGPT 开口吧 ${icon('external-link','w-4 h-4')}`;
+  btn.style.background = 'var(--c-green)';
+  btn.style.boxShadow = 'none';
+  refreshIcons(btn);
+  setTimeout(() => { btn.innerHTML = originalHTML; btn.setAttribute('style', originalStyle); refreshIcons(btn); }, 2000);
+  showToast('📋 今日对战 Prompt 已复制');
+}
+
 // 模块三：待复习混合记忆引擎状态（needsReview 单词 + 语法错题统一卡组流式打卡）
 let _dueDeck = [];
 let _dueIdx = 0;
@@ -2399,6 +2480,85 @@ async function loadMe() {
   } else {
     document.getElementById('error-patterns-group').classList.add('hidden');
   }
+
+  // Voco 2.0：近 7 天综合得分趋势（Chart.js，莫兰迪绿/大地色系）
+  renderTrendChart();
+}
+
+// ── 近 7 天趋势图（Voco 2.0）：历史 reports 综合得分 → Chart.js 平滑折线 ──
+// 综合得分口径与首页打分板完全一致：流利度/语法/词汇/地道与英文思维 四维度 norm100 均值
+let _trendChart = null;
+async function renderTrendChart() {
+  const canvas = document.getElementById('trendChart');
+  if (!canvas || typeof Chart === 'undefined') return; // CDN 未加载 → 静默降级，不阻塞 Profile
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  const { data: reports } = await sb.from('reports').select('date, content').order('date', { ascending: false }).limit(90);
+  // 最近 7 个本地日历日（含今天），getLocalToday 时区安全
+  const days = [];
+  for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(fmtLocalDate(d)); }
+  const scoreMap = {};
+  (reports || []).forEach(r => {
+    if (!r.date || !days.includes(r.date) || !isDailyReport(r)) return;
+    if (r.date in scoreMap) return;
+    try {
+      const p = parseSmartReport(r.content);
+      const f = norm100(p.summary.fluency);
+      const a = norm100(p.summary.accuracy);
+      const n = norm100(p.summary.naturalness || Math.round((p.summary.fluency || 0) * 0.8));
+      const v = Math.min((p.vocabulary || []).length * 20, 100);
+      scoreMap[r.date] = Math.round((f + a + n + v) / 4);
+    } catch (e) { /* 单日解析失败 → 该日留空（gap），绝不拖垮整图 */ }
+  });
+  if (_trendChart) _trendChart.destroy();
+  _trendChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: days.map(d => d.slice(5).replace('-', '/')),
+      datasets: [{
+        label: '综合得分',
+        data: days.map(d => (d in scoreMap ? scoreMap[d] : null)),
+        borderColor: '#8A9B6E',                    // 莫兰迪鼠尾草绿
+        backgroundColor: 'rgba(138,155,110,0.15)', // 曲线下方柔雾填充
+        pointBackgroundColor: '#6B7D54',           // 深橄榄绿数据点
+        pointBorderColor: '#FFFDF9',
+        pointBorderWidth: 1.5,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.4,                              // 平滑曲线（用户指定）
+        spanGaps: false                            // 缺日留空，不造假连线
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          min: 0, max: 100,
+          ticks: { stepSize: 20, color: '#A49A87', font: { size: 10 } },
+          grid: { color: 'rgba(164,154,135,0.18)' }
+        },
+        x: {
+          ticks: { color: '#A49A87', font: { size: 10 } },
+          grid: { display: false }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#4A4438',
+          titleColor: '#F5F1E8',
+          bodyColor: '#F5F1E8',
+          padding: 10,
+          callbacks: {
+            label: ctx => (ctx.parsed.y == null ? '暂无数据' : `综合得分 ${ctx.parsed.y} / 100`)
+          }
+        }
+      }
+    }
+  });
 }
 
 // ── Level System ───────────────────────────────────────
@@ -3230,5 +3390,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=65');
+  navigator.serviceWorker.register('/sw.js?v=66');
 }

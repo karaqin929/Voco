@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=65">
+  <link rel="stylesheet" href="/style.css?v=66">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -296,6 +296,15 @@
       </div>
     </div>
 
+    <!-- Group: 7-Day Trend (Voco 2.0 评分趋势) -->
+    <div class="mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i> 近 7 天综合得分</div>
+      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] p-4" style="box-shadow:var(--c-shadow-sm)">
+        <div class="relative h-[180px]"><canvas id="trendChart"></canvas></div>
+        <div class="text-[10px] text-[var(--c-text-ultradim)] text-center mt-2">综合得分 = 流利度 / 语法 / 词汇 / 地道与英文思维 四维度均值（0–100）</div>
+      </div>
+    </div>
+
     <!-- Group: Data Management -->
     <div class="mb-4">
       <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="database" class="w-3.5 h-3.5"></i> 数据管理</div>
@@ -376,8 +385,9 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
-<script src="/supabase-client.js?v=65"></script>
-<script src="/parser.js?v=65"></script>
-<script src="/app.js?v=65"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/supabase-client.js?v=66"></script>
+<script src="/parser.js?v=66"></script>
+<script src="/app.js?v=66"></script>
 </body>
 </html>
