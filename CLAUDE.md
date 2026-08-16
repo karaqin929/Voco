@@ -50,7 +50,7 @@
 - **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
 - **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v63 / voco-v73**（v63：时间网关 + 任务状态中心 + 业务概念分离 + 预览登录页删除）。
+- 当前线上：**v64 / voco-v74**（v64：时区安全 getLocalToday 全局替换，根治 UTC 穿透）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -100,6 +100,7 @@
   - **打卡严格条件**：复习打卡 `done = totalDueVocabCount > 0 && reviewedVocabToday >= totalDueVocabCount`——dueCount===0 保持未完成，严禁加载默认值误判
   - **跟读页今日队列闸**：loadSpeak 默认队列严格今日（无 _viewDate 时只认 r.date===today 的日报，无日报 → 空队列走播放器空状态「没有要训练的内容」）；`coreDeck(parsed,…)` parsed 存在即唯一事实源（0 句就 0 句），回退链仅服务显式 `?filter=core_sentences` 视图
   - **UI 清理**：Profile「预览登录页」整行 DOM 已物理删除；错误模式分析「其他」固定沉底（aggregateErrorPatterns rest.concat(others)）复核通过
+- **v64 时区安全（铁律：严禁 toISOString().slice(0,10) 定义 today）**：UTC 日期会让东八区用户 0:00–8:00 滞留在「昨天」，跨日复习任务不刷新、待办锁死。全局唯一「今天」来源 `getLocalToday()`（app.js 顶部，setMinutes 减时区偏移后截断）；辅助 `fmtLocalDate(d)`（任意 Date → 本地 YYYY-MM-DD，SM-2 next_review_date / streak 昨日回推用）、`localDateOf(isoTs)`（存储层 UTC 时间戳 → 本地日历日，**last_reviewed_at 比对必须换算后比今天**——存储写入保持 `new Date().toISOString()` 全量 UTC 不变，只在读取比对时换算）。替换位置：calcStreak、loadHome、loadWords、loadSpeak、isTodayParsedGate、parseSmartReport meta.date、SM-2 next_review_date、voco-speak-done 打卡戳、导入打点 date/date_added、导出文件名等全部 16 处 today 计算点 + 2 处 nextDate 格式化 + 1 处 last_reviewed_at 比对
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist
