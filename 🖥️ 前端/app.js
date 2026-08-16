@@ -260,7 +260,7 @@ let _viewDate = null; // null=today, else 'YYYY-MM-DD' for history view
 // ── Mock Dashboard Data (powers all cards when no real report) ──
 const mockDashboardData = {
   user: { name: 'kk' },
-  status: { hasReport: true, lastSync: '2026-08-12 18:30' },
+  status: { hasReport: true, lastSync: getLocalToday() + ' 18:30' }, // v79：去硬编码日期，mock 同步时间跟随本地今天
   quote: {
     en: "The limits of my language mean the limits of my world.",
     zh: "语言的边界，就是世界的边界。",
@@ -2077,7 +2077,7 @@ function renderErrorCards(items) {
 
 // ── 模块三：待复习混合记忆引擎（Active Recall + SM-2 双阶段交互）──────────
 // 队列 = needsReview===true 的单词 + 语法错题，统一卡组流式打卡；
-// 正面遮罩（词卡仅英文+音标 / 错题仅错误句）→ [👁️ 点击显示答案] → 背面完整解析 + 双反馈按钮
+// 正面遮罩（词卡仅英文+音标 / 错题 = 动态徽章 + 原句小字灰显 + 回忆引导）→ [点击显示答案] → 背面完整解析 + 双反馈按钮
 function buildDueDeck() {
   const words = _wordsAll.filter(v => v.needsReview === true)
     .sort((a, b) => (a.next_review_date || '0000') < (b.next_review_date || '0000') ? -1 : 1)
@@ -2232,25 +2232,31 @@ function renderDueDeck() {
   showDueCard();
 }
 
-// 未展开（正面）：词卡仅英文+音标（遮挡中文释义与例句）；错题卡仅错误句（遮挡纠正与规则）
-// 中央统一 [👁️ 点击显示答案]；展开后（背面）底部切换 [没记住] [记住了]（v76 统一 ReviewButton 模板）
+// 未展开（正面）：词卡仅英文+音标（遮挡中文释义与例句）；错题卡按正向输入原则——动态徽章 + 原句小字灰显对照 + 中性回忆引导（大字号错误句主视觉已废弃）
+// 中央统一 [眼睛图标 点击显示答案]（v79 去 emoji，Lucide 图标 + 纯文本）；展开后（背面）底部切换 [没记住] [记住了]（v76 统一 ReviewButton 模板）
 function showDueCard() {
   const item = _dueDeck[_dueIdx];
   if (!item) return;
   _dueRevealed = false;
   const front = item.kind === 'word'
     ? `<div class="text-[22px] font-bold text-[var(--c-text)]">${h(item.word)}</div>${item.phonetic ? `<div class="text-sm text-[var(--c-primary)] mt-1">${h(item.phonetic)}</div>` : ''}`
-    : `<span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md bg-red-50 text-[var(--c-red)] mb-2">⚠️ ${h(item.error.issue || '语法纠错')}</span><div class="text-[16px] text-[var(--c-text)] leading-relaxed">${h(item.error.original)}</div>`;
+    : (() => {
+        const b = errorBadge(item.error.type, item.error.type === 'pronunciation' ? '发音纠正' : '语法纠错');
+        return `<span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.cls}">${b.label}</span>
+          <div class="text-xs text-[var(--c-text-ultradim)] mt-2">原句：${h(item.error.original)}</div>
+          <div class="flex items-center justify-center gap-1.5 text-[13px] text-[var(--c-text-dim)] mt-4">${icon('lightbulb','w-4 h-4')} 回忆正确的英文表达</div>`;
+      })();
   document.getElementById('due-card').innerHTML = `
     <div id="due-card-body" class="bg-[var(--c-surface)] rounded-2xl p-6 border border-[var(--c-border-light)] text-center transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
       ${front}
       <div id="due-answer-area"></div>
-      <button id="due-reveal-btn" class="w-full mt-5 py-3 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] border-0 rounded-2xl text-sm font-semibold text-[var(--c-primary)] cursor-pointer transition-all">👁️ 点击显示答案</button>
+      <button id="due-reveal-btn" class="w-full mt-5 py-3 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] border-0 rounded-2xl text-sm font-semibold text-[var(--c-primary)] cursor-pointer transition-all inline-flex items-center justify-center gap-1.5">${icon('eye','w-4 h-4')} 点击显示答案</button>
       <div id="due-feedback" class="hidden"></div>
     </div>`;
   document.getElementById('due-reveal-btn').addEventListener('click', revealDueAnswer);
   document.getElementById('due-progress-text').textContent = `待复习 ${_dueIdx + 1}/${_dueDeck.length}`;
   document.getElementById('due-progress-fill').style.width = `${((_dueIdx + 1) / _dueDeck.length) * 100}%`;
+  refreshIcons(document.getElementById('due-card'));
 }
 
 function revealDueAnswer() {
@@ -2259,10 +2265,11 @@ function revealDueAnswer() {
   document.getElementById('due-reveal-btn').remove();
   const ansArea = document.getElementById('due-answer-area');
   if (item.kind === 'word') {
-    ansArea.innerHTML = `<div class="text-sm text-[var(--c-text-dim)] mt-4 pt-4 border-t border-[var(--c-border-light)]">${h(item.meaning || '（暂无释义）')}</div>${item.example ? `<div class="text-xs text-[var(--c-text-dim)] italic mt-2 p-2.5 bg-[var(--c-bg)] rounded-lg text-left">💬 ${h(item.example)}</div>` : ''}`;
+    ansArea.innerHTML = `<div class="text-sm text-[var(--c-text-dim)] mt-4 pt-4 border-t border-[var(--c-border-light)]">${h(item.meaning || '（暂无释义）')}</div>${item.example ? `<div class="text-xs text-[var(--c-text-dim)] not-italic mt-2 p-2.5 bg-[var(--c-bg)] rounded-lg text-left flex items-start gap-1.5">${icon('message-circle','w-3.5 h-3.5 mt-px shrink-0')}<span>${h(item.example)}</span></div>` : ''}`;
   } else {
+    // v79：错题背面按 CorrectionCard 正向规格 —— 绿色正确句居中为主视觉（去 → 箭头旧碎片），规则框无 emoji
     const e = item.error;
-    ansArea.innerHTML = `${e.correction ? `<div class="text-[16px] font-semibold text-[var(--c-green)] mt-4 pt-4 border-t border-[var(--c-border-light)] text-left">→ ${h(e.correction)}</div>` : ''}${e.rule ? `<div class="text-xs text-[var(--c-text-ultradim)] text-left mt-2 p-2.5 bg-[var(--c-bg)] rounded-lg">📖 ${h(e.rule)}</div>` : ''}`;
+    ansArea.innerHTML = `${e.correction ? `<div class="text-[17px] font-bold text-[var(--c-green)] text-center mt-4 pt-4 border-t border-[var(--c-border-light)]">${h(e.correction)}</div>` : ''}${e.rule ? `<div class="text-xs text-[var(--c-text-ultradim)] text-left mt-3 p-2.5 bg-[var(--c-bg)] rounded-lg">${h(e.rule)}</div>` : ''}`;
   }
   const fb = document.getElementById('due-feedback');
   fb.className = 'mt-5 flex items-center justify-center gap-3';
@@ -3713,5 +3720,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=78');
+  navigator.serviceWorker.register('/sw.js?v=79');
 }

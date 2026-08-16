@@ -243,7 +243,7 @@ body {
 .vocab-card .word { font-size: 20px; font-weight: 700; color: var(--text); }
 .vocab-card .phonetic { font-size: 13px; color: var(--primary); margin-left: 8px; }
 .vocab-card .meaning { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
-.vocab-card .example { font-size: 12px; color: var(--text-dim); font-style: italic; margin-top: 6px; padding: 8px 10px; background: var(--bg); border-radius: 6px; }
+.vocab-card .example { font-size: 12px; color: var(--text-dim); margin-top: 6px; padding: 8px 10px; background: var(--bg); border-radius: 6px; }
 .vocab-card .card-actions {
   display: flex; gap: 6px; margin-top: 12px; padding-top: 10px;
   border-top: 1px solid var(--border-light); align-items: center; justify-content: space-between;
@@ -265,16 +265,6 @@ body {
 .badge-status.new { background: var(--blue-light); color: var(--blue); }
 .badge-source { font-size: 10px; padding: 2px 8px; background: var(--bg); color: var(--text-ultradim); border-radius: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .badge-done { font-size: 11px; padding: 3px 8px; background: var(--green-light); color: var(--green); border-radius: 20px; }
-
-/* Error card */
-.error-card {
-  background: var(--card); border-radius: var(--radius); padding: 16px;
-  margin-bottom: 10px; box-shadow: var(--shadow-sm); border-left: 3px solid var(--red);
-}
-.error-card .err-type { font-size: 10px; text-transform: uppercase; color: var(--red); font-weight: 600; letter-spacing: 0.5px; margin-bottom: 6px; }
-.error-card .err-orig { color: var(--text-ultradim); text-decoration: line-through; font-size: 13px; }
-.error-card .err-corr { color: var(--green); font-size: 14px; font-weight: 500; margin-top: 2px; }
-.error-card .err-rule { font-size: 12px; color: var(--text-dim); margin-top: 6px; padding: 8px 10px; background: var(--bg); border-radius: 6px; }
 
 /* SRS dots */
 .srs-dots { display: flex; gap: 3px; align-items: center; }
@@ -393,8 +383,7 @@ textarea::placeholder { color: var(--text-ultradim); }
 /* Dark mode overrides */
 [data-mode="dark"] body { background: var(--bg); color: var(--text); }
 [data-mode="dark"] .app-header, [data-mode="dark"] .tab-bar { background: var(--surface); border-color: var(--border); }
-[data-mode="dark"] .vocab-card,
-[data-mode="dark"] .error-card { background: var(--surface); }
+[data-mode="dark"] .vocab-card { background: var(--surface); }
 [data-mode="dark"] input, [data-mode="dark"] textarea, [data-mode="dark"] select { background: var(--bg); color: var(--text); border-color: var(--border); }
 
 /* Eye-care mode overrides */

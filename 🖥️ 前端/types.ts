@@ -262,7 +262,7 @@ export type WordsViewMode = 'all' | 'today' | 'errors';
 export function createMockDashboardData(): DashboardData {
   return {
     user: { name: 'kk' },
-    status: { hasReport: true, lastSync: '2026-08-12 18:30' },
+    status: { hasReport: true, lastSync: '' },
     quote: {
       en: "The limits of my language mean the limits of my world.",
       zh: "语言的边界，就是世界的边界。",
