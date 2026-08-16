@@ -156,9 +156,34 @@ function parseTopicCard(body, result) {
     const content = lines.slice(1).join('\n');
 
     if (header.includes('关键术语') || header.includes('生词') || header.includes('关键词')) {
-      result.vocabulary = parseVocabulary(content);
+      // v83：话题卡「关键术语」为三段契约 term | definition | example（无音标段），
+      // 与日报生词 parseVocabulary 的四段契约（word|phonetic|meaning|example）不同 ——
+      // 严禁混用导致 definition 错位进 phonetic；四段输入仍兼容透传
+      result.vocabulary = parseTopicTerms(content);
     }
   }
+}
+
+// 话题卡关键术语解析（v83）：三段 term | definition | example → word/meaning/example（phonetic 留空）
+// 兼容两段（term | definition）与四段（含音标）输入，绝不字段错位
+function parseTopicTerms(text) {
+  const words = [];
+  const lines = text.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.replace(/^[-*]\s*/, '').trim();
+    if (!trimmed || trimmed.startsWith('[')) continue;
+
+    const parts = trimmed.split('|').map(s => s.trim());
+    if (parts.length >= 4) {
+      words.push({ word: parts[0] || '', phonetic: parts[1] || '', meaning: parts[2] || '', example: parts.slice(3).join(' | ') || '' });
+    } else if (parts.length === 3) {
+      words.push({ word: parts[0] || '', phonetic: '', meaning: parts[1] || '', example: parts[2] || '' });
+    } else if (parts.length === 2) {
+      words.push({ word: parts[0] || '', phonetic: '', meaning: parts[1] || '', example: '' });
+    }
+  }
+  return words;
 }
 
 function parseInsightReport(body, result) {

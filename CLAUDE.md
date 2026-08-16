@@ -47,10 +47,14 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v82）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v92）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v83）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v93）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v82 / voco-v92**（首页私教对战 Prompt 模块彻底移除 + 5 入口日期路由重构）。
+- 当前线上：**v83 / voco-v93**（JSON 日报 duration 时长链路修复 + 模板 audit 对齐）。
+- v83 要点：
+  - JSON 日报时长三层修复：① `normalizeJsonReport` meta.duration 提取（顶层 duration / summary.duration / durationMinutes）；② `importJsonDailyReport` updateProgress 不再硬编码 0（时长 + fluency/accuracy 与 Markdown 路径 importDailyReport 对齐）；③ 模板双处补 duration 必填字段（`📋 日报模板/ChatGPT日报Prompt.md` + app.js `TEMPLATES.report`）。
+  - 话题卡字段错位修复：parser.js 新增 `parseTopicTerms`（三段契约 term|definition|example → word/meaning/example，phonetic 留空），parseTopicCard「关键术语/生词/关键词」改走专用解析，严禁混用日报 parseVocabulary 四段契约。
+  - 首页开口时长口径：`renderMetricsOverview` speakTime = duration×0.6（总时长来自 parsed.meta.duration）。
 - v82 架构要点：
   - 日期路由：`_ctxDate`（URL `?date=YYYY-MM-DD` 非今日上下文）+ `_reportsCache`（最近 90 条 reports 行）+ `parsedReportFor(date)`（今日→_reportParsed / _viewDate→_historyParsed / 其余现解析，Map 缓存）；解析点：handleRoute / loadWords / loadSpeak 三处读 URL。
   - `navigateReview(tab, filter, date)` / `navigateShadowing(id, sentence, date)` 第三参 date：历史视图（historyMode）下统计三卡携带 `_viewDate`；待办打卡动作先清 `_viewDate/_historyParsed/_ctxDate` 再导航（保证今日到期队列严格，绝不历史劫持）。

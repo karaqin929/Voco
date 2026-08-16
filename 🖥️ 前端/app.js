@@ -1287,8 +1287,11 @@ function normalizeJsonReport(j, raw) {
       grammar.push({ original: m.original, correction: m.improved || '', rule: m.explanation || '', type: 'grammar' });
     }
   }
+  // v83 时长透传：顶层 duration / summary.duration / summary.durationMinutes（分钟数）
+  // 首页开口时长 = duration×0.6（renderMetricsOverview），JSON 日报此前丢该字段导致 8.13/8.15 时长缺失
+  const dur = Number(j.duration || (s.duration) || (s.durationMinutes) || 0);
   return {
-    meta: { type: 'daily-report', topic: s.topic || '', date: getLocalToday() },
+    meta: { type: 'daily-report', topic: s.topic || '', date: getLocalToday(), duration: (dur > 0 ? dur : 0) },
     grammar,
     pronunciation: [],
     patterns,
@@ -3042,9 +3045,10 @@ const TEMPLATES = {
 请务必仅返回合法的 JSON 格式数据，不要包含任何额外的解释文本，不要使用 Markdown 代码块标记。JSON 结构必须严格如下：
 
 {
+  "duration": 25,
   "summary": {
     "topic": "今天对话的核心主题标签",
-    "thought": "一句鼓励性的学习金句（英文及中文翻译）",
+    "thought": "对话后的反思（中文，第一人称）",
     "strengths": ["优点1", "优点2", "优点3"],
     "nextSteps": ["下一次练习建议1", "建议2"]
   },
@@ -3061,9 +3065,10 @@ const TEMPLATES = {
 }
 
 硬性要求：
-1. mistakes 数组必须严格区分两类：type 为 "grammar" 的条目是语法硬伤（时态、单复数、冠词等）；type 为 "expression" 的条目是语法正确但不够地道的表达升级，两者绝不能混用。
-2. coreSentences 必须同时包含高阶金句 targetSentence 和被替换的平庸句 replacedSentence。
-3. 每个数组至少提供 1 条、最多 5 条；newWords 给出 3 到 5 个今天实际出现过的生词。`,
+1. duration 必须输出：本次对话练习的总时长分钟数（数字，用于首页「开口时长 / 总时长」）。
+2. mistakes 数组必须严格区分两类：type 为 "grammar" 的条目是语法硬伤（时态、单复数、冠词等）；type 为 "expression" 的条目是语法正确但不够地道的表达升级，两者绝不能混用。
+3. coreSentences 必须同时包含高阶金句 targetSentence 和被替换的平庸句 replacedSentence；建议 5 到 8 句。
+4. newWords 给出 5 到 12 个今天实际出现过的生词。`,
   topic: `请为以下内容生成 Voco 话题卡：
 
 [在此粘贴视频描述、文章内容或链接]
@@ -3202,7 +3207,10 @@ async function importJsonDailyReport(jsonReport, rawText) {
 
   // 4) 原始 JSON 原样入库（下游 parseSmartReport 每次读取时统一归一化打标 → 上下游绝对对齐）
   await sb.from('reports').upsert({ user_id: uid, date, content: rawText }, { onConflict: 'user_id,date' });
-  await updateProgress(uid, 0, 0, '', topic, 0);
+  // v83 时长/评分落 progress 表：与 Markdown 路径 importDailyReport 对齐（此前硬编码 0，时长与趋势数据双丢）
+  const s2 = (jsonReport.summary && typeof jsonReport.summary === 'object') ? jsonReport.summary : {};
+  const dur = parseInt(String((jsonReport.duration || s2.duration || s2.durationMinutes) || ''), 10) || 0;
+  await updateProgress(uid, Number(s2.fluency) || 0, Number(s2.accuracy) || 0, '', topic, dur);
 
   if (topic) {
     const { data: existingTopic } = await sb.from('topics').select('id').eq('title', topic).maybeSingle();
