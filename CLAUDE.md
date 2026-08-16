@@ -50,7 +50,7 @@
 - **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
 - **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v62 / voco-v72**（v62：今日对话想法去硬编码 + dailyThought 动态渲染）。
+- 当前线上：**v63 / voco-v73**（v63：时间网关 + 任务状态中心 + 业务概念分离 + 预览登录页删除）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -93,6 +93,13 @@
 - JSON 日报 schema：`{summary:{topic,thought,strengths[],nextSteps[],fluency,accuracy,naturalness}, mistakes:[{type:'grammar'|'expression',original,improved,explanation}], coreSentences:[{targetSentence,replacedSentence,explanation}], newWords:[{word,phonetic,meaning,example}]}`
   - 自动打标：newWords→isNewToday、coreSentences→isTodayCore、mistakes→grammar/patterns 分流
 - 今日对话想法（v62，零硬编码金句）：`parseDailyThought(text)`（parser.js）产出 `{en, zh}`（支持 EN/ZH 双行标注、单行按中英文占比判断）；Markdown「对话想法/今日心得」→ `summary.dailyThought`；JSON `summary.dailyThought` 对象透传，否则从 `thought` 提取；首页 Card B 优先读 `_reportParsed.summary.dailyThought`，空值显示引导文案「💡 导入今日日报后…」；**parser 铁律：`表现总结` 分支必须 Object.assign 原地合并，严禁整体替换 summary（会抹掉 dailyThought/thoughts）**
+- **v63 架构重构（时间网关 + 任务状态中心 + 业务概念分离）**：
+  - **Date-Scoping 时间网关**：`loadWords` 强制 `_reportParsed` 只来自报表行 `r.date === today`（**严禁 resolveActiveReport 的「最新有效日报」历史回退产物流入**——历史报告会被打 isNewToday 造成时间轴穿透），并回写 `meta.date = 行日期`；任何「今日」前缀数据放行前必须过 `isTodayParsedGate()`（校验 `_reportParsed.meta.date === today`）。无今日日报 → 今日想法/做得好的地方/新学单词句型数全部清零或空状态「⏳ 等待导入今日报告」（insights 整区空状态卡；metrics 四维度 0/100 + 综合 `--`，metricsDonut 对非数字出空环禁 NaN）
+  - **全局任务状态中心**：`getTodayMissionState()` 单一事实源——`hasTodayReport` / `todayNewWordsCount`（今日日报 vocabulary）/ `todayCorePatternCount`（今日日报 sentence_patterns）/ `todayCorrectionsCount` / `totalDueVocabCount`（needsReview 全量，与 tab=due 同源）/ `reviewedVocabToday`（加载层 last_reviewed_at 比对上收进 `_reviewedVocabToday`）。首页四组件（renderMetricsOverview/renderInsightsSection/renderContentCards/renderTodoList）**全部只读任务状态中心，禁止自行 .length/parseSmartReport/Mock 兜底**；有真实数据时严禁回退 mockWords 3 词 / mockSentences 2 句
+  - **业务概念分离**：顶部数据卡=今日增量（新学单词只算今日日报 vocabulary → `/review?filter=today`；核心句型只算今日日报解析数 → 今日句型队列）；底部待办=SM-2 记忆任务（复习打卡读 needsReview 全量含今日新词+历史到期词 → `/review?tab=due`）
+  - **打卡严格条件**：复习打卡 `done = totalDueVocabCount > 0 && reviewedVocabToday >= totalDueVocabCount`——dueCount===0 保持未完成，严禁加载默认值误判
+  - **跟读页今日队列闸**：loadSpeak 默认队列严格今日（无 _viewDate 时只认 r.date===today 的日报，无日报 → 空队列走播放器空状态「没有要训练的内容」）；`coreDeck(parsed,…)` parsed 存在即唯一事实源（0 句就 0 句），回退链仅服务显式 `?filter=core_sentences` 视图
+  - **UI 清理**：Profile「预览登录页」整行 DOM 已物理删除；错误模式分析「其他」固定沉底（aggregateErrorPatterns rest.concat(others)）复核通过
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist
