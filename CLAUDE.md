@@ -47,10 +47,10 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v75）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v85）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v76）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v86）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v75 / voco-v85**（历史日报视图修复：点小熊日历历史日期 → 指标/洞察/三卡渲染该日日报真实数据，不再全零）。
+- 当前线上：**v76 / voco-v86**（CODE RED 全局审计：TabBar 加固 + 字体净化 + 空状态优雅化 + 待办绑定队列同源 + ReviewButton 全局模板零 emoji）。
 - **⚠️ 待用户手动执行：`⚙️ 后端/migration_v2.1.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——patterns 表 SM-2 列（status/mastered/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）+ 到期回填 + 索引。跑之前句型写回静默降级本地会话态（不报错）。
 
 ## Architecture Notes
@@ -146,6 +146,12 @@
   - 四个渲染点早分支 `historyMode = !!(_viewDate && _historyParsed)`（先于今日时间网关判定）：renderMetricsOverview（评分公式同今日分支，newWords/corrections 改直取 parsed 数组长度，因 ms.today* 只对今日有意义）、renderContentCards（三卡增量=该日日报数量）、renderInsightsSection（跳过内部 730 行今日门，`p = _historyParsed`，dt 改从 `p` 取 dailyThought）、loadHome（displayThoughts/displayGoodPoints 直取历史解析）
   - 洞察卡标题历史语境：`dayLabel = historyMode ? '当日' : '今日'`（对话主题/对话想法/做得好的地方/需要提升 四标签）；Card E 私教对战胶囊不改（其按钮动作本质是「生成今日 Prompt」，与浏览历史无关）
   - 边界：所选日期无日报行 → banner toast「该日期无日报数据」并自动回今天（原有逻辑）；有行非 daily-report → `_historyParsed` null → 走今日门（零/空状态，无崩溃）
+- **v76 CODE RED 全局审计（5 Bug 集中修复）**：
+  - Bug 1 TabBar：`.tab-bar` 本就 `fixed bottom-0 z-100`（审计确认非回归），v76 加固 `width:100%` 显式声明；body 底部补偿 80px→**96px（pb-24）**——注意 body 规则在 style.css 与 index.html 内联 `<style>` 各一份，**两处必须同步改**（内联后加载会覆盖外链）
+  - Bug 2 字体污染：Card B EN 引语删 `font-[Georgia,serif] italic` → `font-sans not-italic`（该衬线斜体实为 v62 起的引语设计样式，非 v75 回归，按指令废弃）
+  - Bug 3 空状态：「无/暂无/没有/未记录/none/n/a」正则判空（`NO_THOUGHT_RE`）+ dt trim 净化 → 历史视图渲染「当日未记录想法」；根治日报数据里 thoughts: "无" 直接渲染的裸露单字
+  - Bug 4 SRS 绑定：首页待办任务 2 数字改绑 `getDueSentencesQueue(_reportParsed, _patternLibrary).length`（与句型复习页实际队列 100% 同源）。**审计结论：过滤链从未被绕过**（needsReview===true 由 `isDueBySrs` 判定，null next_review_date → 到期），102 句 = 全部未复习句型的合法到期集合（bootstrap 态）；每张卡复习后 SM-2 即推进，数字自然下降；若需「每日新卡配额」属产品决策，未擅自实施
+  - Bug 5 统一模板：`reviewButtonHTML({id, kind, label, cls})` 全局 ReviewButton（浅粉/浅绿底 + CSS 纯色圆点 + 红/绿文字，零 emoji）——三个调用点：句型复习卡（srs-*）、单词卡组（due-*）、语法错题卡（btn-again/btn-good，事件绑定 class 保留）；进度条审计确认 v73 已存在（renderSrsCard `🎯 句型复习 (已复习 x / 总计 y)`），未重复造轮子；全库按钮/注释/完成统计 emoji 清零（grep 验证 0 残留）
 - **Voco 2.0 跟读页转型（v73）句型记忆卡片模式 —— SM-2 全链路闭环**：
   - 页面重构：`renderSentenceReview(sentences, startIndex)` 渲染单卡翻转视口（正面英文原句 → 点击翻转翻译解析）；**机械录音三键（听原音/按住录音/听自己）与录音函数族整体物理删除**（speakWord TTS 保留，词汇列表发音在用）；底部导航更名「句型复习」（icon repeat，data-tab 仍 'speak'，全部 ?tab=speak 兼容链不动）
   - 反馈双键完全克隆词汇复习（图18）：😅 还没记住 = `bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)]`、🚀 记住了 = 绿色同构——高度/圆角/内边距逐字一致，严禁第二套按钮样式
