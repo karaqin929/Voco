@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════════════
-// Voco v84 — Tailwind Dashboard + Grouped-List Settings
+// Voco v85 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
+// v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -104,14 +105,15 @@ function navigateReview(tab, filter, date) {
 }
 
 // /shadowing?id=${item.id}&date=YYYY-MM-DD — 句型复习页按 id 锚定到指定句（绝不从第 0 句开始）
-// date：v82 日期路由 —— 历史视图下跳转携带当前查看日期，卡片队列 = 该日日报核心句型（今日日期不携带）
+// date：v82 日期路由 + v85 今日携带 —— 携带日期（含今日）→ 卡片队列 = 该日日报核心句型；
+//       无 date（待办打卡入口）→ SM-2 到期混合队列
 function navigateShadowing(id, sentence, date) {
   _activeFilter = null; _activeFilterLabel = '';
   const qs = [];
   if (id !== undefined && id !== null && id !== '') qs.push('id=' + encodeURIComponent(id));
   // sentence：首页「今天需要提升」点击的句文本 —— 卡片队列以这一句为首张，禁止从默认句开始
   if (sentence) qs.push('sentence=' + encodeURIComponent(sentence));
-  if (date && date !== getLocalToday()) qs.push('date=' + encodeURIComponent(date));
+  if (date) qs.push('date=' + encodeURIComponent(date));
   window.history.pushState({}, '', '/shadowing' + (qs.length ? '?' + qs.join('&') : ''));
   _navigatingViaProgram = true;
   document.querySelector('.tab[data-tab=speak]').click();
@@ -161,8 +163,9 @@ function handleRoute() {
   } else if (path === '/shadowing') {
     tab = 'speak';
     _activeFilter = null; _activeFilterLabel = ''; // URL 的 filter/id/date 参数才是句型复习页唯一事实源
+    // v85：date 含今日也是合法当日上下文（首页核心句型卡携带 date=today → 队列 = 当日日报句型）
     const dParam = new URLSearchParams(location.search).get('date');
-    _ctxDate = (dParam && dParam !== getLocalToday()) ? dParam : null;
+    _ctxDate = dParam || null;
   } else if (path === '/') {
     _ctxDate = null; // 首页无日期上下文（历史视图走 _viewDate，不经 URL 路由）
     const t = new URLSearchParams(location.search).get('tab') || 'home';
@@ -541,7 +544,9 @@ function stampDailyTags(vocabList, errorsList) {
   const today = getLocalToday();
   return (vocabList || []).map(v => {
     const t = { ...v };
-    if (t.isNewToday === undefined) t.isNewToday = !!(t.date_added && t.date_added.slice(0, 10) === today);
+    // v85 加固：无条件按 date_added 重算 —— DB 行自带的 isNewToday 残留（昨日打标未清）不得穿透到今日
+    // （mergeReportVocab 在打标之后运行，今日日报词由它重新打 true，不受影响）
+    t.isNewToday = !!(t.date_added && t.date_added.slice(0, 10) === today);
     if (t.isMistake === undefined) t.isMistake = isMistakeByCrossRef(t, errorsList);
     if (t.needsReview === undefined) t.needsReview = isDueBySrs(t, today);
     return t;
@@ -1026,10 +1031,13 @@ function renderContentCards() {
   // 红线1: 3 张卡片永驻 grid — 数据为 0 也强制渲染，绝不消失
   // 模块二：卡片按钮全部走规范路由（/review?tab=… · /shadowing），零死链
   // v82 日期路由：历史视图（historyMode）下跳转携带 _viewDate —— 目标页按该日日报过滤，杜绝「看历史数字、跳到今日列表」的路由错乱
+  // v85：核心句型卡今日场景同样携带 date=today —— 队列 = 当日日报核心句型（数字与卡片绝对同源）；
+  //      无 date 的 navigateShadowing() 仍保留给待办打卡入口（SM-2 到期混合队列）
   const dq = historyMode ? `, '${_viewDate}'` : '';
+  const shadowDate = historyMode ? _viewDate : getLocalToday();
   const cards = [
     { icon:'pen-line', num:newCount,  label:'新学单词', btn: historyMode ? '复习当日单词' : '复习今日单词', nav:`navigateReview('all', 'today'${dq})` },
-    { icon:'ruler',    num:coreCount, label:'核心句型', btn:'练习句型',   nav:`navigateShadowing(undefined, undefined${dq})` },
+    { icon:'ruler',    num:coreCount, label:'核心句型', btn:'练习句型',   nav:`navigateShadowing(undefined, undefined, '${shadowDate}')` },
     { icon:'wrench',   num:errCount,  label:'重点纠错', btn:'查看纠错',   nav:`navigateReview('grammar', null${dq})` }
   ];
   container.innerHTML = cards.map(c=>`
@@ -1666,7 +1674,9 @@ function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocab
   const realVocab = (vocabAll || []).filter(v => !String(v.id).startsWith('mock-'));
 
   // 3. 今日增量（仅当有今日报告时才计数，绝不回退历史/Mock）
-  const todayNewWordsCount = hasRealTodayReport ? realVocab.filter(v => v.isNewToday).length : 0;
+  // v85 口径统一：新学单词数 = 今日日报解析 vocabulary 数（与复习页 filter=today / getFilteredVocab 今日分支绝对同源）
+  //      —— 词库 isNewToday 打标会含历史残留（DB 行带回的旧 true），曾造成首页 8 / 列表 6 的口径分裂
+  const todayNewWordsCount = hasRealTodayReport ? ((reportParsed.vocabulary || []).length) : 0;
   const todayCorePatternCount = hasRealTodayReport ? (patternsAll || []).length : 0;
   const todayCorrectionsCount = hasRealTodayReport ? ((reportParsed.grammar || []).length + (reportParsed.pronunciation || []).length) : 0;
 
@@ -2541,11 +2551,12 @@ async function loadSpeak() {
   _patternLibrary = taggedPatterns;
   _reportsCache = (reports && reports.length) ? reports : _reportsCache; // v82：日期路由解析源缓存刷新
 
-  // v82 日期路由：?date=YYYY-MM-DD（非今日）→ 句型卡队列 = 该日日报核心句型（挖空卡片模式，不混 SM-2 到期）
+  // v82/v85 日期路由：?date=YYYY-MM-DD（含今日）→ 句型卡队列 = 该日日报核心句型（挖空卡片模式，不混 SM-2 到期）；
+  // 无 date → 今日默认链路 = SM-2 到期混合队列（待办打卡入口）
   const today = getLocalToday();
   const params = new URLSearchParams(window.location.search);
   const dParam = params.get('date');
-  _ctxDate = (dParam && dParam !== today) ? dParam : null;
+  _ctxDate = dParam || null;
 
   let sentences;
   if (_ctxDate) {
