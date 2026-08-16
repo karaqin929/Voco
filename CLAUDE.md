@@ -50,7 +50,7 @@
 - **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
 - **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v67 / voco-v77**（Voco 2.0 第四步：聊前灵感配置舱落地【我的】页）。
+- 当前线上：**v68 / voco-v78**（Voco 2.0 空状态 UX 重构：Hero 引导卡 + 零数据组件折叠）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -119,6 +119,7 @@
   - `fireTopicGeneratorPrompt(btn)`（用户骨架原样落地）：防空 alert → 话题/URL/想法三段拼接私教开场 Prompt → `copyToClipboardWithFallback()` → 按钮「✅ Prompt 已复制！去贴给 GPT 吧」变绿 2s 恢复（注意：恢复时还原完整内联 style，不能 `btn.style.background = ''` 否则渐变主视觉丢失）
   - 共享工具重构：`copyToClipboardWithFallback(text)`（clipboard API → textarea+execCommand 降级），fireDailyMissionPrompt 与 fireTopicGeneratorPrompt 共用
   - CSS 新增：`.topic-pill` / `.topic-pill.active` / `.hide-scrollbar`（style.css 尾部）
+- **Voco 2.0 空状态 UX 重构（v68）**：未导入今日日报 → 首页今天视图折叠零数据组件（#home-metrics 打分面板 / #home-insights 洞察卡 / #home-summary-cards 三数据卡），打分面板位置顶替 `#home-empty-hero` Hero 引导卡（🐻 + 文案「今日尚未对练 / 导入 ChatGPT 日报…」+ 📥 导入今日日报 CTA → showImportDialog）；常驻：本周打卡卡 #home-quote 与今日待办 #home-quests（复习打卡任务独立于日报）；门控在 loadHome：`const showEmptyHero = !missionState.hasRealTodayReport && !_viewDate;`（历史视图 _viewDate 不受影响）；渲染函数照常执行，仅由 classList.toggle('hidden') 控显隐
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist

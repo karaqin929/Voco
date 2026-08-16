@@ -59,7 +59,7 @@ const fmtLocalDate = (d) => {
 const localDateOf = (isoTs) => fmtLocalDate(new Date(isoTs));
 
 // ── 模块二：精准路由锚定（真实路径，绝不死链）──────────────
-// 规范路由：/review?tab=all|grammar|due（复习页严格三 Tab）· /shadowing?id=xxx（跟读页锚定指定句）· /（首页）
+// 规范路由：/review?tab=all|grammar|due|topics（复习页四 Tab）· /shadowing?id=xxx（跟读页锚定指定句）· /（首页）
 // navigateToTab 保留为兼容层：旧调用（?tab= 体系）自动翻译为规范路由
 function navigateToTab(tab, filter, label) {
   if (tab === 'words') {
@@ -88,7 +88,7 @@ function navigateToTab(tab, filter, label) {
 // /review?tab=grammar · /review?tab=due · /review?tab=all&filter=today — 首页按钮的精准锚定入口（绝不写死 ?tab= 死链）
 // filter=today：今日单词过滤态（只渲染 isNewToday===true 的词），与三 Tab 正交
 function navigateReview(tab, filter) {
-  const t = ['all', 'grammar', 'due'].includes(tab) ? tab : 'all';
+  const t = ['all', 'grammar', 'due', 'topics'].includes(tab) ? tab : 'all';
   const f = (filter === 'today') ? '&filter=today' : '';
   _activeFilter = null; _activeFilterLabel = '';
   window.history.pushState({}, '', '/review' + (t !== 'all' ? `?tab=${t}` : '') + (t === 'all' ? (f ? '?filter=today' : '') : f));
@@ -146,7 +146,7 @@ function handleRoute() {
     const t = sp.get('tab') || 'all';
     // filter=today：首页「复习今日单词」携带的过滤态，正交于三 Tab，只渲染 isNewToday 词
     _wordsFilter = sp.get('filter') === 'today' ? 'today'
-      : (['all', 'grammar', 'due', 'new', 'mistakes', 'review'].includes(t) ? t : 'all');
+      : (['all', 'grammar', 'due', 'topics', 'new', 'mistakes', 'review'].includes(t) ? t : 'all');
   } else if (path === '/shadowing') {
     tab = 'speak';
     _activeFilter = null; _activeFilterLabel = ''; // URL 的 filter/id 参数才是跟读页唯一事实源
@@ -1506,10 +1506,10 @@ async function loadWords() {
   // Voco 2.0：SSOT 输入构建（时间网关 + 词库合并 + 今日已复习 id 集合）—— 与 loadHome 共用同一构建器
   buildGlobalMissionInputs(vocab, errors, reports);
 
-  // URL 是唯一事实源：/review?tab=all|grammar|due（规范三 Tab；兼容旧 new|mistakes|review 参数）+ filter=today 过滤态
+  // URL 是唯一事实源：/review?tab=all|grammar|due|topics（规范四 Tab；兼容旧 new|mistakes|review 参数）+ filter=today 过滤态
   const params = new URLSearchParams(window.location.search);
   const activeTab = params.get('tab') || 'all';
-  let mode = ['new', 'mistakes', 'review', 'grammar', 'due'].includes(activeTab) ? activeTab : 'all';
+  let mode = ['new', 'mistakes', 'review', 'grammar', 'due', 'topics'].includes(activeTab) ? activeTab : 'all';
   if (params.get('filter') === 'today') mode = 'today';
   if (mode === 'all') {
     // 兼容旧参数 wordsView/view 与历史键名（today→new / errors→mistakes）
@@ -1800,6 +1800,9 @@ function standardizeErrorCards(rawItems) {
 function renderWordsSubTabs(activeMode) {
   const el = document.getElementById('words-subtabs');
   el.style.display = 'flex';
+  // 话题库是语境资产库（非任务卡组），隐藏搜索框；其余 Tab 恢复默认显示
+  const searchWrap = document.querySelector('.lib-search-wrap');
+  if (searchWrap) searchWrap.style.display = activeMode === 'topics' ? 'none' : '';
   const grammarCount = allGrammarErrors().length;
   // Voco 2.0：复习页 Tab 数字强绑定任务状态中心（Mock 已隔离），严禁 UI 层自行 .filter
   const dueCount = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds).totalDueVocabCount + grammarCount;
@@ -1807,11 +1810,12 @@ function renderWordsSubTabs(activeMode) {
     { key: 'all', label: '全部词汇', count: _wordsAll.length },
     { key: 'grammar', label: '语法错题', count: grammarCount },
     { key: 'due', label: '待复习', count: dueCount },
+    { key: 'topics', label: '话题库', count: null }, // 资产库不计任务数
   ];
   // filter=today 是「全部词汇」的过滤视图，高亮归 all
   const activeKey = activeMode === 'today' ? 'all' : activeMode;
   el.innerHTML = tabs.map(t =>
-    `<span class="lib-subtab${t.key===activeKey?' active':''}" data-words-filter="${t.key}" onclick="switchWordsView('${t.key}')">${t.label}<small style="opacity:0.6;margin-left:3px">${t.count}</small></span>`
+    `<span class="lib-subtab${t.key===activeKey?' active':''}" data-words-filter="${t.key}" onclick="switchWordsView('${t.key}')">${t.label}${t.count != null ? `<small style="opacity:0.6;margin-left:3px">${t.count}</small>` : ''}</span>`
   ).join('');
 }
 
@@ -1823,14 +1827,77 @@ function switchWordsView(mode) {
   renderWordsList(mode);
 }
 
-// ── 模块三：三 Tab 严格渲染隔离 ─────────────────────────────────
-// all=仅全量词汇卡 / grammar=仅语法错题卡（删除线原句+绿色正句） / due=混合记忆卡组（Active Recall）
+// ── 模块三：四 Tab 严格渲染隔离 ─────────────────────────────────
+// all=仅全量词汇卡 / grammar=仅语法错题卡（删除线原句+绿色正句） / due=混合记忆卡组（Active Recall） / topics=话题卡片墙
 function renderWordsList(mode) {
   if (mode === 'grammar' || mode === 'mistakes') { renderErrorCards(allGrammarErrors()); return; }
   if (mode === 'due' || mode === 'review') { renderDueDeck(); return; }
-  // filter=today：今日单词过滤态（isNewToday 纯布尔），不污染三 Tab 渲染
+  if (mode === 'topics') { renderTopicLibrary(); return; }
+  // filter=today：今日单词过滤态（isNewToday 纯布尔），不污染 Tab 渲染
   if (mode === 'today') { renderVocabList(getFilteredVocab(_wordsAll, 'today')); return; }
   renderVocabList(getFilteredVocab(_wordsAll, 'all'));
+}
+
+// ── 话题库（Voco 2.0 四维复习体系收官）：topic-card 历史资产卡片墙 + 话题复盘 Prompt 生成器 ──
+// 数据：topics 表（title/description/key_terms）+ vocabulary.source_topic 关联词（一次取全，零 N+1 查询）
+let _topicLibraryCache = []; // { id, title, description, keyTerms, words }
+
+async function renderTopicLibrary() {
+  const container = document.getElementById('words-content');
+  container.innerHTML = LoadingState();
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  const [{ data: topics }, { data: vocab }] = await Promise.all([
+    sb.from('topics').select('*').order('created_at', { ascending: false }),
+    sb.from('vocabulary').select('word, source_topic').not('source_topic', 'is', null)
+  ]);
+  // 客户端按 source_topic 归组关联词（topic-card 导入链路写入 source_topic=title）
+  const byTopic = {};
+  (vocab || []).forEach(v => {
+    if (!v.source_topic) return;
+    (byTopic[v.source_topic] = byTopic[v.source_topic] || []).push(v.word);
+  });
+  _topicLibraryCache = (topics || []).map(t => ({
+    id: t.id,
+    title: t.title || '未命名话题',
+    description: t.description || '',
+    keyTerms: Array.isArray(t.key_terms) ? t.key_terms : [],
+    words: byTopic[t.title] || []
+  }));
+  if (!_topicLibraryCache.length) {
+    container.innerHTML = EmptyState({ message: '还没有话题卡 · 导入 ChatGPT 话题卡后，这里会成为你的语境资产库', size: 80 });
+    return;
+  }
+  container.innerHTML = _topicLibraryCache.map((t, i) => {
+    const previewWords = (t.words.length ? t.words : t.keyTerms).slice(0, 5);
+    return `
+    <div class="topic-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
+      <div class="flex justify-between items-start gap-2 mb-1.5">
+        <span class="text-sm font-bold text-[var(--c-text)] leading-snug break-words">📖 ${h(t.title)}</span>
+        <span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] whitespace-nowrap">${t.keyTerms.length} 个关键术语</span>
+      </div>
+      ${t.description ? `<div class="text-xs text-[var(--c-text-dim)] mb-2 leading-relaxed">${h(t.description)}</div>` : ''}
+      ${previewWords.length ? `
+      <div class="flex items-center gap-1.5 mb-3 overflow-hidden whitespace-nowrap">
+        ${previewWords.map(w => `<span class="inline-flex shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-[var(--c-bg)] text-[var(--c-text-dim)] border border-[var(--c-border-light)]">${h(w)}</span>`).join('')}
+        ${(t.words.length > 5) ? `<span class="text-[10px] text-[var(--c-text-ultradim)] shrink-0">+${t.words.length - 5}</span>` : ''}
+      </div>` : ''}
+      <button onclick="fireTopicRevivalPrompt(this, ${i})" class="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-0 cursor-pointer text-xs font-bold text-white transition-all duration-200 active:scale-[0.97]" style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 6px 14px -8px rgba(0,0,0,0.3)">
+        ♻️ 生成话题复盘 Prompt
+      </button>
+    </div>`;
+  }).join('');
+}
+
+// 话题复盘 Prompt 生成器（Topic Revival）：话题 + 关联核心词汇 → ChatGPT 提示词 → 剪贴板 + 绿色 Toast
+async function fireTopicRevivalPrompt(btn, idx) {
+  const topic = (_topicLibraryCache || [])[idx];
+  if (!topic) return;
+  const topicWords = topic.words.length ? topic.words : topic.keyTerms;
+  const prompt = `作为我的英语口语私教，我们之前探讨过【${topic.title}】这个话题。今天我想继续或者换个角度聊聊这个话题，请在接下来的对话中，自然地引导我使用这些词汇：[${topicWords.join(', ')}]。你先向我提问吧。`;
+  const copied = await copyToClipboardWithFallback(prompt);
+  if (!copied) { showToast('复制失败，请长按文本手动复制'); return; }
+  showToast('📋 话题复盘 Prompt 已复制', 'success');
 }
 
 // 一条纠错 = 一张卡片（单外层容器铁律）：顶部标签 → 遮罩正面（删除线原句）→ 中央 [👁️] 揭示按钮
@@ -3406,13 +3473,15 @@ function refreshIcons(el) {
   }, 32);
 }
 
-function showToast(msg) {
+function showToast(msg, type) {
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
   const t = document.createElement('div');
   t.className = 'toast';
   t.textContent = msg;
-  t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:12px;font-size:14px;font-weight:500;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,0.25);pointer-events:none;max-width:90vw;white-space:pre-line;';
+  // type='success' → 绿色成功提示（Voco 2.0 话题复盘等）；默认中性深色
+  const green = type === 'success';
+  t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:' + (green ? 'var(--c-green)' : 'var(--text)') + ';color:' + (green ? '#fff' : 'var(--bg)') + ';padding:10px 20px;border-radius:12px;font-size:14px;font-weight:500;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,0.25);pointer-events:none;max-width:90vw;white-space:pre-line;';
   document.body.appendChild(t);
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 3000);
 }
@@ -3474,5 +3543,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=68');
+  navigator.serviceWorker.register('/sw.js?v=69');
 }
