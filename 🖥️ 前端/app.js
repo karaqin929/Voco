@@ -337,10 +337,11 @@ const mockSentences = [
 ];
 
 // 1. 单词/复习数据 (必须包含布尔值标签)
+// Voco 2.0：id 统一 mock-N 前缀 —— 任务状态中心按 String(v.id).startsWith('mock-') 隔离演示假数据
 const mockWords = [
-  { id: 1, word: 'competitive', phonetic: "/kəm'petətɪv/", meaning: '有竞争力的', example: 'The industry is highly competitive right now.', isNewToday: true, isMistake: false, needsReview: true },
-  { id: 2, word: 'standout', phonetic: "/'stændaʊt/", meaning: '突出的', example: 'Her presentation was the standout.', isNewToday: true, isMistake: false, needsReview: true },
-  { id: 3, word: 'went', meaning: 'go 的过去式（易错）', example: 'I have gone to the store.', isNewToday: false, isMistake: true, needsReview: false, correct: 'gone' }
+  { id: 'mock-1', word: 'competitive', phonetic: "/kəm'petətɪv/", meaning: '有竞争力的', example: 'The industry is highly competitive right now.', isNewToday: true, isMistake: false, needsReview: true },
+  { id: 'mock-2', word: 'standout', phonetic: "/'stændaʊt/", meaning: '突出的', example: 'Her presentation was the standout.', isNewToday: true, isMistake: false, needsReview: true },
+  { id: 'mock-3', word: 'went', meaning: 'go 的过去式（易错）', example: 'I have gone to the store.', isNewToday: false, isMistake: true, needsReview: false, correct: 'gone' }
 ];
 // 错词数据（供 _errorsAll 交叉比对 fallback）
 const mockMistakeErrors = mockWords.filter(w => w.isMistake).map(w => ({
@@ -368,27 +369,29 @@ async function loadHome() {
     sb.from('patterns').select('*')
   ]);
 
-  const vList = buildWordSnapshot(vocab, errors); // 打标网关：合并内置词库 + 注入布尔标签（渲染层只读布尔）
+  // Voco 2.0 状态孤岛断根：home 与 review 共用同一状态构建器（SSOT 输入唯一出处）
+  buildGlobalMissionInputs(vocab, errors, reports);
+  const vList = _wordsAll;                      // SSOT 唯一词库快照（含日报生词合并后的全量）
   const eList = errors || [];
-  const pList = stampPatternTags(patterns);      // 句型打标：唯一 id + isTodayCore + 标准嵌套字段
+  const pList = stampPatternTags(patterns);     // 句型打标：唯一 id + isTodayCore + 标准嵌套字段
   const rList = reports || [];
   const today = getLocalToday();
 
   const activeDate = _viewDate || today;
   const activeReport = rList.find(r => r.date === activeDate);
   const todayReport = rList.find(r => r.date === today);
-  // 时间判断上收加载层：hasTodayReport 在此一次性计算，渲染组件零 new Date() 过滤
-  const hasTodayReport = rList.some(r => r.date === today && isDailyReport(r));
-  // 时间计算上收加载层：渲染组件零 new Date() 过滤
-  const reviewedToday = vList.filter(v => v.last_reviewed_at && localDateOf(v.last_reviewed_at) === today).length; // v64：存储为 UTC 时间戳，必须换算本地日历日再比「今天」
-  _reviewedVocabToday = reviewedToday; // 任务状态中心输入：今日反馈词数（单一事实源）
+  // ── 时间轴拦截（UI 渲染保护，Voco 2.0）：渲染任何「今日」概念组件前先解构任务状态中心 ──
+  const missionState = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds);
+  // 无今日报告 → 强制清空依赖今日数据的展示状态（严禁泄漏昨天数据）
+  const displayThoughts = missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).dailyThought || null) : null;
+  const displayGoodPoints = missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).strengths || []) : [];
   // 跟读打卡戳：播放器录完最后一句写入 voco-speak-done，此处只读比对（时间判断仍在加载层）
   const speakDoneToday = (() => { try { return localStorage.getItem('voco-speak-done') === today; } catch (e) { return false; } })();
 
   // Section 1: Header
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
-  renderGreeting(streak, vList, rList, hasTodayReport);
+  renderGreeting(streak, vList, rList, missionState.hasRealTodayReport);
   renderHistoryBanner(activeReport, activeDate);
 
   // Section 2: Streak / Check-in Card
@@ -397,8 +400,8 @@ async function loadHome() {
   // Section 3: Metrics —— 数据一律取自任务状态中心（v63），组件不再接收历史回退 activeReport
   renderMetricsOverview();
 
-  // Section 4: Insights (Cards A-F)
-  renderInsightsSection();
+  // Section 4: Insights (Cards A-F) —— 时间轴拦截后的展示值直传（无今日报告即为 null/[]）
+  renderInsightsSection(displayThoughts, displayGoodPoints);
 
   // Section 5: Content Cards + Todos
   renderContentCards();
@@ -427,7 +430,7 @@ function renderHeaderBears(vocab, reports, viewDate) {
   (reports||[]).forEach(r => { if(r.date && isDailyReport(r)) dateScore[r.date] = (dateScore[r.date]||0)+5; });
   const today = new Date();
   const days = [];
-  for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); days.push({date:d.toISOString().slice(0,10), day:d.getDate(), month:d.getMonth()+1, active:!!dateScore[d.toISOString().slice(0,10)]}); }
+  for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); const ds=fmtLocalDate(d); days.push({date:ds, day:d.getDate(), month:d.getMonth()+1, active:!!dateScore[ds]}); }
   container.innerHTML = days.map(d => `
     <div class="flex flex-col items-center gap-px shrink-0 cursor-pointer w-8" onclick="showBearDay('${d.date}',${d.active})">
       <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===viewDate?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active?'/bear-active.png':'/bear-default.png'}" alt="${d.active?'🐻':'🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active?'🐻':'🌱'}</span>')" />
@@ -468,7 +471,7 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
   const days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now); d.setDate(d.getDate() - i);
-    const ds = d.toISOString().slice(0,10);
+    const ds = fmtLocalDate(d); // v64 补漏：本地日历日（UTC 截断会在 0-8 点偏移一天）
     days.push({ date: ds, month: d.getMonth()+1, day: d.getDate(), active: !!dateScore[ds] });
   }
 
@@ -610,9 +613,9 @@ function countReviewWords(words) {
 
 function renderMetricsOverview() {
   const grid = document.getElementById('home-metrics');
-  const ms = getTodayMissionState();
-  // 时间网关（v63）：今日未导入日报 → 数字全部清零（四维度 0/100、综合 --），绝不回退 Mock 或历史数据
-  if (!ms.hasTodayReport) {
+  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds);
+  // 时间网关（Voco 2.0）：今日未导入日报 → 数字全部清零（四维度 0/100、综合 --），绝不回退 Mock 或历史数据
+  if (!ms.hasRealTodayReport) {
     grid.innerHTML = metricsHTML('--', '--', '--', 0, 0, 0, 0, 0, 0, 0, 0);
     refreshIcons(grid);
     return;
@@ -689,11 +692,11 @@ const IMPROVE_TYPES = {
 };
 
 // ── Section 4: Insights (Cards A-F) ─────────────────────
-function renderInsightsSection() {
+function renderInsightsSection(displayThoughts, displayGoodPoints) {
   const container = document.getElementById('home-insights');
   _insightsParsed = null;
-  // 时间网关（v63）：今日未导入日报 → 整区优雅空状态，绝对禁止历史数据穿透进「今日」卡组
-  if (!getTodayMissionState().hasTodayReport) {
+  // 时间网关（Voco 2.0）：任务状态中心判定今日未导入日报 → 整区优雅空状态，绝对禁止历史数据穿透进「今日」卡组
+  if (!getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds).hasRealTodayReport) {
     container.innerHTML = `<div class="bg-[var(--c-surface)] rounded-2xl p-6 text-center border border-dashed border-[var(--c-border)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="box-shadow:var(--c-shadow-sm)">
       <div class="text-2xl mb-2">⏳</div>
       <div class="text-sm font-semibold text-[var(--c-text)]">等待导入今日报告</div>
@@ -709,9 +712,9 @@ function renderInsightsSection() {
   _insightsParsed = p;
   if(p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
   if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
-  // 今日对话想法：日报 dailyThought 覆盖 mock 空占位（Card B 动态数据源之一）
-  if (p.summary.dailyThought && (p.summary.dailyThought.en || p.summary.dailyThought.zh)) d.thoughts = p.summary.dailyThought;
-  if(p.summary.strengths){ const lines = p.summary.strengths.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*]\s*/,'')); if(lines.length) d.strengths = lines; }
+  // 今日对话想法 / 做得好的地方：时间轴拦截后的展示值直传（loadHome 已按 missionState 强制清空历史数据）
+  if (displayThoughts && (displayThoughts.en || displayThoughts.zh)) d.thoughts = displayThoughts;
+  if (displayGoodPoints) { const arr = Array.isArray(displayGoodPoints) ? displayGoodPoints : String(displayGoodPoints).split('\n'); const lines = arr.filter(Boolean).map(l => String(l).replace(/^[-•*]\s*/, '')); if (lines.length) d.strengths = lines; }
   const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
   // 双维度打标：grammar = 硬性错误（红线纠正）；expression = 地道升级（语法没错，只替换不判错）
   const merged = [
@@ -941,9 +944,9 @@ async function copyText(txt) {
 }
 function renderContentCards() {
   const container = document.getElementById('home-summary-cards');
-  // 业务概念分离（v63）：顶部卡 = 今日增量，唯一数据源 = 全局任务状态中心；
+  // 业务概念分离（Voco 2.0）：顶部卡 = 今日增量，唯一数据源 = 全局任务状态中心；
   // 无今日日报 → 0，绝不回退 mockWords/mockSentences 静默兜底（数字跳变断根）
-  const ms = getTodayMissionState();
+  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds);
   const newCount = ms.todayNewWordsCount;
   const coreCount = ms.todayCorePatternCount;
   const errCount = ms.todayCorrectionsCount;
@@ -967,20 +970,20 @@ function renderContentCards() {
 }
 
 function renderTodoList(speakDoneToday) {
-  // ── 今日待办三闭环（v63）：底部待办 = SM-2 记忆任务，数据一律取自全局任务状态中心 ──
-  const ms = getTodayMissionState();
-  const hasTodayReport = ms.hasTodayReport;
+  // ── 今日待办三闭环（Voco 2.0）：底部待办 = SM-2 记忆任务，数据一律取自全局任务状态中心 ──
+  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds);
+  const hasTodayReport = ms.hasRealTodayReport;
   const coreCount = ms.todayCorePatternCount;   // 今日增量：日报核心句型（无日报 → 0，绝不回退 2 句 Mock）
   const dueCount = ms.totalDueVocabCount;       // SM-2 到期全量（今日新词 + 历史到期词），与 tab=due 同源
-  const reviewedToday = ms.reviewedVocabToday;  // 今日实际完成反馈（🟢/🔴）的词数
+  const reviewedToday = ms.reviewedVocabToday;  // 今日实际完成反馈（🟢/🔴）的词数（id 集合大小）
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
     { text: '对练打卡 · 导入今日日报', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
     // 任务 2（跟读打卡）：完成核心句型跟读 —— 点击直达今日跟读队列；录完最后一句自动打卡
     { text: `跟读打卡 · 完成核心句型跟读 (${coreCount}句)`, sub: coreCount === 0 ? '导入今日日报后生成跟读队列' : (speakDoneToday ? '今日跟读已完成' : '点击进入今日跟读队列'), done: !!speakDoneToday, action: () => { navigateShadowing(); } },
-    // 任务 3（复习打卡）：完成今日到期复习 —— 严格完成条件：totalDueVocabCount > 0 && reviewedVocabToday >= totalDueVocabCount
+    // 任务 3（复习打卡）：完成今日到期复习 —— 打卡完成强制绑定 SSOT isReviewFinished
     // （dueCount === 0 保持未完成，禁止加载默认值 0 误判完成；文案标明「到期复习」区别于「今日新词」）
-    { text: `复习打卡 · 完成今日到期复习 (${dueCount}词)`, sub: dueCount === 0 ? '今日无到期词' : (reviewedToday >= dueCount ? `已复习 ${reviewedToday} 个到期词` : `到期复习进度 ${reviewedToday}/${dueCount} · 到期词，非今日新词`), done: dueCount > 0 && reviewedToday >= dueCount, action: () => { navigateReview('due'); } }
+    { text: `复习打卡 · 完成今日到期复习 (${dueCount}词)`, sub: dueCount === 0 ? '今日无到期词' : (reviewedToday >= dueCount ? `已复习 ${reviewedToday} 个到期词` : `到期复习进度 ${reviewedToday}/${dueCount} · 到期词，非今日新词`), done: ms.isReviewFinished, action: () => { navigateReview('due'); } }
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -1416,10 +1419,31 @@ function showDetailModal(label, count, tab) {
 // ═══════════════════════════════════════════════════════
 // TAB 2: WORDS
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// Voco 2.0 状态构建器（SSOT 输入唯一出处）：loadHome 与 loadWords 共用，
+// 根治「状态孤岛」—— 此前首页直连 / 时 _reportParsed/_wordsAll 从未初始化
+// ═══════════════════════════════════════════════════════
+function buildGlobalMissionInputs(vocab, errors, reports) {
+  const today = getLocalToday();
+  // 真实解析数据源（时间网关）：_reportParsed 只允许「今日」日报（报表行 r.date === today）
+  // resolveActiveReport 的「最新有效日报」历史回退产物严禁流入 —— 历史报告会被打 isNewToday 造成时间轴穿透
+  const strictToday = (reports && reports.length) ? reports.find(r => r.date === today && isDailyReport(r)) : null;
+  _reportParsed = strictToday ? parseSmartReport(strictToday.content) : null;
+  if (_reportParsed) _reportParsed.meta.date = strictToday.date; // meta.date 回写为报表行日期 —— 时间网关校验依据
+  _dailyPatterns = _reportParsed ? (_reportParsed.sentence_patterns || []) : [];
+  // 打标网关：内置词库合并 + 布尔标签一次性注入（渲染层只读布尔值，零时间判断）
+  // 断流修复：日报生词在此合并进全局词库 —— 首页/复习页数据源绝对一致
+  _errorsAll = (errors && errors.length) ? errors : mockMistakeErrors;
+  _wordsAll = mergeReportVocab(buildWordSnapshot(vocab, _errorsAll), _reportParsed);
+  // 今日实际完成复习的词 id 集合（存储层 UTC 时间戳 → 本地日历日比对；SSOT reviewedVocabToday 输入）
+  _reviewedVocabTodayIds = new Set(
+    _wordsAll.filter(v => v.last_reviewed_at && localDateOf(v.last_reviewed_at) === today).map(v => String(v.id))
+  );
+}
+
 async function loadWords() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
-  const today = getLocalToday();
 
   document.getElementById('words-content').innerHTML = LoadingState();
 
@@ -1428,16 +1452,8 @@ async function loadWords() {
     sb.from('errors').select('*'),
     sb.from('reports').select('*').order('date', { ascending: false }).limit(90)
   ]);
-  // 真实解析数据源（v63 时间网关）：_reportParsed 只允许「今日」日报（报表行 r.date === today）
-  // resolveActiveReport 的「最新有效日报」历史回退产物严禁流入 —— 历史报告会被打 isNewToday 造成时间轴穿透
-  const strictToday = (reports && reports.length) ? reports.find(r => r.date === today && isDailyReport(r)) : null;
-  _reportParsed = strictToday ? parseSmartReport(strictToday.content) : null;
-  if (_reportParsed) _reportParsed.meta.date = strictToday.date; // meta.date 回写为报表行日期 —— 时间网关校验依据
-
-  // 打标网关：内置词库合并 + 布尔标签一次性注入（渲染层只读布尔值，零时间判断）
-  // 断流修复：日报 12 生词在此合并进全局词库 —— 首页/复习页数据源绝对一致
-  _errorsAll = (errors && errors.length) ? errors : mockMistakeErrors;
-  _wordsAll = mergeReportVocab(buildWordSnapshot(vocab, _errorsAll), _reportParsed);
+  // Voco 2.0：SSOT 输入构建（时间网关 + 词库合并 + 今日已复习 id 集合）—— 与 loadHome 共用同一构建器
+  buildGlobalMissionInputs(vocab, errors, reports);
 
   // URL 是唯一事实源：/review?tab=all|grammar|due（规范三 Tab；兼容旧 new|mistakes|review 参数）+ filter=today 过滤态
   const params = new URLSearchParams(window.location.search);
@@ -1464,36 +1480,75 @@ async function loadWords() {
 let _wordsAll = [];
 let _errorsAll = [];
 let _wordsFilter = 'all';
-let _reportParsed = null; // 今日日报的 parseSmartReport() 结果（只读消费，不修改解析逻辑）
-let _reviewedVocabToday = 0; // 加载层上收：今日实际完成 SM-2 反馈（🟢/🔴）的词数
+let _reportParsed = null;       // 今日日报的 parseSmartReport() 结果（buildGlobalMissionInputs 强制 = 今日日报，只读消费）
+let _dailyPatterns = [];        // 今日日报 sentence_patterns（SSOT todayCorePatternCount 输入）
+let _reviewedVocabTodayIds = new Set(); // 加载层上收：今日实际完成 SM-2 反馈（🟢/🔴）的词 id 集合（SSOT reviewedVocabToday 输入）
 
 // ═══════════════════════════════════════════════════════
-// v63 全局任务状态中心（单一事实源）+ 时间网关
+// Voco 2.0 全局任务状态中心（SSOT）—— 用户骨架强制签名
+// getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocabIds)
+// 所有页面数字（首页待办 / 数据卡 / 复习页 Tab）唯一事实源；UI 层严禁自行 .filter/.length/Mock 兜底
+// 骨架适配说明（Vanilla JS 无模块系统，export 关键字去除）：
+//   · todayStr 用 getLocalToday()（v64 本地时区）—— 骨架里的 toISOString().split('T')[0] 会重新引入 UTC 穿透
+//   · 真实数据结构日期在 reportParsed.meta.date（骨架的 reportParsed.date 为兼容读取）
+//   · reviewedVocabIds 传入「今日已复习词 id 集合」（buildGlobalMissionInputs 按 last_reviewed_at 本地日历日上收），
+//     严禁用 _reviewedErrorIds（会话内错题 id，语义不同会造成打卡误判）
 // ═══════════════════════════════════════════════════════
-// 时间网关：任何「今日」前缀数据放行前必须过 isTodayParsedGate()。
-// _reportParsed 已在 loadWords 处以报表行 r.date 严格过滤（严禁 resolveActiveReport 历史回退产物流入），
-// 且 meta.date 回写为行日期 —— 双层防线杜绝「最新有效日报」穿透时间轴。
-function isTodayParsedGate() {
-  if (!_reportParsed || !_reportParsed.meta) return false;
-  const today = getLocalToday();
-  return _reportParsed.meta.date === today;
+function isTodayParsedGate(reportParsed) {
+  const repDate = reportParsed && ((reportParsed.meta && reportParsed.meta.date) || reportParsed.date);
+  return !!repDate && repDate.startsWith(getLocalToday());
 }
 
-// 业务概念分离（新学 vs 待复习）—— 首页所有数字的唯一数据源，各组件禁止自行 .length/硬过滤/Mock 兜底：
-//   todayNewWordsCount    今日增量 · 新学单词：唯一事实源 = 今日日报 vocabulary（无今日日报 → 0，绝不回退 mockWords）
-//   todayCorePatternCount 今日增量 · 核心句型：唯一事实源 = 今日日报 sentence_patterns（无今日日报 → 0，绝不回退 2 句 Mock）
-//   totalDueVocabCount    SM-2 记忆任务：needsReview === true 全量（今日新词 + 历史到期词），与复习页 tab=due 同源
-//   reviewedVocabToday    今日实际完成反馈（🟢/🔴）词数（加载层 last_reviewed_at 比对上收，勿在组件内自行计算）
-function getTodayMissionState() {
-  const hasTodayReport = isTodayParsedGate();
+function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocabIds = new Set()) {
+  // 1. 时间轴拦截：校验是否为今日真实报告
+  const hasRealTodayReport = isTodayParsedGate(reportParsed);
+
+  // 2. 隔离 Mock 数据：过滤掉所有带有 mock 标记的假数据（mockWords id 已统一 mock-N 前缀）
+  const realVocab = (vocabAll || []).filter(v => !String(v.id).startsWith('mock-'));
+
+  // 3. 今日增量（仅当有今日报告时才计数，绝不回退历史/Mock）
+  const todayNewWordsCount = hasRealTodayReport ? realVocab.filter(v => v.isNewToday).length : 0;
+  const todayCorePatternCount = hasRealTodayReport ? (patternsAll || []).length : 0;
+  const todayCorrectionsCount = hasRealTodayReport ? ((reportParsed.grammar || []).length + (reportParsed.pronunciation || []).length) : 0;
+
+  // 4. SM-2 记忆任务（真实待复习总数：needsReview 全量，含今日新词 + 历史到期词，与复习页 tab=due 同源）
+  const dueVocabList = realVocab.filter(v => v.needsReview);
+  const totalDueVocabCount = dueVocabList.length;
+
+  // 5. 今日已实际完成复习的数量（id 集合大小）
+  const reviewedVocabToday = reviewedVocabIds.size;
+
   return {
-    hasTodayReport,
-    todayNewWordsCount: hasTodayReport ? (_reportParsed.vocabulary || []).length : 0,
-    todayCorePatternCount: hasTodayReport ? (_reportParsed.sentence_patterns || []).length : 0,
-    todayCorrectionsCount: hasTodayReport ? ((_reportParsed.grammar || []).length + (_reportParsed.pronunciation || []).length) : 0,
-    totalDueVocabCount: countReviewWords(_wordsAll || []),
-    reviewedVocabToday: _reviewedVocabToday || 0,
+    hasRealTodayReport,
+    todayNewWordsCount,
+    todayCorePatternCount,
+    todayCorrectionsCount,
+    totalDueVocabCount,
+    reviewedVocabToday,
+    // 只有总数大于 0，且实际复习数达标，才算真正完成打卡（dueCount===0 保持未完成，禁止加载默认值误判）
+    isReviewFinished: totalDueVocabCount > 0 && reviewedVocabToday >= totalDueVocabCount
   };
+}
+
+// ═══════════════════════════════════════════════════════
+// Voco 2.0 今日对战胶囊（3+1+1）Prompt 组装器
+// 全自动提取：3 个待复习词汇 + 1 个核心句型 + 1 个历史语法错误 → 纯文本 Prompt（防空 fallback）
+// ═══════════════════════════════════════════════════════
+function generateDailyMissionPrompt(dueVocabList, corePatterns, grammarErrors) {
+  // 提取 3 个复习词
+  const targetWords = dueVocabList.slice(0, 3).map(v => v.word).join(', ') || '任意高级词汇';
+
+  // 提取 1 个核心句型
+  const targetPattern = corePatterns && corePatterns.length > 0
+    ? corePatterns[0].targetSentence
+    : '高级复合句型';
+
+  // 提取 1 个历史语法纠错（取最近一条的 rule 或 original）
+  const targetError = grammarErrors && grammarErrors.length > 0
+    ? (grammarErrors[0].rule || grammarErrors[0].original)
+    : '时态和单复数一致性';
+
+  return `作为我的英语口语私教，请开启今天的对话。在接下来的交流中，请你自然地引导我使用以下词汇：[${targetWords}]，以及句型：[${targetPattern}]。并且在对话结束时，请严格检查我是否犯了关于 [${targetError}] 的语法毛病，给出反馈。`;
 }
 // 模块三：待复习混合记忆引擎状态（needsReview 单词 + 语法错题统一卡组流式打卡）
 let _dueDeck = [];
@@ -1584,7 +1639,8 @@ function renderWordsSubTabs(activeMode) {
   const el = document.getElementById('words-subtabs');
   el.style.display = 'flex';
   const grammarCount = allGrammarErrors().length;
-  const dueCount = countReviewWords(_wordsAll) + grammarCount;
+  // Voco 2.0：复习页 Tab 数字强绑定任务状态中心（Mock 已隔离），严禁 UI 层自行 .filter
+  const dueCount = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds).totalDueVocabCount + grammarCount;
   const tabs = [
     { key: 'all', label: '全部词汇', count: _wordsAll.length },
     { key: 'grammar', label: '语法错题', count: grammarCount },
@@ -3174,5 +3230,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=64');
+  navigator.serviceWorker.register('/sw.js?v=65');
 }
