@@ -382,9 +382,11 @@ async function loadHome() {
   const todayReport = rList.find(r => r.date === today);
   // ── 时间轴拦截（UI 渲染保护，Voco 2.0）：渲染任何「今日」概念组件前先解构任务状态中心 ──
   const missionState = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
-  // 无今日报告 → 强制清空依赖今日数据的展示状态（严禁泄漏昨天数据）
-  const displayThoughts = missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).dailyThought || null) : null;
-  const displayGoodPoints = missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).strengths || []) : [];
+  // v75 历史视图：洞察卡展示值直取所选日期日报（_historyParsed）；今日视图仍走任务状态中心时间网关
+  const historyMode = !!(_viewDate && _historyParsed);
+  // 无今日报告 → 强制清空依赖今日数据的展示状态（严禁泄漏昨天数据）；历史视图除外
+  const displayThoughts = historyMode ? ((_historyParsed.summary || {}).dailyThought || null) : (missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).dailyThought || null) : null);
+  const displayGoodPoints = historyMode ? ((_historyParsed.summary || {}).strengths || []) : (missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).strengths || []) : []);
   // ── 空状态全局折叠（UX 重构）：今天视图且未导入今日日报 → 折叠打分面板/洞察卡/三数据卡，Hero 引导卡顶上 ──
   // 常驻组件：本周打卡卡（#home-quote）与今日待办（#home-quests）；历史视图（_viewDate）不受此门影响
   const showEmptyHero = !missionState.hasRealTodayReport && !_viewDate;
@@ -627,13 +629,15 @@ function countReviewWords(words) {
 function renderMetricsOverview() {
   const grid = document.getElementById('home-metrics');
   const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
+  // v75 历史视图早分支：所选日期日报存在 → 渲染该日真实数据（评分口径与今日分支完全一致），今日时间网关不拦截
+  const historyMode = !!(_viewDate && _historyParsed);
   // 时间网关（Voco 2.0）：今日未导入日报 → 数字全部清零（四维度 0/100、综合 --），绝不回退 Mock 或历史数据
-  if (!ms.hasRealTodayReport) {
+  if (!historyMode && !ms.hasRealTodayReport) {
     grid.innerHTML = metricsHTML('--', '--', '--', 0, 0, 0, 0, 0, 0, 0, 0, null);
     refreshIcons(grid);
     return;
   }
-  const parsed = _reportParsed; // 单一事实源：buildGlobalMissionInputs 已强制 = 今日日报解析，禁止重新解析
+  const parsed = historyMode ? _historyParsed : _reportParsed; // 单一事实源：今日=buildGlobalMissionInputs 产物；历史=_historyParsed（v75）
   const fluency = Math.min((parsed.summary.fluency||0) * 10, 100);
   const accuracy = Math.min((parsed.summary.accuracy||0) * 10, 100);
   const natural = Math.min((parsed.summary.naturalness||Math.round((parsed.summary.fluency||0)*0.8)) * 10, 100);
@@ -642,9 +646,9 @@ function renderMetricsOverview() {
   const duration = parsed.meta.duration||0;
   const speakTime = Math.round(duration*0.6);
   const topics = (parsed.meta.topic || '') ? String(parsed.meta.topic).split(/[,，、]/).filter(Boolean).length : 0;
-  const newWords = ms.todayNewWordsCount;
+  const newWords = historyMode ? (parsed.vocabulary || []).length : ms.todayNewWordsCount;
   const expressions = (parsed.patterns || []).length;
-  const corrections = ms.todayCorrectionsCount;
+  const corrections = historyMode ? ((parsed.grammar || []).length + (parsed.pronunciation || []).length) : ms.todayCorrectionsCount;
   // Voco 2.0 对话占比：parser.js parseSpeakingRatio 的角色词数（无记录 → null，条内优雅降级）
   const ratio = (parsed.summary && parsed.summary.speakingRatio) || null;
   grid.innerHTML = metricsHTML(overall, speakTime, duration, fluency, accuracy, vocabScore, natural, topics, newWords, expressions, corrections, ratio);
@@ -726,8 +730,10 @@ const IMPROVE_TYPES = {
 function renderInsightsSection(displayThoughts, displayGoodPoints) {
   const container = document.getElementById('home-insights');
   _insightsParsed = null;
+  // v75 历史视图早分支：所选日期日报存在 → 该日数据直通渲染，今日时间网关不拦截
+  const historyMode = !!(_viewDate && _historyParsed);
   // 时间网关（Voco 2.0）：任务状态中心判定今日未导入日报 → 整区优雅空状态，绝对禁止历史数据穿透进「今日」卡组
-  if (!getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary).hasRealTodayReport) {
+  if (!historyMode && !getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary).hasRealTodayReport) {
     container.innerHTML = `<div class="bg-[var(--c-surface)] rounded-2xl p-6 text-center border border-dashed border-[var(--c-border)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="box-shadow:var(--c-shadow-sm)">
       <div class="text-2xl mb-2">⏳</div>
       <div class="text-sm font-semibold text-[var(--c-text)]">等待导入今日报告</div>
@@ -737,9 +743,9 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
     refreshIcons(container);
     return;
   }
-  // 单一事实源：_reportParsed（loadWords 已强制 = 今日日报解析），禁止在此重新解析
+  // 单一事实源：今日=_reportParsed；历史视图=_historyParsed（v75），禁止在此重新解析
   let d = JSON.parse(JSON.stringify(mockDashboardData.insights));
-  const p = _reportParsed;
+  const p = historyMode ? _historyParsed : _reportParsed;
   _insightsParsed = p;
   if(p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
   if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
@@ -789,20 +795,22 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   _currentInsights = d;
 
   let html = '';
+  // v75 历史视图标签语境：今日 → 当日（顶部横幅已标明「正在查看 {date} 数据」，卡片标题同步去「今日」歧义）
+  const dayLabel = historyMode ? '当日' : '今日';
   // Card A: Topics
-  html += card(0.03, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('message-circle','w-3.5 h-3.5')} 今日对话主题</div><div class="flex gap-2 flex-wrap">${d.topics.map(t=>`<span class="px-3 py-1 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-xs font-medium">#${h(t)}</span>`).join('')}</div>`);
+  html += card(0.03, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('message-circle','w-3.5 h-3.5')} ${dayLabel}对话主题</div><div class="flex gap-2 flex-wrap">${d.topics.map(t=>`<span class="px-3 py-1 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-xs font-medium">#${h(t)}</span>`).join('')}</div>`);
   // Card B: 今日对话想法 —— 动态渲染：优先 _reportParsed.summary.dailyThought，次取本函数解析的日报 dailyThought；零硬编码金句
-  const dt = (((_reportParsed && _reportParsed.summary && _reportParsed.summary.dailyThought) || null) || d.thoughts) || {};
+  const dt = (((p && p.summary && p.summary.dailyThought) || null) || d.thoughts) || {};
   if (dt.en || dt.zh) {
-    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div>${dt.en ? `<div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(dt.en)}"</div>` : ''}<div class="text-[13px] text-[var(--c-text-dim)]">${h(dt.zh)}</div>`);
+    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div>${dt.en ? `<div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(dt.en)}"</div>` : ''}<div class="text-[13px] text-[var(--c-text-dim)]">${h(dt.zh)}</div>`);
   } else {
     // 空状态：今日未导入日报或无该字段 → 引导卡（不显示任何假数据）
-    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} 今日对话想法</div><div class="text-[13px] text-[var(--c-text-dim)]">💡 导入今日日报后，在此提炼你的核心表达观点</div>`);
+    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div><div class="text-[13px] text-[var(--c-text-dim)]">💡 导入今日日报后，在此提炼你的核心表达观点</div>`);
   }
   // Card C: Strengths
-  html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} 今天做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
+  html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} ${dayLabel}做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
   // Card D: 进阶引导 — 一条 = 一卡，按 type 分流教练视角（硬伤红线 / 软性升级 / 逻辑结构）
-  html += `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2 px-1">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} 今天需要提升</div>`;
+  html += `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2 px-1">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} ${dayLabel}需要提升</div>`;
   html += d.improvements.map((im, i) => {
     // Legacy fallback: derive structured fields from detail string if new fields absent
     const parts = (im.detail || '').split(' → ');
@@ -978,9 +986,11 @@ function renderContentCards() {
   // 业务概念分离（Voco 2.0）：顶部卡 = 今日增量，唯一数据源 = 全局任务状态中心；
   // 无今日日报 → 0，绝不回退 mockWords/mockSentences 静默兜底（数字跳变断根）
   const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
-  const newCount = ms.todayNewWordsCount;
-  const coreCount = ms.todayCorePatternCount;
-  const errCount = ms.todayCorrectionsCount;
+  // v75 历史视图早分支：所选日期日报存在 → 三卡增量改为该日日报真实数量（今日时间网关不拦截）
+  const historyMode = !!(_viewDate && _historyParsed);
+  const newCount = historyMode ? (_historyParsed.vocabulary || []).length : ms.todayNewWordsCount;
+  const coreCount = historyMode ? (_historyParsed.sentence_patterns || []).length : ms.todayCorePatternCount;
+  const errCount = historyMode ? ((_historyParsed.grammar || []).length + (_historyParsed.pronunciation || []).length) : ms.todayCorrectionsCount;
 
   // 红线1: 3 张卡片永驻 grid — 数据为 0 也强制渲染，绝不消失
   // 模块二：卡片按钮全部走规范路由（/review?tab=… · /shadowing），零死链
@@ -1500,6 +1510,14 @@ function buildGlobalMissionInputs(vocab, errors, reports, patterns) {
   _reportParsed = strictToday ? parseSmartReport(strictToday.content) : null;
   if (_reportParsed) _reportParsed.meta.date = strictToday.date; // meta.date 回写为报表行日期 —— 时间网关校验依据
   _dailyPatterns = _reportParsed ? (_reportParsed.sentence_patterns || []) : [];
+  // v75 历史视图数据源：点小熊日历选择非今日日期时，解析该日日报（独立于今日 _reportParsed，时间网关绝不混流）
+  if (_viewDate && _viewDate !== today) {
+    const hist = (reports && reports.length) ? reports.find(r => r.date === _viewDate && isDailyReport(r)) : null;
+    _historyParsed = hist ? parseSmartReport(hist.content) : null;
+    if (_historyParsed) _historyParsed.meta.date = hist.date; // meta.date 回写为报表行日期 —— 历史渲染网关校验依据
+  } else {
+    _historyParsed = null;
+  }
   // 句型 SRS 历史库：patterns 表全量打标（needsReview 布尔），喂给 getTodayMissionState 第 5 参
   // 空表（无历史句型）→ [] 兜底，绝不回退 Mock 句库
   _patternLibrary = stampPatternTags((patterns && patterns.length) ? patterns : []);
@@ -1554,6 +1572,7 @@ let _wordsAll = [];
 let _errorsAll = [];
 let _wordsFilter = 'all';
 let _reportParsed = null;       // 今日日报的 parseSmartReport() 结果（buildGlobalMissionInputs 强制 = 今日日报，只读消费）
+let _historyParsed = null;      // v75 历史视图：所选日期（_viewDate）日报的 parseSmartReport() 结果；未选历史日期或该日无日报 → null（今日链路不受影响）
 let _dailyPatterns = [];        // 今日日报 sentence_patterns（SSOT todayCorePatternCount 输入）
 let _patternLibrary = [];       // patterns 表历史句型库（打标后，SSOT duePatternList / totalPatternTaskCount 输入）
 let _reviewedVocabTodayIds = new Set(); // 加载层上收：今日实际完成 SM-2 反馈（🟢/🔴）的词 id 集合（SSOT reviewedVocabToday 输入）
@@ -3590,5 +3609,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=74');
+  navigator.serviceWorker.register('/sw.js?v=75');
 }
