@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=66">
+  <link rel="stylesheet" href="/style.css?v=67">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -219,6 +219,29 @@
       <div class="text-[11px] text-[var(--c-text-ultradim)]" id="me-level-hint"></div>
     </div>
 
+    <!-- Group: Topic Generator (Voco 2.0 聊前灵感配置舱 —— 头像/打卡卡正下方、数据管理面板上方) -->
+    <div class="mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="compass" class="w-3.5 h-3.5"></i> 聊前灵感配置舱</div>
+      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] p-4" style="box-shadow:var(--c-shadow-sm)">
+        <!-- URL 投喂框：🔗 单行 input -->
+        <div class="flex items-center gap-2 bg-[var(--c-bg)] rounded-xl border border-[var(--c-border-light)] px-3 py-2.5 focus-within:border-[var(--c-primary)] transition-colors">
+          <i data-lucide="link" class="w-4 h-4 text-[var(--c-text-dim)] shrink-0"></i>
+          <input id="input-topic-url" type="url" inputmode="url" placeholder="粘贴一篇文章 / 视频链接…" class="flex-1 min-w-0 bg-transparent border-0 outline-none text-sm text-[var(--c-text)] placeholder:text-[var(--c-text-ultradim)]">
+        </div>
+        <!-- 灵感速记框：💡 多行 textarea（2-3 行高） -->
+        <div class="flex items-start gap-2 bg-[var(--c-bg)] rounded-xl border border-[var(--c-border-light)] px-3 py-2.5 mt-2.5 focus-within:border-[var(--c-primary)] transition-colors">
+          <i data-lucide="lightbulb" class="w-4 h-4 text-[var(--c-text-dim)] shrink-0 mt-0.5"></i>
+          <textarea id="input-topic-thoughts" rows="3" placeholder="写下你此刻的想法、疑问或想聊的事…" class="flex-1 min-w-0 bg-transparent border-0 outline-none resize-none text-sm text-[var(--c-text)] placeholder:text-[var(--c-text-ultradim)]"></textarea>
+        </div>
+        <!-- 话题池：横向滚动槽 7 个固定 Pill（JS 渲染 renderTopicPills，单选可取消） -->
+        <div id="topic-pill-slot" class="flex overflow-x-auto whitespace-nowrap hide-scrollbar gap-2 mt-3 -mx-1 px-1 pb-0.5"></div>
+        <!-- 生成按钮：对战胶囊同款主视觉 -->
+        <button id="btn-topic-generate" onclick="fireTopicGeneratorPrompt(this)" class="w-full flex items-center justify-center gap-2 px-4 py-3.5 mt-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]" style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
+          ✨ 生成专属对话 Prompt <i data-lucide="sparkles" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
     <!-- Achievements -->
     <div class="mb-4">
       <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="trophy" class="w-3.5 h-3.5"></i> 成就徽章</div>
@@ -386,8 +409,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=66"></script>
-<script src="/parser.js?v=66"></script>
-<script src="/app.js?v=66"></script>
+<script src="/supabase-client.js?v=67"></script>
+<script src="/parser.js?v=67"></script>
+<script src="/app.js?v=67"></script>
 </body>
 </html>

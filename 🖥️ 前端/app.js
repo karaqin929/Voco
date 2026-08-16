@@ -1600,26 +1600,32 @@ function missionCapsuleHTML() {
   </button>`;
 }
 
-async function fireDailyMissionPrompt(btn) {
-  // 数据字典一律直取任务状态中心（SSOT）：3 个待复习词 + 今日核心句型 + 历史语法错误
-  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds);
-  const prompt = generateDailyMissionPrompt(ms.dueVocabList, _dailyPatterns, _errorsAll || []);
-  let copied = false;
+// ── 剪贴板共享工具：navigator.clipboard → textarea+execCommand 降级 ──
+// 对战胶囊（fireDailyMissionPrompt）与灵感配置舱（fireTopicGeneratorPrompt）共用
+async function copyToClipboardWithFallback(text) {
   try {
-    await navigator.clipboard.writeText(prompt);
-    copied = true;
+    await navigator.clipboard.writeText(text);
+    return true;
   } catch (e) {
     // 降级：非安全上下文 / 权限拒绝 → 隐藏 textarea 复制
     try {
       const ta = document.createElement('textarea');
-      ta.value = prompt;
+      ta.value = text;
       ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
       document.body.appendChild(ta);
       ta.select();
-      copied = document.execCommand('copy');
+      const ok = document.execCommand('copy');
       ta.remove();
-    } catch (e2) { copied = false; }
+      return ok;
+    } catch (e2) { return false; }
   }
+}
+
+async function fireDailyMissionPrompt(btn) {
+  // 数据字典一律直取任务状态中心（SSOT）：3 个待复习词 + 今日核心句型 + 历史语法错误
+  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds);
+  const prompt = generateDailyMissionPrompt(ms.dueVocabList, _dailyPatterns, _errorsAll || []);
+  const copied = await copyToClipboardWithFallback(prompt);
   if (!copied) { showToast('复制失败，请长按文本手动复制'); return; }
   const originalHTML = btn.innerHTML;
   const originalStyle = btn.getAttribute('style') || '';
@@ -1629,6 +1635,72 @@ async function fireDailyMissionPrompt(btn) {
   refreshIcons(btn);
   setTimeout(() => { btn.innerHTML = originalHTML; btn.setAttribute('style', originalStyle); refreshIcons(btn); }, 2000);
   showToast('📋 今日对战 Prompt 已复制');
+}
+
+// ── 聊前灵感配置舱（Voco 2.0 第四步）：【我的】页专属 ──
+// URL 投喂 + 灵感速记 + 7 话题 Pill（单选、可取消）→ 私教角色扮演 Prompt → 剪贴板
+const TOPIC_TAGS = ['✈️ 跨国旅行', '🏃‍♀️ 健身与普拉提', '💼 职场与商业', '📖 文学评论', '🐾 养宠日常', '☕ 咖啡与生活', '📈 宏观经济'];
+let _selectedTopicTag = ''; // 全局单选状态：再点已选中标签 → 取消
+
+function renderTopicPills() {
+  const slot = document.getElementById('topic-pill-slot');
+  if (!slot) return;
+  slot.innerHTML = TOPIC_TAGS.map(tag =>
+    `<button type="button" class="topic-pill${tag === _selectedTopicTag ? ' active' : ''}" data-tag="${tag}" onclick="toggleTopicPill(this)" aria-pressed="${tag === _selectedTopicTag}">${tag}</button>`
+  ).join('');
+}
+
+function toggleTopicPill(btn) {
+  const tag = btn.getAttribute('data-tag') || '';
+  _selectedTopicTag = (_selectedTopicTag === tag) ? '' : tag;
+  // 单选：全量重算 active，移除其他标签选中态（主题色背景 + 白字由 .topic-pill.active 提供）
+  document.querySelectorAll('#topic-pill-slot .topic-pill').forEach(p => {
+    const on = p.getAttribute('data-tag') === _selectedTopicTag;
+    p.classList.toggle('active', on);
+    p.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+// 组装并复制 Prompt（仅在 Profile 页面调用）
+async function fireTopicGeneratorPrompt(btn) {
+  const urlInput = document.getElementById('input-topic-url').value.trim();
+  const thoughtsInput = document.getElementById('input-topic-thoughts').value.trim();
+
+  // 防空判断
+  if (!urlInput && !thoughtsInput && !_selectedTopicTag) {
+    alert('请至少提供一个链接、一点想法，或选择一个话题！');
+    return;
+  }
+
+  let prompt = "作为我的英语口语私教，请开启今天的对话。";
+
+  if (_selectedTopicTag) {
+    prompt += `\n\n今天我们探讨的主题领域是：【${_selectedTopicTag}】。`;
+  }
+  if (urlInput) {
+    prompt += `\n\n请参考以下背景材料（你可以提取核心观点与我讨论）：\n${urlInput}`;
+  }
+  if (thoughtsInput) {
+    prompt += `\n\n这是我的一些初步想法和疑问，请结合这些引导我展开讨论：\n"${thoughtsInput}"`;
+  }
+
+  prompt += "\n\n请用自然、引导式的语言回复我，一次不要说太多。并在交流中注意纠正我可能出现的发音和语法错误。";
+
+  const copied = await copyToClipboardWithFallback(prompt);
+  if (!copied) { showToast('复制失败，请长按文本手动复制'); return; }
+
+  // 按钮交互反馈：✅ 变绿 2 秒后恢复（恢复完整内联样式，保留渐变主视觉）
+  const originalHTML = btn.innerHTML;
+  const originalStyle = btn.getAttribute('style') || '';
+  btn.innerHTML = '✅ Prompt 已复制！去贴给 GPT 吧';
+  btn.style.background = 'var(--c-green)';
+  btn.style.boxShadow = 'none';
+  setTimeout(() => {
+    btn.innerHTML = originalHTML;
+    btn.setAttribute('style', originalStyle);
+    refreshIcons(btn);
+  }, 2000);
+  showToast('📋 专属对话 Prompt 已复制');
 }
 
 // 模块三：待复习混合记忆引擎状态（needsReview 单词 + 语法错题统一卡组流式打卡）
@@ -3382,6 +3454,9 @@ if (typeof lucide !== 'undefined' && lucide.createIcons) {
   lucide.createIcons();
 }
 
+// Voco 2.0：聊前灵感配置舱 7 话题 Pill 初始渲染（Profile 页单选标签）
+renderTopicPills();
+
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_IN') checkAuth();
   if (event === 'SIGNED_OUT') checkAuth();
@@ -3390,5 +3465,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=66');
+  navigator.serviceWorker.register('/sw.js?v=67');
 }

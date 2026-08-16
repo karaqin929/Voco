@@ -50,7 +50,7 @@
 - **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
 - **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v65 / voco-v75**（Voco 2.0 第一步：SSOT 用户骨架签名重构 + 状态孤岛断根 + 3+1+1 Prompt 组装器）。
+- 当前线上：**v66 / voco-v76**（Voco 2.0 第二三步：对话占比双色条 + 地道与英文思维 + Chart.js 7 天趋势 + 今日对战胶囊）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -108,6 +108,12 @@
   - 复习页 Tab 数字强绑定 SSOT：renderWordsSubTabs dueCount = ms.totalDueVocabCount + grammarCount（UI 层不再自行 .filter）
   - `generateDailyMissionPrompt(dueVocabList, corePatterns, grammarErrors)` 3+1+1 组装器：3 个待复习词 + 1 核心句型（targetSentence）+ 1 历史语法错误（rule||original），全防空 fallback，输出纯文本私教 Prompt（对战胶囊大按钮 UI 在后续步骤接入）
   - 熊爪 7 天条 / streak 卡日期标签 fmtLocalDate 补漏（UTC 截断残留）
+- **Voco 2.0 第二三步（v66）**：
+  - 对话占比：parser.js 新增 `parseSpeakingRatio(text)` + `countTranscriptWords(s)`（英文分词 + 中文单字口径）——扫行首角色标注 `User/Assistant/AI/Me/You/你/我/用户:`；Markdown「对话记录/Transcript/逐字稿」节 + JSON `transcript/conversation` 数组（role/content）双入口；parseSmartReport 两分支兜底全文扫描；产出 `summary.speakingRatio = {user, ai}`，无有效记录 → null（UI 优雅降级「导入含对话记录的日报后展示」）。首页 metricsHTML 在开口时长下方渲染双色占比条（你% 主色 / AI% 灰蓝），字数明细随条
+  - 更名：评分维度「自然度」→「地道与英文思维」（仅 UI 文案；数据键 naturalness 不变）；parser.js parseSummary 正则兼容新旧双标签（`(?:自然度|地道与英文思维)`）
+  - Chart.js（CDN jsdelivr）趋势图：index.html Profile 新增 `#trendChart` canvas（h-180px 容器）；`renderTrendChart()` 拉 reports 近 7 个本地日历日，综合得分口径与首页打分板一致（四维度 norm100 均值），缺日 null 留空（spanGaps:false）；tension 0.4 平滑曲线 + 数据点；莫兰迪色系：线 #8A9B6E 鼠尾草绿 / 点 #6B7D54 橄榄绿 / 填充 rgba(138,155,110,0.15) / 刻度 #A49A87 / 网格 rgba(164,154,135,0.18) / tooltip #4A4438；`typeof Chart === 'undefined'` 静默降级
+  - 今日对战胶囊：Card E「下一次学习建议」3 条分散列表已删除 → `missionCapsuleHTML()` 主视觉大按钮「🎯 获取今日私教对战 Prompt」（主色→绿渐变 + 投影）；`fireDailyMissionPrompt(btn)` 直取 SSOT（ms.dueVocabList + _dailyPatterns + _errorsAll）→ generateDailyMissionPrompt → navigator.clipboard.writeText（失败降级 execCommand textarea）→ 按钮变「✅ 已复制！去 ChatGPT 开口吧」绿色态，2s setTimeout 恢复原样
+  - 后续步骤（第四步）：聊前灵感配置舱（URL 投喂 + 想法速记 + 7 话题 Pill Tags）
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist
