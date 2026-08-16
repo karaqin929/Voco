@@ -119,7 +119,7 @@ function parseDailyReport(body, result) {
       result.summary.review = content.trim();
     } else if (header.includes('下一步建议')) {
       result.summary.next_suggestions = content.trim();
-    } else if (header.includes('对话想法') || header.includes('今日心得')) {
+    } else if (header.includes('对话想法') || header.includes('今日心得') || header.includes('今日想法') || header.includes('我的想法') || header.includes('我的心得') || header.includes('今日思考')) {
       result.summary.thoughts = content.trim();
       // 归一化提取：今日对话想法 → dailyThought { en, zh }（首页 Card B 动态渲染）
       result.summary.dailyThought = parseDailyThought(content);

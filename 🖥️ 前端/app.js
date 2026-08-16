@@ -805,18 +805,20 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   //         ② 字体规范（font-sans not-italic 全局无衬线，删除 Georgia 衬线斜体引语样式）
   // v78 修复：恒定排版规格 —— 主体恒为 15px 主色（en 缺失时 zh 升主），副行恒为 13px 灰；
   //         内容经 cleanThoughtText 净化（剥 markdown 星号/残留 HTML/换行），杜绝每天视觉漂移
-  const dtRaw = (((p && p.summary && p.summary.dailyThought) || null) || d.thoughts) || {};
+  // v80 兜底：dailyThought 缺失时，从 summary.thoughts 字符串现场提取（老 JSON/Markdown 数据只有 thoughts 字段的情况）
+  const dtRaw = (((p && p.summary && p.summary.dailyThought) || null) || (p && p.summary && p.summary.thoughts ? parseDailyThought(String(p.summary.thoughts)) : null) || d.thoughts) || {};
   const dt = { en: cleanThoughtText(dtRaw.en), zh: cleanThoughtText(dtRaw.zh) };
   const NO_THOUGHT_RE = /^(无|暂无|没有|未记录|none?|n\/a)$/i;
   const hasThought = !!(dt.en || (dt.zh && !NO_THOUGHT_RE.test(dt.zh)));
   if (hasThought) {
     // 单一引语块：左侧主题色竖线 + 中文弯引号；主行/副行字号颜色恒定，不随 en/zh 有无而变
+    // v80 排版拉平：主行 text-sm(14px) font-normal，与 Card C/D 正文层级一致（v78 的 15px font-medium 过于突出）
     const quote = dt.en || dt.zh;        // 主体：优先英文原句，缺失时中文释义升主
     const sub = dt.en ? dt.zh : '';      // 副行：仅当 en 在场时 zh 作释义副行
     html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div>
       <div class="border-l-[3px] border-l-[var(--c-primary)] pl-3">
-        <div class="font-sans not-italic text-[15px] font-medium text-[var(--c-text)] leading-[1.7]">“${h(quote)}”</div>
-        ${sub ? `<div class="font-sans not-italic text-[13px] text-[var(--c-text-dim)] mt-1.5 leading-[1.7]">${h(sub)}</div>` : ''}
+        <div class="font-sans not-italic text-sm font-normal text-[var(--c-text)] leading-[1.7]">“${h(quote)}”</div>
+        ${sub ? `<div class="font-sans not-italic text-[13px] font-normal text-[var(--c-text-dim)] mt-1.5 leading-[1.7]">${h(sub)}</div>` : ''}
       </div>`);
   } else {
     // 空状态：v76 优雅缺省文案 —— 历史视图「当日未记录想法」；今日视图保留导入引导（不显示任何假数据）
@@ -3720,5 +3722,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=79');
+  navigator.serviceWorker.register('/sw.js?v=80');
 }
