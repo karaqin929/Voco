@@ -50,7 +50,7 @@
 - **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
 - **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v70 / voco-v80**（空状态温润极简重构：线性图标锚点 + 大圆角呼吸排版）。
+- 当前线上：**v71 / voco-v81**（句型间隔重复引擎 Sentence SRS：SM-2 记忆曲线 + 队列混合 + 0句防御）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -124,6 +124,13 @@
   - `renderTopicLibrary()`：topics 表 + vocabulary.source_topic 关联词一次取全（零 N+1），`_topicLibraryCache` 缓存 {id,title,description,keyTerms,words}；卡片墙：📖 标题 + 右上「N 个关键术语」徽章 + 描述 + 关联词横向截断预览（3-5 词 chip 行 overflow-hidden whitespace-nowrap，超 5 显示 +N）；空库 → EmptyState 引导文案；topics 模式下隐藏搜索框（renderWordsSubTabs 内 toggle .lib-search-wrap）
   - `fireTopicRevivalPrompt(btn, idx)`：话题复盘 Prompt 严格按产品模板（`我们之前探讨过【title】…引导我使用这些词汇：[words]…你先向我提问吧`）→ copyToClipboardWithFallback → 绿色 Toast（showToast 扩展 type='success'，绿底白字，默认深色向后兼容）
   - 数据链：importTopicCard 已写 topics + vocabulary.source_topic（v4.0 遗留资产直接盘活）
+- **Voco 2.0 句型间隔重复引擎（v71）Sentence SRS —— 根治「(0句)」Bug**：句型跟读接入 SM-2 记忆曲线，与单词同构
+  - 数据层：`stampPatternTags` 新增 needsReview 打标（isDueBySrs 同源：无 next_review_date → 到期；mastered → 永久出队）；patterns 表 SM-2 字段（status/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）与 vocabulary 完全同构
+  - 队列混合（SSOT 第 6 块）：`getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocabIds, patternLibrary = [])` 新增可选第 5 参；`totalPatternTaskCount = 今日新句型数 + totalDuePatternCount`；duePatternList 对今日已含句做文本去重（targetSentence 小写比对）绝无双计；7 处调用点全部传 `_patternLibrary`
+  - 输入管线：`buildGlobalMissionInputs(vocab, errors, reports, patterns)` 第 4 参 → `_patternLibrary = stampPatternTags(patterns)`（空表 [] 兜底，绝不回退 Mock）；loadWords 补拉 patterns 表（Promise.all 第四项）；loadSpeak 分离真实库与展示库：`_speakAll = taggedPatterns.length ? taggedPatterns : mockSentences`（Mock 仅播放器展示），`_patternLibrary = taggedPatterns`
+  - 跟读队列：`mergedPatternQueue(parsed, speakAll)` = coreDeck 今日句 + needsReview 到期句（toPlayerItem 映射、文本去重）；默认队列与 ?filter=core_sentences 均走混合队列；无日报有 5 句到期 → 队列 5 句「完成句型复习」
+  - SM-2 写回：`recordPatternReviews()` —— 录完最后一句由 `_playerReviewWritten` once-guard 触发（renderShadowingPlayer 每局重置），仅 `_UUID_RE` 正则匹配的真实库行按质量 3 推进（core-N/sentence-anchor/migrated-N/Mock 一律跳过），本地快照同步 + patterns 表 update 静默 catch
+  - UI 防御（0句态）：待办任务 2 三态 —— 总数为 0 → 置灰 disabled「跟读打卡 · 暂无跟读任务」（minus-circle 图标、无 chevron、action null、opacity-45，绝无空心圆圈+0句）；有日报 →「完成核心句型跟读 (N句)」；无日报有到期 →「完成句型复习 (N句)」；跟读页空状态主视觉与首页 #home-empty-hero 温润极简同构（160deg 渐变卡 + mic-off 内描边圆底块 + 📥 CTA）
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist
