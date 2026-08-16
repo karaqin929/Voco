@@ -1890,9 +1890,20 @@ function standardizeErrorCards(rawItems) {
     if (isFrag && merged.length) {
       const prev = merged[merged.length - 1];
       prev.original = [prev.original, item.original].filter(Boolean).join(' ');
-    } else {
-      merged.push(item);
+      continue;
     }
+    // v81 配对合并（数据腰斩根治）：一条纠错被拆成「原句-only」与「正句-only」两条相邻记录时，
+    // 必须合成一张 CorrectionCard —— 严禁渲染成「一张只有横杠和错句、另一张只有正确句子」的双卡
+    const prev = merged.length ? merged[merged.length - 1] : null;
+    if (prev && !prev.correction && item.correction && !item.original && !item.rule) {
+      prev.correction = item.correction;
+      continue;
+    }
+    if (prev && prev.correction && !prev.original && item.original && !item.correction && !item.rule) {
+      prev.original = item.original;
+      continue;
+    }
+    merged.push(item);
   }
   return merged.map((m, i) => ({ ...m, id: m.id || `err_${i}` }));
 }
@@ -2033,6 +2044,8 @@ function paintDefenseToggle(btn, on) {
 
 // v77 CorrectionCard 组件化：复用首页「今日需要提升」正向输入卡结构（绿色加粗正确句为主视觉，
 // 原句仅小字灰显对照，零红色删除线、零 👁️ 揭示按钮）+ 右上角 🛡️ 对练防御开关
+// v81：① 主视觉降级链 correct_text → original_text → 隐藏，绝不渲染 '-'/'—' 占位
+//      ② 错题库总览列表 = 错题图鉴/仪表盘（非 SM-2 复习模式），删除 [没记住]/[记住了] 复习按钮，仅保留 🛡️ 防御开关
 function renderErrorCards(items) {
   const container = document.getElementById('words-content');
   if (!items.length) {
@@ -2040,40 +2053,27 @@ function renderErrorCards(items) {
     return;
   }
   const defSigs = new Set(getDefenseSigs());
-  container.innerHTML = items.map((e, i) => {
+  container.innerHTML = items.map((e) => {
     const b = errorBadge(e.type, e.issue);
     const sig = errorSignature(e);
     const defOn = defSigs.has(sig);
+    // 主视觉（大字/深色）：直接渲染正确表达 correct_text；为空降级显示原句（主色，非绿）；
+    // 两者皆空 → 整行隐藏，绝无 '-' 占位
+    const main = String(e.correction || '').trim() || String(e.original || '').trim();
+    const mainIsCorrect = !!String(e.correction || '').trim();
+    // 辅助视觉（小字/灰）：仅当主视觉是正确句且原句存在时对照展示（避免与降级主视觉重复）
+    const showOrigRef = mainIsCorrect && String(e.original || '').trim();
     return `
     <div class="err-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)] transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
       <div class="flex items-start justify-between gap-3 mb-2.5">
         <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.cls}">${b.label}</span>
         <button class="def-toggle inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0 ${defOn ? 'bg-[var(--c-primary-light)] border-[var(--c-primary)] text-[var(--c-primary)]' : 'bg-[var(--c-bg)] border-[var(--c-border)] text-[var(--c-text-dim)]'}" data-sig="${h(sig)}" onclick="toggleDefense(this)">${defOn ? '🛡️ 对练防御中' : '🛡️ 加入对练防御'}</button>
       </div>
-      <!-- 正向输入原则：主视觉 = 大字绿色正确知识点；历史错误仅小字灰显对照（无删除线、无 👁️ 遮罩） -->
-      <div class="text-[17px] font-bold text-[var(--c-green)] mb-1.5">${h(e.correction || '—')}</div>
-      <div class="text-xs text-[var(--c-text-ultradim)] mb-2">原句：${h(e.original)}</div>
-      ${e.rule ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg mb-3">📖 ${h(e.rule)}</div>` : ''}
-      <div class="flex justify-end gap-2 pt-2 border-t border-[var(--c-border-light)]">
-        ${reviewButtonHTML({ id: '', kind: 'again', label: '没记住', cls: 'btn-again px-3 py-1.5 text-xs rounded-lg' })}
-        ${reviewButtonHTML({ id: '', kind: 'good', label: '记住了', cls: 'btn-good px-3 py-1.5 text-xs rounded-lg' })}
-      </div>
+      ${main ? `<div class="text-[17px] font-bold mb-1.5 ${mainIsCorrect ? 'text-[var(--c-green)]' : 'text-[var(--c-text)]'}">${h(main)}</div>` : ''}
+      ${showOrigRef ? `<div class="text-xs text-[var(--c-text-ultradim)] mb-2">原句：${h(e.original)}</div>` : ''}
+      ${e.rule ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg">📖 ${h(e.rule)}</div>` : ''}
     </div>
   `}).join('');
-  // v77 接线：双阶段揭示已废弃——没记住 → 保留卡片轻提示；记住了 → 会话去重 + 平滑移除
-  container.querySelectorAll('.err-card').forEach((card, idx) => {
-    const item = items[idx];
-    card.querySelector('.btn-again').addEventListener('click', () => {
-      showToast('已保留，稍后再练这条');
-    });
-    card.querySelector('.btn-good').addEventListener('click', () => {
-      if (item && item.id) _reviewedErrorIds.add(String(item.id));
-      card.style.opacity = '0';
-      card.style.transform = 'translateY(-8px)';
-      showToast('已记住这条纠错');
-      setTimeout(() => { card.remove(); if (!container.querySelector('.err-card')) container.innerHTML = EmptyState({ message: '没有语法错题，继续保持！', size: 80 }); }, 250);
-    });
-  });
   refreshIcons(container);
 }
 
@@ -3722,5 +3722,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=80');
+  navigator.serviceWorker.register('/sw.js?v=81');
 }
