@@ -47,12 +47,13 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v79）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v89）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v81）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v91）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v79 / voco-v89**（全局重构：due 卡组件化 + 死 CSS 清理 + emoji/斜体清零）。
+- 当前线上：**v81 / voco-v91**（错题卡数据腰斩配对合并 + 图鉴列表去复习按钮 + 主视觉降级链去横杠）。
+- v80 已发布（想法卡字号拉平 14px normal + dailyThought 解析兜底：thoughts 回退 + Markdown 标题变体加宽）。
+- v79 已发布（全局重构：due 卡组件化 + 死 CSS 清理 + emoji/斜体清零）。
 - v78 已发布（对话想法卡片排版统一：cleanThoughtText 净化 + 恒定层级规格）。
-- v77 已发布（系统级重构：错题本 CorrectionCard 组件化 + 动态标签 + 🛡️ 对练防御注入；句型卡情境完形防石化 + 队列 15 句截断）。
 - **⚠️ 待用户手动执行：`⚙️ 后端/migration_v2.1.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——patterns 表 SM-2 列（status/mastered/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）+ 到期回填 + 索引。跑之前句型写回静默降级本地会话态（不报错）。
 
 ## Architecture Notes
@@ -174,6 +175,10 @@
   - mock 去硬编码：`lastSync: getLocalToday() + ' 18:30'`（types.ts 同步为空串）
   - 审计确认健康（未动）：buildGlobalMissionInputs 时间网关 / getTodayMissionState 7 调用点 SSOT / PATTERN_SESSION_CAP=15 截断 / 录音函数族已删 / 灵感舱为活代码
   - 遗留提示：`ExecutiveSummary.tsx` / `refactor-card-f.md` 为非运行时历史文件，内含 Georgia italic 引用，不参与部署（如需彻底清理另议）
+- **v80 排版拉平 + dailyThought 兜底**：Card B 主行 v78 的 15px font-medium 过于突出 → `text-sm(14px) font-normal`（与 Card C/D 正文同级）；dtRaw 兜底链扩为 `summary.dailyThought → parseDailyThought(summary.thoughts) → d.thoughts`（老数据只有 thoughts 字段也能提取）；parser.js Markdown 想法标题变体加宽：对话想法/今日心得/今日想法/我的想法/我的心得/今日思考
+- **v81 错题卡数据腰斩根治 + 图鉴定位**：
+  - `standardizeErrorCards` 配对合并（v81 段）：相邻两条中 A 只有原句无正句 + B 只有正句无原句（且无 rule）→ 合成一张 CorrectionCard；双向覆盖（原句-only 在前或正句-only 在前均可）。根因：日报「我说/应为」解析拆行时产出两条相邻残卡
+  - `renderErrorCards` 重写：主视觉降级链 `correction → original → 隐藏`（**绝不渲染 '-'/'—' 占位**；降级显示 original 时用主色非绿色）；辅助区「原句：…」仅在主视觉为正确句且原句存在时展示（避免与降级主视觉重复）；**复习按钮（btn-again/btn-good 及接线）整体删除**——错题库总览 = 错题图鉴/仪表盘，非 SM-2 复习模式，仅保留右上角 🛡️ 对练防御开关；reviewButtonHTML 注释同步（调用点剩 due-*/srs-* 两处）
 - **Voco 2.0 跟读页转型（v73）句型记忆卡片模式 —— SM-2 全链路闭环**：
   - 页面重构：`renderSentenceReview(sentences, startIndex)` 渲染单卡翻转视口（正面英文原句 → 点击翻转翻译解析）；**机械录音三键（听原音/按住录音/听自己）与录音函数族整体物理删除**（speakWord TTS 保留，词汇列表发音在用）；底部导航更名「句型复习」（icon repeat，data-tab 仍 'speak'，全部 ?tab=speak 兼容链不动）
   - 反馈双键完全克隆词汇复习（图18）：😅 还没记住 = `bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)]`、🚀 记住了 = 绿色同构——高度/圆角/内边距逐字一致，严禁第二套按钮样式
