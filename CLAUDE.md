@@ -47,10 +47,11 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v78）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v88）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v79）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v89）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v78 / voco-v88**（对话想法卡片排版统一：cleanThoughtText 净化 + 恒定层级规格）。
+- 当前线上：**v79 / voco-v89**（全局重构：due 卡组件化 + 死 CSS 清理 + emoji/斜体清零）。
+- v78 已发布（对话想法卡片排版统一：cleanThoughtText 净化 + 恒定层级规格）。
 - v77 已发布（系统级重构：错题本 CorrectionCard 组件化 + 动态标签 + 🛡️ 对练防御注入；句型卡情境完形防石化 + 队列 15 句截断）。
 - **⚠️ 待用户手动执行：`⚙️ 后端/migration_v2.1.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——patterns 表 SM-2 列（status/mastered/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）+ 到期回填 + 索引。跑之前句型写回静默降级本地会话态（不报错）。
 
@@ -165,6 +166,14 @@
   - `cleanThoughtText(s)` 纯函数（app.js Helpers 区，h/hf 旁）：剥 HTML 标签 → 剥列表符 → 成对强调标记去符号 → 残余 `*_`~#` 兜底清除 → 空白折叠 → 换行并入单行 → 去包裹引号（渲染层统一加中文弯引号“”）
   - 恒定规格：主体 `(dt.en || dt.zh)` 恒为 15px font-medium 主色（en 缺失时 zh 升主）；副行仅当 en 在场时显示 zh 释义，恒为 13px 灰 dim；外层 `border-l-[3px] border-l-[var(--c-primary)] pl-3` 引语块——层级不再随数据完整度变化
   - 数据源不变：`_reportParsed/_historyParsed.summary.dailyThought`（parser.js parseDailyThought 归一化 {en, zh}），净化只发生在渲染层，上游消费方不受影响
+- **v79 全局重构（架构师审计后一次性补丁 —— due 卡组件化 + 死代码清理）**：
+  - due 卡错题分支组件化：徽章复用 `errorBadge(item.error.type, type==='pronunciation'?'发音纠正':'语法纠错')`（删除硬编码「⚠️ 语法纠错」红底徽章）；正面按正向输入原则 = 动态徽章 + 原句小字灰显 + icon('lightbulb') 回忆引导（大字号错误句主视觉废弃）；背面 CorrectionCard 规格 = 17px 绿色正确句居中为主 + 规则框（删除「→ 正确句」箭头旧碎片）
+  - `due-reveal-btn` 去 emoji：`icon('eye') + 点击显示答案`，showDueCard 尾部补 `refreshIcons(document.getElementById('due-card'))`（Lucide 动态渲染必须）
+  - 例句斜体清零：style.css `.vocab-card .example` 删 font-style:italic + due 卡例句 `italic`→`not-italic`，💬→icon('message-circle')
+  - 死 CSS 删除：style.css `.error-card` 整块 + `[data-mode="dark"] .error-card` 关联——`.err-orig { line-through }` 从此绝迹（线上 grep 0）；app.js:1069 的 line-through 是待办完成态勾选（任务语义，合法保留）
+  - mock 去硬编码：`lastSync: getLocalToday() + ' 18:30'`（types.ts 同步为空串）
+  - 审计确认健康（未动）：buildGlobalMissionInputs 时间网关 / getTodayMissionState 7 调用点 SSOT / PATTERN_SESSION_CAP=15 截断 / 录音函数族已删 / 灵感舱为活代码
+  - 遗留提示：`ExecutiveSummary.tsx` / `refactor-card-f.md` 为非运行时历史文件，内含 Georgia italic 引用，不参与部署（如需彻底清理另议）
 - **Voco 2.0 跟读页转型（v73）句型记忆卡片模式 —— SM-2 全链路闭环**：
   - 页面重构：`renderSentenceReview(sentences, startIndex)` 渲染单卡翻转视口（正面英文原句 → 点击翻转翻译解析）；**机械录音三键（听原音/按住录音/听自己）与录音函数族整体物理删除**（speakWord TTS 保留，词汇列表发音在用）；底部导航更名「句型复习」（icon repeat，data-tab 仍 'speak'，全部 ?tab=speak 兼容链不动）
   - 反馈双键完全克隆词汇复习（图18）：😅 还没记住 = `bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)]`、🚀 记住了 = 绿色同构——高度/圆角/内边距逐字一致，严禁第二套按钮样式
