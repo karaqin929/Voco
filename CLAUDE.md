@@ -47,10 +47,10 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v73）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v83）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v74）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v84）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v73 / voco-v83**（跟读页转型为句型记忆卡片模式：SM-2 全链路 + 翻转卡片 + 录音功能下线）。
+- 当前线上：**v74 / voco-v84**（灵感舱迁回 Profile 居中模态：首页清爽化，只留看板与待办）。
 - **⚠️ 待用户手动执行：`⚙️ 后端/migration_v2.1.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——patterns 表 SM-2 列（status/mastered/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）+ 到期回填 + 索引。跑之前句型写回静默降级本地会话态（不报错）。
 
 ## Architecture Notes
@@ -134,13 +134,13 @@
   - 句型复习队列：`getDueSentencesQueue(parsed, speakAll)`（v73 由 mergedPatternQueue 更名）= coreDeck 今日句 + needsReview 到期句（toPlayerItem 映射、文本去重）；无日报有 5 句到期 → 队列 5 句「完成句型复习」
   - SM-2 写回（v73 重构为统一服务）：`handleReviewFeedback(id, status, itemRef)` —— 单词/句型共用同一出口；`reviewPatternItem` 数字主键（BIGSERIAL）→ patterns UPDATE、core-N/sentence-anchor → INSERT 入库（user_id 取 session，正式进入记忆曲线）、Mock 一律跳过；本地快照同步 + 静默 catch。**v71 教训：patterns.id 是 BIGSERIAL 数字主键，`_UUID_RE` 正则从未匹配，写回静默失败——已废弃该正则**
   - UI 防御（0句态）：待办任务 2 三态 —— 总数为 0 → 置灰 disabled「句型复习打卡 · 暂无复习任务」（minus-circle 图标、无 chevron、action null、opacity-45，绝无空心圆圈+0句）；有日报 →「完成今日句型复习 (N句)」；无日报有到期 →「完成句型复习 (N句)」；句型复习页空状态主视觉与首页 #home-empty-hero 温润极简同构（160deg 渐变卡 + book-open 内描边圆底块 + 📥 CTA）
-- **Voco 2.0 终极交互重构（v72）学习工作台 Learning Workbench**：灵感舱信息架构升级——从【我的】平铺组迁移至首页，与日报导入上下收纳于同一视觉区块（PM 指令明确推翻 v67「严禁放首页」，折叠态已规避旧有的首屏臃肿问题）
-  - 区块结构 `#home-workbench`（Tab-home，位于 #home-empty-hero 与 #home-insights 之间）：标题「学习工作台 · 昨天产出 → 今日输入」；上方 = 导入日报行动行（📥 圆底块 + 主/副文案 + arrow，onclick showImportDialog）；下方 = 灵感舱常驻极简行动条「开启今日私教对话灵感（输入 URL / 灵感 / 选话题）」+ chevron
-  - 折叠交互：`#workbench-cabin-collapse` 用 `display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s`（内层 overflow:hidden;min-height:0）纯 CSS 平滑展开——严禁大输入框裸露首屏；`toggleWorkbenchCabin(force)` 切 0fr/1fr + chevron rotate180 + aria-expanded；`collapseWorkbenchCabin()` 强制收起；全局 `_workbenchCabinOpen` 状态
-  - 舱体内容（从 Tab-me 整体迁入，id 不变）：#input-topic-url 🔗 / #input-topic-thoughts 💡 / #topic-pill-slot 7 Pill / #btn-topic-generate ✨；renderTopicPills 在 init 时静态渲染（slot 常驻 DOM）无需改动
-  - 自动收起：fireTopicGeneratorPrompt 复制成功 → ✅ 反馈 900ms 后 `collapseWorkbenchCabin()`（按钮 2000ms 恢复逻辑不变）
-  - Pill 视觉瑕疵修复：#topic-pill-slot 由 `-mx-1 px-1` 改为 `-ml-1 pl-1 pr-4`——右缘不再切断最后一个标签
-  - 输入框底色由 --c-bg 改为 --c-surface（置于渐变卡内更协调）；Tab-me 平铺灵感舱组已删除（成就徽章上移）
+- **Voco 2.0 终极交互重构（v72，已被 v74 取代）学习工作台 Learning Workbench**：灵感舱曾从【我的】迁至首页工作台（折叠式 Accordion）——v74 PM 指令再次推翻：首页清爽化、灵感舱迁回 Profile、交互形态改居中模态
+- **Voco 2.0 灵感舱定位终局（v74）：Profile 居中模态 + 首页清爽化**：
+  - 首页清爽化：`#home-workbench`（学习工作台 + 折叠式灵感舱）DOM 与 toggleWorkbenchCabin/collapseWorkbenchCabin/_workbenchCabinOpen 全部物理删除——首页只保留看板与今日待办（#home-empty-hero 空状态导入 CTA 保留，属看板组件）
+  - Profile 新卡片：数据导入板块「ChatGPT 日报导入」胶囊卡**上方**新增 1:1 克隆卡「✨ 开启今日私教对话灵感」（副标题：输入 URL / 灵感 / 选话题）——同容器同阴影同圆角同 chevron-right 同字号，onclick `openInspirationDialog()`
+  - 居中模态 `#inspiration-dialog`（**严禁 Bottom Sheet**）：外层 `fixed inset-0 z-[300] hidden` + `absolute inset-0 bg-black/40 backdrop-blur-sm`（点击蒙版关闭）+ `pointer-events-none` 居中包层 + `pointer-events-auto` 圆角卡（rounded-[20px] max-w-[480px] max-h-[85vh] animate modalPop）；头部=标题 + ✕ 关闭钮（克隆 import-dialog 的 `w-[30px] h-[30px] rounded-full bg-[var(--c-bg)]` 样式）；体部=🔗 URL 输入 / 💡 灵感 textarea / #topic-pill-slot 7 Pill（`-ml-1 pl-1 pr-4` 右缘防切断）/ 全宽渐变生成按钮
+  - 交互闭环：fireTopicGeneratorPrompt 复制成功 → ✅ 反馈 900ms 后 `hideInspirationDialog()`（按钮 2000ms 恢复逻辑不变）；Pill 单选 toggleTopicPill 与 Prompt 组装逻辑零改动（id 不变直接迁入模态）
+  - **既存代码保护铁律（v74）**：`#import-dialog` DOM 与 showImportDialog/hideImportDialog/importReport 一律零修改（注意 import-dialog 现状是 bottom-sheet 形态，属历史事实不可动；新模态不得照抄 items-end 定位，必须居中）
 - **Voco 2.0 跟读页转型（v73）句型记忆卡片模式 —— SM-2 全链路闭环**：
   - 页面重构：`renderSentenceReview(sentences, startIndex)` 渲染单卡翻转视口（正面英文原句 → 点击翻转翻译解析）；**机械录音三键（听原音/按住录音/听自己）与录音函数族整体物理删除**（speakWord TTS 保留，词汇列表发音在用）；底部导航更名「句型复习」（icon repeat，data-tab 仍 'speak'，全部 ?tab=speak 兼容链不动）
   - 反馈双键完全克隆词汇复习（图18）：😅 还没记住 = `bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)]`、🚀 记住了 = 绿色同构——高度/圆角/内边距逐字一致，严禁第二套按钮样式
