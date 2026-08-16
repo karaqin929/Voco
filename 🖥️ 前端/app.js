@@ -38,6 +38,26 @@ let _navigatingViaProgram = false;  // guards against state pollution from progr
   if (_activeFilter) _activeFilterLabel = _activeFilter;
 })();
 
+// ═══════════════════════════════════════════════════════
+// v64 时区安全日期工具 —— 全局唯一「今天」来源
+// 铁律：严禁 new Date().toISOString().slice(0,10) 定义 today。
+// toISOString 输出 UTC 日期，东八区用户每天 0:00–8:00 会滞留在「昨天」，
+// 导致跨日复习任务不刷新、待办状态锁死（时间轴穿透）。
+// ═══════════════════════════════════════════════════════
+const getLocalToday = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+// 任意 Date 对象 → 本地 YYYY-MM-DD（SM-2 next_review_date / 连续打卡昨日回推专用）
+const fmtLocalDate = (d) => {
+  const dd = new Date(d);
+  dd.setMinutes(dd.getMinutes() - dd.getTimezoneOffset());
+  return dd.toISOString().slice(0, 10);
+};
+// 存储层 UTC ISO 时间戳 → 本地日历日期（last_reviewed_at 比对专用：存储为 UTC，必须换算后比「今天」）
+const localDateOf = (isoTs) => fmtLocalDate(new Date(isoTs));
+
 // ── 模块二：精准路由锚定（真实路径，绝不死链）──────────────
 // 规范路由：/review?tab=all|grammar|due（复习页严格三 Tab）· /shadowing?id=xxx（跟读页锚定指定句）· /（首页）
 // navigateToTab 保留为兼容层：旧调用（?tab= 体系）自动翻译为规范路由
@@ -329,7 +349,7 @@ const mockMistakeErrors = mockWords.filter(w => w.isMistake).map(w => ({
   original: w.example,
   correction: w.correct || w.example,
   rule: w.meaning || '搭配 / 词性易错',
-  date_added: w.date_added || new Date().toISOString().slice(0, 10),
+  date_added: w.date_added || getLocalToday(),
   source_topic: w.source_topic || '易错词'
 }));
 
@@ -352,7 +372,7 @@ async function loadHome() {
   const eList = errors || [];
   const pList = stampPatternTags(patterns);      // 句型打标：唯一 id + isTodayCore + 标准嵌套字段
   const rList = reports || [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalToday();
 
   const activeDate = _viewDate || today;
   const activeReport = rList.find(r => r.date === activeDate);
@@ -360,7 +380,7 @@ async function loadHome() {
   // 时间判断上收加载层：hasTodayReport 在此一次性计算，渲染组件零 new Date() 过滤
   const hasTodayReport = rList.some(r => r.date === today && isDailyReport(r));
   // 时间计算上收加载层：渲染组件零 new Date() 过滤
-  const reviewedToday = vList.filter(v => v.last_reviewed_at && v.last_reviewed_at.slice(0, 10) === today).length;
+  const reviewedToday = vList.filter(v => v.last_reviewed_at && localDateOf(v.last_reviewed_at) === today).length; // v64：存储为 UTC 时间戳，必须换算本地日历日再比「今天」
   _reviewedVocabToday = reviewedToday; // 任务状态中心输入：今日反馈词数（单一事实源）
   // 跟读打卡戳：播放器录完最后一句写入 voco-speak-done，此处只读比对（时间判断仍在加载层）
   const speakDoneToday = (() => { try { return localStorage.getItem('voco-speak-done') === today; } catch (e) { return false; } })();
@@ -490,7 +510,7 @@ function isMistakeByCrossRef(v, errors) {
 }
 // 词条打标：isNewToday / isMistake / needsReview 三标签逐条注入（已打标的不覆盖）
 function stampDailyTags(vocabList, errorsList) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalToday();
   return (vocabList || []).map(v => {
     const t = { ...v };
     if (t.isNewToday === undefined) t.isNewToday = !!(t.date_added && t.date_added.slice(0, 10) === today);
@@ -1151,7 +1171,7 @@ function normalizeJsonReport(j, raw) {
     }
   }
   return {
-    meta: { type: 'daily-report', topic: s.topic || '', date: new Date().toISOString().slice(0, 10) },
+    meta: { type: 'daily-report', topic: s.topic || '', date: getLocalToday() },
     grammar,
     pronunciation: [],
     patterns,
@@ -1192,16 +1212,16 @@ function hideImportDialog() {
 // ── 🔥 Streak calc ────────────────────────────────────
 function calcStreak(dates) {
   if (!dates.length) return 0;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalToday();
   const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-  const yStr = yesterday.toISOString().slice(0, 10);
+  const yStr = fmtLocalDate(yesterday); // v64 时区安全：本地昨日，禁 toISOString 截断
   const hasToday = dates.includes(today);
   const hasYesterday = dates.includes(yStr);
   if (!hasToday && !hasYesterday) return 0;
-  let check = hasToday ? new Date(today) : yesterday;
+  let check = hasToday ? new Date() : yesterday;
   let streak = 0;
   while (true) {
-    const s = check.toISOString().slice(0, 10);
+    const s = fmtLocalDate(check); // v64 时区安全：本地日历日回推
     if (dates.includes(s)) { streak++; check.setDate(check.getDate() - 1); }
     else break;
   }
@@ -1347,7 +1367,7 @@ function showDetailModal(label, count, tab) {
   const { data: { session } } = sb.auth.getSession();
   if (!session) return;
   sb.from('reports').select('*').order('date', { ascending: false }).limit(1).then(({ data: reports }) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalToday();
     const report = (reports || []).find(r => r.date === today);
     if (!report) return;
     const parsed = parseSmartReport(report.content);
@@ -1399,7 +1419,7 @@ function showDetailModal(label, count, tab) {
 async function loadWords() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalToday();
 
   document.getElementById('words-content').innerHTML = LoadingState();
 
@@ -1455,7 +1475,7 @@ let _reviewedVocabToday = 0; // 加载层上收：今日实际完成 SM-2 反馈
 // 且 meta.date 回写为行日期 —— 双层防线杜绝「最新有效日报」穿透时间轴。
 function isTodayParsedGate() {
   if (!_reportParsed || !_reportParsed.meta) return false;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalToday();
   return _reportParsed.meta.date === today;
 }
 
@@ -1661,7 +1681,7 @@ function applyDueRating(item, rating) {
     const result = sm2(v.ease_factor, v.sm2_interval, v.sm2_repetitions, quality);
     const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
     const status = rating === 'again' ? 'learning' : (result.repetitions >= 5 ? 'mastered' : 'learning');
-    return { quality, sm2: result, next_review_date: nextDate.toISOString().slice(0, 10), status, mastered: status === 'mastered' };
+    return { quality, sm2: result, next_review_date: fmtLocalDate(nextDate), status, mastered: status === 'mastered' };
   }
   return { quality };
 }
@@ -1908,7 +1928,7 @@ async function markMastered(id) {
   await sb.from('vocabulary').update({
     mastered: status === 'mastered', status,
     ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
-    review_count: (v.review_count || 0) + 1, next_review_date: nextDate.toISOString().slice(0, 10),
+    review_count: (v.review_count || 0) + 1, next_review_date: fmtLocalDate(nextDate),
     last_reviewed_at: new Date().toISOString()
   }).eq('id', id);
   loadWords();
@@ -1950,7 +1970,7 @@ function matchSpeakFilter(p, filter) {
 // 跟读页/复习页共用 —— 绝不再因为日报不是「今天」生成的就回退到 Mock 数据断流
 function resolveActiveReport(reports) {
   const list = reports || [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalToday();
   return list.find(r => r.date === today && isDailyReport(r))
     || (_viewDate ? list.find(r => r.date === _viewDate && isDailyReport(r)) : null)
     || list.find(r => isDailyReport(r)) || null;
@@ -1969,7 +1989,7 @@ async function loadSpeak() {
   // 铁律：优先加载当前日报的全部句型 —— 日报有 8 句就必须 (1/8)~(8/8)，绝不回退 2 条内置 Mock
   // v63 时间网关：默认训练队列 = 「今日」核心句型队列 —— 无今日日报时队列为空（播放器空状态），
   // 严禁 resolveActiveReport 的「最新有效日报」回退让昨日句型冒充今日队列；历史视图（_viewDate）除外
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalToday();
   const todayReport = _viewDate
     ? resolveActiveReport(reports)
     : ((reports || []).find(r => r.date === today && isDailyReport(r)) || null);
@@ -2193,7 +2213,7 @@ function updatePlayerView() {
   const last = _playerIndex === _playerSentences.length - 1;
   // 跟读打卡闭环：录完最后一句 → 打当日完成戳（首页待办任务 2 自动完成）
   if (last && _playerHasRecorded) {
-    try { localStorage.setItem('voco-speak-done', new Date().toISOString().slice(0, 10)); } catch (e) {}
+    try { localStorage.setItem('voco-speak-done', getLocalToday()); } catch (e) {}
   }
   next.disabled = last;
   next.textContent = last ? '🎉 训练完成' : '下一句 →';
@@ -2556,7 +2576,7 @@ async function importJsonDailyReport(jsonReport, rawText) {
   // 无损清洗：老格式 mistakes/coreSentences（字符串、元组、残缺对象）先补齐结构再入库，
   // 下方所有 `!m.original` / `!c.targetSentence` 过滤从此一行都不会丢。
   jsonReport = normalizeDailyData(jsonReport || {});
-  const date = new Date().toISOString().slice(0, 10);
+  const date = getLocalToday();
   const topic = (jsonReport.summary && jsonReport.summary.topic) || '';
 
   // 归一化 + 打标：newWords → isNewToday:true；coreSentences → isTodayCore:true
@@ -2622,7 +2642,7 @@ async function importJsonDailyReport(jsonReport, rawText) {
 async function importDailyReport(parsed) {
   const { data: { session } } = await sb.auth.getSession();
   const uid = session.user.id;
-  const date = parsed.meta.date || new Date().toISOString().slice(0, 10);
+  const date = parsed.meta.date || getLocalToday();
   const topic = parsed.meta.topic || '';
   const duration = parseInt(parsed.meta.duration) || 0;
 
@@ -2681,7 +2701,7 @@ async function importTopicCard(parsed) {
   if (parsed.vocabulary.length && topic) {
     await sb.from('vocabulary').insert(parsed.vocabulary.map(v => ({
       user_id: uid, word: v.word, phonetic: v.phonetic || '', meaning: v.meaning || '',
-      example: v.example || '', date_added: new Date().toISOString().slice(0, 10), source_topic: title, status: 'new'
+      example: v.example || '', date_added: getLocalToday(), source_topic: title, status: 'new'
     })));
   }
   document.getElementById('dialog-import-result').innerHTML = `<span class="toast-success">✅ 话题「${h(title)}」已添加！词汇 ${parsed.vocabulary.length} 个</span>`;
@@ -2690,7 +2710,7 @@ async function importTopicCard(parsed) {
 async function importInsightReport(parsed) {
   const { data: { session } } = await sb.auth.getSession();
   await sb.from('reports').upsert({
-    user_id: session.user.id, date: new Date().toISOString().slice(0, 10), content: parsed.raw
+    user_id: session.user.id, date: getLocalToday(), content: parsed.raw
   }, { onConflict: 'user_id,date' });
   document.getElementById('dialog-import-result').innerHTML = '<span class="toast-success">✅ 分析报告已保存！</span>';
 }
@@ -2814,7 +2834,7 @@ async function exportData() {
   const blob = new Blob([json], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `voco-export-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `voco-export-${getLocalToday()}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
   showToast('📥 数据已导出');
@@ -3154,5 +3174,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=63');
+  navigator.serviceWorker.register('/sw.js?v=64');
 }
