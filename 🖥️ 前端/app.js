@@ -385,6 +385,15 @@ async function loadHome() {
   // 无今日报告 → 强制清空依赖今日数据的展示状态（严禁泄漏昨天数据）
   const displayThoughts = missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).dailyThought || null) : null;
   const displayGoodPoints = missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).strengths || []) : [];
+  // ── 空状态全局折叠（UX 重构）：今天视图且未导入今日日报 → 折叠打分面板/洞察卡/三数据卡，Hero 引导卡顶上 ──
+  // 常驻组件：本周打卡卡（#home-quote）与今日待办（#home-quests）；历史视图（_viewDate）不受此门影响
+  const showEmptyHero = !missionState.hasRealTodayReport && !_viewDate;
+  ['home-metrics', 'home-insights', 'home-summary-cards'].forEach(id => {
+    const node = document.getElementById(id);
+    if (node) node.classList.toggle('hidden', showEmptyHero);
+  });
+  const emptyHero = document.getElementById('home-empty-hero');
+  if (emptyHero) emptyHero.classList.toggle('hidden', !showEmptyHero);
   // 跟读打卡戳：播放器录完最后一句写入 voco-speak-done，此处只读比对（时间判断仍在加载层）
   const speakDoneToday = (() => { try { return localStorage.getItem('voco-speak-done') === today; } catch (e) { return false; } })();
 
@@ -3465,5 +3474,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=67');
+  navigator.serviceWorker.register('/sw.js?v=68');
 }

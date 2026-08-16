@@ -50,7 +50,7 @@
 - **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
 - **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v66 / voco-v76**（Voco 2.0 第二三步：对话占比双色条 + 地道与英文思维 + Chart.js 7 天趋势 + 今日对战胶囊）。
+- 当前线上：**v67 / voco-v77**（Voco 2.0 第四步：聊前灵感配置舱落地【我的】页）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -113,7 +113,12 @@
   - 更名：评分维度「自然度」→「地道与英文思维」（仅 UI 文案；数据键 naturalness 不变）；parser.js parseSummary 正则兼容新旧双标签（`(?:自然度|地道与英文思维)`）
   - Chart.js（CDN jsdelivr）趋势图：index.html Profile 新增 `#trendChart` canvas（h-180px 容器）；`renderTrendChart()` 拉 reports 近 7 个本地日历日，综合得分口径与首页打分板一致（四维度 norm100 均值），缺日 null 留空（spanGaps:false）；tension 0.4 平滑曲线 + 数据点；莫兰迪色系：线 #8A9B6E 鼠尾草绿 / 点 #6B7D54 橄榄绿 / 填充 rgba(138,155,110,0.15) / 刻度 #A49A87 / 网格 rgba(164,154,135,0.18) / tooltip #4A4438；`typeof Chart === 'undefined'` 静默降级
   - 今日对战胶囊：Card E「下一次学习建议」3 条分散列表已删除 → `missionCapsuleHTML()` 主视觉大按钮「🎯 获取今日私教对战 Prompt」（主色→绿渐变 + 投影）；`fireDailyMissionPrompt(btn)` 直取 SSOT（ms.dueVocabList + _dailyPatterns + _errorsAll）→ generateDailyMissionPrompt → navigator.clipboard.writeText（失败降级 execCommand textarea）→ 按钮变「✅ 已复制！去 ChatGPT 开口吧」绿色态，2s setTimeout 恢复原样
-  - 后续步骤（第四步）：聊前灵感配置舱（URL 投喂 + 想法速记 + 7 话题 Pill Tags）
+- **Voco 2.0 第四步（v67）聊前灵感配置舱**：产品决策——只放在【我的】页（严禁首页），位置=头像/打卡卡正下方、数据管理面板上方（index.html 静态组，插入在 Profile Header Card 与成就徽章之间）：
+  - DOM：🔗 单行 URL input（#input-topic-url）+ 💡 rows=3 textarea（#input-topic-thoughts）+ 话题池 #topic-pill-slot（flex overflow-x-auto whitespace-nowrap hide-scrollbar，7 固定标签由 `renderTopicPills()` JS 渲染：✈️跨国旅行/🏃♀️健身与普拉提/💼职场与商业/📖文学评论/🐾养宠日常/☕咖啡与生活/📈宏观经济）+ 生成按钮 #btn-topic-generate（对战胶囊同款 135deg 渐变主视觉「✨ 生成专属对话 Prompt」）
+  - 交互：全局 `_selectedTopicTag = ''` 单选；`toggleTopicPill(btn)` 全量重算 .active（主题色背景+白字，CSS `.topic-pill.active` 在 style.css），再点已选中 → 取消
+  - `fireTopicGeneratorPrompt(btn)`（用户骨架原样落地）：防空 alert → 话题/URL/想法三段拼接私教开场 Prompt → `copyToClipboardWithFallback()` → 按钮「✅ Prompt 已复制！去贴给 GPT 吧」变绿 2s 恢复（注意：恢复时还原完整内联 style，不能 `btn.style.background = ''` 否则渐变主视觉丢失）
+  - 共享工具重构：`copyToClipboardWithFallback(text)`（clipboard API → textarea+execCommand 降级），fireDailyMissionPrompt 与 fireTopicGeneratorPrompt 共用
+  - CSS 新增：`.topic-pill` / `.topic-pill.active` / `.hide-scrollbar`（style.css 尾部）
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist
