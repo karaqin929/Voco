@@ -803,12 +803,21 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // Card B: 今日对话想法 —— 动态渲染：优先 _reportParsed.summary.dailyThought，次取本函数解析的日报 dailyThought；零硬编码金句
   // v76 修复：① 值净化（trim + 「无/暂无/没有/未记录」判空 → 优雅空状态，绝不渲染生硬「无」字）
   //         ② 字体规范（font-sans not-italic 全局无衬线，删除 Georgia 衬线斜体引语样式）
+  // v78 修复：恒定排版规格 —— 主体恒为 15px 主色（en 缺失时 zh 升主），副行恒为 13px 灰；
+  //         内容经 cleanThoughtText 净化（剥 markdown 星号/残留 HTML/换行），杜绝每天视觉漂移
   const dtRaw = (((p && p.summary && p.summary.dailyThought) || null) || d.thoughts) || {};
-  const dt = { en: String(dtRaw.en || '').trim(), zh: String(dtRaw.zh || '').trim() };
+  const dt = { en: cleanThoughtText(dtRaw.en), zh: cleanThoughtText(dtRaw.zh) };
   const NO_THOUGHT_RE = /^(无|暂无|没有|未记录|none?|n\/a)$/i;
   const hasThought = !!(dt.en || (dt.zh && !NO_THOUGHT_RE.test(dt.zh)));
   if (hasThought) {
-    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div>${dt.en ? `<div class="font-sans not-italic text-[15px] text-[var(--c-text)] leading-[1.7] mb-2">"${h(dt.en)}"</div>` : ''}<div class="font-sans not-italic text-[13px] text-[var(--c-text-dim)]">${h(dt.zh)}</div>`);
+    // 单一引语块：左侧主题色竖线 + 中文弯引号；主行/副行字号颜色恒定，不随 en/zh 有无而变
+    const quote = dt.en || dt.zh;        // 主体：优先英文原句，缺失时中文释义升主
+    const sub = dt.en ? dt.zh : '';      // 副行：仅当 en 在场时 zh 作释义副行
+    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div>
+      <div class="border-l-[3px] border-l-[var(--c-primary)] pl-3">
+        <div class="font-sans not-italic text-[15px] font-medium text-[var(--c-text)] leading-[1.7]">“${h(quote)}”</div>
+        ${sub ? `<div class="font-sans not-italic text-[13px] text-[var(--c-text-dim)] mt-1.5 leading-[1.7]">${h(sub)}</div>` : ''}
+      </div>`);
   } else {
     // 空状态：v76 优雅缺省文案 —— 历史视图「当日未记录想法」；今日视图保留导入引导（不显示任何假数据）
     html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div><div class="text-sm text-[var(--c-text-ultradim)] not-italic">${historyMode ? '当日未记录想法' : '💡 导入今日日报后，在此提炼你的核心表达观点'}</div>`);
@@ -3600,6 +3609,20 @@ function LoadingState({ message = 'Voco小熊正一路小跑赶来...', size = 8
 function h(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function hf(s) { return h(s).replace(/\n/g, '<br>'); }
 
+// ── 对话想法文本净化（v78）：日报内容常混入 markdown 强调符 / 残留 HTML / 换行 / 包裹引号，
+// 直接渲染会导致每天字体视觉漂移。统一剥除 → 纯文本，由渲染层单一定规格排版。
+function cleanThoughtText(s) {
+  return String(s || '')
+    .replace(/<[^>]*>/g, '')                                        // 剥残留 HTML 标签
+    .replace(/^[-*•]+[ \t]+/gm, '')                                 // 剥多行列表符
+    .replace(/[*_`~#]{1,3}([^*_`~#\s][^*_`~#]*?)[*_`~#]{1,3}/g, '$1') // 成对强调标记 → 纯文本
+    .replace(/[*_`~#]/g, '')                                        // 残余标记符号兜底清除
+    .replace(/[ \t]+/g, ' ')                                        // 横向空白折叠
+    .replace(/\s*\n\s*/g, ' ')                                      // 换行并入单行（卡片内排版恒定）
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')                          // 去包裹引号（渲染层统一加中文引号）
+    .trim();
+}
+
 // ── Lucide Icon Helper (data-lucide → SVG via CDN) ──────
 function icon(name, cls = '') {
   return `<i data-lucide="${name}" class="${cls}"></i>`;
@@ -3690,5 +3713,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=77');
+  navigator.serviceWorker.register('/sw.js?v=78');
 }
