@@ -50,7 +50,7 @@
 - **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
 - **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v71 / voco-v81**（句型间隔重复引擎 Sentence SRS：SM-2 记忆曲线 + 队列混合 + 0句防御）。
+- 当前线上：**v72 / voco-v82**（学习工作台：日报导入 + 折叠式灵感舱整合，Accordion 平滑展开 + 生成后自动收起）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -131,6 +131,13 @@
   - 跟读队列：`mergedPatternQueue(parsed, speakAll)` = coreDeck 今日句 + needsReview 到期句（toPlayerItem 映射、文本去重）；默认队列与 ?filter=core_sentences 均走混合队列；无日报有 5 句到期 → 队列 5 句「完成句型复习」
   - SM-2 写回：`recordPatternReviews()` —— 录完最后一句由 `_playerReviewWritten` once-guard 触发（renderShadowingPlayer 每局重置），仅 `_UUID_RE` 正则匹配的真实库行按质量 3 推进（core-N/sentence-anchor/migrated-N/Mock 一律跳过），本地快照同步 + patterns 表 update 静默 catch
   - UI 防御（0句态）：待办任务 2 三态 —— 总数为 0 → 置灰 disabled「跟读打卡 · 暂无跟读任务」（minus-circle 图标、无 chevron、action null、opacity-45，绝无空心圆圈+0句）；有日报 →「完成核心句型跟读 (N句)」；无日报有到期 →「完成句型复习 (N句)」；跟读页空状态主视觉与首页 #home-empty-hero 温润极简同构（160deg 渐变卡 + mic-off 内描边圆底块 + 📥 CTA）
+- **Voco 2.0 终极交互重构（v72）学习工作台 Learning Workbench**：灵感舱信息架构升级——从【我的】平铺组迁移至首页，与日报导入上下收纳于同一视觉区块（PM 指令明确推翻 v67「严禁放首页」，折叠态已规避旧有的首屏臃肿问题）
+  - 区块结构 `#home-workbench`（Tab-home，位于 #home-empty-hero 与 #home-insights 之间）：标题「学习工作台 · 昨天产出 → 今日输入」；上方 = 导入日报行动行（📥 圆底块 + 主/副文案 + arrow，onclick showImportDialog）；下方 = 灵感舱常驻极简行动条「开启今日私教对话灵感（输入 URL / 灵感 / 选话题）」+ chevron
+  - 折叠交互：`#workbench-cabin-collapse` 用 `display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s`（内层 overflow:hidden;min-height:0）纯 CSS 平滑展开——严禁大输入框裸露首屏；`toggleWorkbenchCabin(force)` 切 0fr/1fr + chevron rotate180 + aria-expanded；`collapseWorkbenchCabin()` 强制收起；全局 `_workbenchCabinOpen` 状态
+  - 舱体内容（从 Tab-me 整体迁入，id 不变）：#input-topic-url 🔗 / #input-topic-thoughts 💡 / #topic-pill-slot 7 Pill / #btn-topic-generate ✨；renderTopicPills 在 init 时静态渲染（slot 常驻 DOM）无需改动
+  - 自动收起：fireTopicGeneratorPrompt 复制成功 → ✅ 反馈 900ms 后 `collapseWorkbenchCabin()`（按钮 2000ms 恢复逻辑不变）
+  - Pill 视觉瑕疵修复：#topic-pill-slot 由 `-mx-1 px-1` 改为 `-ml-1 pl-1 pr-4`——右缘不再切断最后一个标签
+  - 输入框底色由 --c-bg 改为 --c-surface（置于渐变卡内更协调）；Tab-me 平铺灵感舱组已删除（成就徽章上移）
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist
