@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=73">
+  <link rel="stylesheet" href="/style.css?v=74">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -103,6 +103,7 @@
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;background:var(--c-bg);color:var(--c-text);min-height:100vh;min-height:100dvh;padding-bottom:80px;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;}
     @keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
       @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+      @keyframes modalPop{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -195,59 +196,7 @@
       </div>
     </div>
 
-    <!-- Section 3.5: 学习工作台 (Voco 2.0 终极交互重构) ── 上方：导入日报（昨天的产出）/ 下方：折叠式灵感舱（今天的输入） -->
-    <div id="home-workbench" class="mb-3">
-      <div class="flex items-center gap-1.5 mb-2">
-        <i data-lucide="panel-top" class="w-[16px] h-[16px] text-[var(--c-primary)]"></i>
-        <span class="text-[15px] font-bold text-[var(--c-text)]">学习工作台</span>
-        <span class="text-[11px] text-[var(--c-text-ultradim)]">昨天产出 → 今日输入</span>
-      </div>
-      <div class="rounded-3xl border border-[var(--c-border-light)] overflow-hidden"
-           style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 70%);box-shadow:var(--c-shadow-sm)">
-        <!-- 上方：处理「昨天的产出」—— ChatGPT 日报导入入口（轻量行动行，点击呼出导入弹窗） -->
-        <button onclick="showImportDialog()" class="w-full flex items-center gap-2.5 px-4 py-3.5 text-left cursor-pointer transition-colors active:bg-[var(--c-border-light)]">
-          <span class="w-9 h-9 rounded-xl bg-[var(--c-surface)] flex items-center justify-center shrink-0" style="box-shadow:inset 0 0 0 1px var(--c-border-light)">📥</span>
-          <span class="flex-1 min-w-0">
-            <span class="block text-[13px] font-semibold text-[var(--c-text)]">导入 ChatGPT 日报</span>
-            <span class="block text-[11px] text-[var(--c-text-dim)]">处理昨天的产出 · 生成今日专属分析</span>
-          </span>
-          <i data-lucide="arrow-right" class="w-4 h-4 text-[var(--c-text-ultradim)] shrink-0"></i>
-        </button>
-        <div class="h-px mx-4 bg-[var(--c-border-light)]"></div>
-        <!-- 下方：规划「今天的输入」—— 灵感舱常驻极简行动条（点击平滑展开完整输入舱） -->
-        <button id="workbench-cabin-toggle" onclick="toggleWorkbenchCabin()" aria-expanded="false" class="w-full flex items-center gap-2.5 px-4 py-3.5 text-left cursor-pointer transition-colors active:bg-[var(--c-border-light)]">
-          <span class="w-9 h-9 rounded-xl bg-[var(--c-primary-light)] flex items-center justify-center shrink-0" style="box-shadow:inset 0 0 0 1px var(--c-primary)">✨</span>
-          <span class="flex-1 min-w-0">
-            <span class="block text-[13px] font-semibold text-[var(--c-text)]">开启今日私教对话灵感</span>
-            <span class="block text-[11px] text-[var(--c-text-dim)]">输入 URL / 灵感 / 选话题</span>
-          </span>
-          <i id="workbench-cabin-chevron" data-lucide="chevron-down" class="w-4 h-4 text-[var(--c-text-ultradim)] shrink-0"></i>
-        </button>
-        <!-- 折叠面板：grid-rows 0fr→1fr 纯 CSS 平滑展开，默认收起 —— 严禁大输入框裸露首屏 -->
-        <div id="workbench-cabin-collapse" style="display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s cubic-bezier(.4,0,.2,1)">
-          <div style="overflow:hidden;min-height:0">
-            <div class="px-4 pt-1 pb-4">
-              <!-- URL 投喂框：🔗 单行 input -->
-              <div class="flex items-center gap-2 bg-[var(--c-surface)] rounded-xl border border-[var(--c-border-light)] px-3 py-2.5 focus-within:border-[var(--c-primary)] transition-colors">
-                <i data-lucide="link" class="w-4 h-4 text-[var(--c-text-dim)] shrink-0"></i>
-                <input id="input-topic-url" type="url" inputmode="url" placeholder="粘贴一篇文章 / 视频链接…" class="flex-1 min-w-0 bg-transparent border-0 outline-none text-sm text-[var(--c-text)] placeholder:text-[var(--c-text-ultradim)]">
-              </div>
-              <!-- 灵感速记框：💡 多行 textarea（2-3 行高） -->
-              <div class="flex items-start gap-2 bg-[var(--c-surface)] rounded-xl border border-[var(--c-border-light)] px-3 py-2.5 mt-2.5 focus-within:border-[var(--c-primary)] transition-colors">
-                <i data-lucide="lightbulb" class="w-4 h-4 text-[var(--c-text-dim)] shrink-0 mt-0.5"></i>
-                <textarea id="input-topic-thoughts" rows="3" placeholder="写下你此刻的想法、疑问或想聊的事…" class="flex-1 min-w-0 bg-transparent border-0 outline-none resize-none text-sm text-[var(--c-text)] placeholder:text-[var(--c-text-ultradim)]"></textarea>
-              </div>
-              <!-- 话题池：横向滚动槽 7 个固定 Pill（JS 渲染 renderTopicPills，单选可取消；右缘 pr-4 防切断） -->
-              <div id="topic-pill-slot" class="flex overflow-x-auto whitespace-nowrap hide-scrollbar gap-2 mt-3 -ml-1 pl-1 pr-4 pb-0.5"></div>
-              <!-- 生成按钮：对战胶囊同款主视觉（复制成功后 900ms 自动收起面板） -->
-              <button id="btn-topic-generate" onclick="fireTopicGeneratorPrompt(this)" class="w-full flex items-center justify-center gap-2 px-4 py-3.5 mt-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]" style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
-                ✨ 生成专属对话 Prompt <i data-lucide="sparkles" class="w-4 h-4"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- v74：首页清爽化 —— 学习工作台/灵感舱整体迁回【我的】页（居中模态），首页只保留看板与今日待办 -->
 
     <!-- Section 4: Insights (Cards A-F) -->
     <div id="home-insights"></div>
@@ -305,6 +254,16 @@
     <!-- Group: Data Import -->
     <div class="mb-4">
       <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="download" class="w-3.5 h-3.5"></i> 数据导入</div>
+      <!-- v74：聊前灵感配置舱 —— 1:1 克隆日报导入胶囊卡片（圆角/背景/阴影/右箭头/图标/字号逐像素对齐），点击呼出居中模态 -->
+      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] overflow-hidden mb-2" style="box-shadow:var(--c-shadow-sm)">
+        <div class="flex justify-between items-center px-4 py-3.5 cursor-pointer transition-colors active:bg-[var(--c-border-light)]" onclick="openInspirationDialog()">
+          <div class="flex flex-col gap-0.5">
+            <span class="text-sm text-[var(--c-text)]"><i data-lucide="sparkles" class="w-4 h-4"></i> ✨ 开启今日私教对话灵感</span>
+            <span class="text-[11px] text-[var(--c-text-ultradim)]">输入 URL / 灵感 / 选话题</span>
+          </div>
+          <span class="text-lg text-[var(--c-text-ultradim)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></span>
+        </div>
+      </div>
       <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] overflow-hidden" style="box-shadow:var(--c-shadow-sm)">
         <div class="flex justify-between items-center px-4 py-3.5 cursor-pointer transition-colors active:bg-[var(--c-border-light)]" onclick="showImportDialog()">
           <div class="flex flex-col gap-0.5">
@@ -447,6 +406,38 @@
     </div>
   </div>
 
+  <!-- ── Inspiration Dialog (v74 居中模态弹窗，严禁 Bottom Sheet) ──
+       1:1 复刻日报导入弹窗骨架：圆角浮动卡 + 背景蒙版 Backdrop Blur + 右上角标准 ✕ 关闭按钮 -->
+  <div id="inspiration-dialog" class="fixed inset-0 z-[300] hidden">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="hideInspirationDialog()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+      <div class="pointer-events-auto bg-[var(--c-surface)] rounded-[20px] w-full max-w-[480px] max-h-[85vh] flex flex-col overflow-hidden animate-[modalPop_0.25s_ease-out]" style="box-shadow:0 12px 48px rgba(0,0,0,0.18)">
+        <div class="flex justify-between items-center px-[18px] py-4 border-b border-[var(--c-border-light)] text-sm font-bold text-[var(--c-text)]">
+          <span class="inline-flex items-center gap-1"><i data-lucide="sparkles" class="w-4 h-4"></i> ✨ 开启今日私教对话灵感</span>
+          <button class="w-[30px] h-[30px] rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-base cursor-pointer flex items-center justify-center" onclick="hideInspirationDialog()">✕</button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-[18px] py-3.5">
+          <!-- URL 投喂框：🔗 单行 input -->
+          <div class="flex items-center gap-2 bg-[var(--c-bg)] rounded-xl border border-[var(--c-border-light)] px-3 py-2.5 focus-within:border-[var(--c-primary)] transition-colors">
+            <i data-lucide="link" class="w-4 h-4 text-[var(--c-text-dim)] shrink-0"></i>
+            <input id="input-topic-url" type="url" inputmode="url" placeholder="粘贴一篇文章 / 视频链接…" class="flex-1 min-w-0 bg-transparent border-0 outline-none text-sm text-[var(--c-text)] placeholder:text-[var(--c-text-ultradim)]">
+          </div>
+          <!-- 灵感速记框：💡 多行 textarea -->
+          <div class="flex items-start gap-2 bg-[var(--c-bg)] rounded-xl border border-[var(--c-border-light)] px-3 py-2.5 mt-2.5 focus-within:border-[var(--c-primary)] transition-colors">
+            <i data-lucide="lightbulb" class="w-4 h-4 text-[var(--c-text-dim)] shrink-0 mt-0.5"></i>
+            <textarea id="input-topic-thoughts" rows="3" placeholder="写下你此刻的想法、疑问或想聊的事…" class="flex-1 min-w-0 bg-transparent border-0 outline-none resize-none text-sm text-[var(--c-text)] placeholder:text-[var(--c-text-ultradim)]"></textarea>
+          </div>
+          <!-- 话题池：横向滚动槽 7 个固定 Pill（JS 渲染 renderTopicPills，单选可取消；右缘 pr-4 防切断） -->
+          <div id="topic-pill-slot" class="flex overflow-x-auto whitespace-nowrap hide-scrollbar gap-2 mt-3 -ml-1 pl-1 pr-4 pb-0.5"></div>
+          <!-- 生成按钮：全宽主色调（复制成功后 900ms 自动关闭弹窗） -->
+          <button id="btn-topic-generate" onclick="fireTopicGeneratorPrompt(this)" class="w-full flex items-center justify-center gap-2 px-4 py-3.5 mt-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]" style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
+            ✨ 生成专属对话 Prompt <i data-lucide="sparkles" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Tab Bar ──────────────────────────────── -->
   <nav class="tab-bar">
     <button class="tab active inline-flex items-center justify-center gap-1" data-tab="home"><i data-lucide="home" class="w-4 h-4"></i> 首页</button>
@@ -458,8 +449,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=73"></script>
-<script src="/parser.js?v=73"></script>
-<script src="/app.js?v=73"></script>
+<script src="/supabase-client.js?v=74"></script>
+<script src="/parser.js?v=74"></script>
+<script src="/app.js?v=74"></script>
 </body>
 </html>

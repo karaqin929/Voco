@@ -1709,29 +1709,21 @@ function toggleTopicPill(btn) {
   });
 }
 
-// ═══ 学习工作台 · 折叠式灵感舱（Voco 2.0 终极交互重构）═══
-// 首页黄金视线区只保留轻量行动条；完整输入舱默认收起，点击以 grid-rows 0fr→1fr 纯 CSS 平滑展开
-// 生成 Prompt 成功复制后自动收起，给用户干净轻量的交互体验
-let _workbenchCabinOpen = false;
-
-function toggleWorkbenchCabin(force) {
-  const collapse = document.getElementById('workbench-cabin-collapse');
-  const toggleBtn = document.getElementById('workbench-cabin-toggle');
-  const chevron = document.getElementById('workbench-cabin-chevron');
-  if (!collapse) return;
-  const open = (force !== undefined) ? !!force : !_workbenchCabinOpen;
-  _workbenchCabinOpen = open;
-  collapse.style.gridTemplateRows = open ? '1fr' : '0fr';
-  if (chevron) {
-    chevron.style.transition = 'transform .3s ease';
-    chevron.style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
-  }
-  if (toggleBtn) toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+// ═══ 聊前灵感配置舱 · 居中模态（v74：从首页学习工作台迁回【我的】页）═══
+// 严禁 Bottom Sheet：圆角浮动卡 + 背景蒙版 Backdrop Blur + 右上角标准 ✕
+// 生成 Prompt 成功复制后 900ms 自动关闭弹窗，给用户干净轻量的交互体验
+function openInspirationDialog() {
+  const dlg = document.getElementById('inspiration-dialog');
+  if (!dlg) return;
+  dlg.classList.remove('hidden');
 }
 
-function collapseWorkbenchCabin() { toggleWorkbenchCabin(false); }
+function hideInspirationDialog() {
+  const dlg = document.getElementById('inspiration-dialog');
+  if (dlg) dlg.classList.add('hidden');
+}
 
-// 组装并复制 Prompt（首页学习工作台 · 折叠式灵感舱调用）
+// 组装并复制 Prompt（【我的】页 · 灵感舱居中模态调用）
 async function fireTopicGeneratorPrompt(btn) {
   const urlInput = document.getElementById('input-topic-url').value.trim();
   const thoughtsInput = document.getElementById('input-topic-thoughts').value.trim();
@@ -1771,8 +1763,8 @@ async function fireTopicGeneratorPrompt(btn) {
     refreshIcons(btn);
   }, 2000);
   showToast('📋 专属对话 Prompt 已复制');
-  // 生成成功 → 面板自动收起（900ms 让用户看清 ✅ 反馈再平滑折叠，首屏回归干净轻量）
-  setTimeout(() => { collapseWorkbenchCabin(); }, 900);
+  // 生成成功 → 弹窗自动关闭（900ms 让用户看清 ✅ 反馈再收起，交互收尾干净轻量）
+  setTimeout(() => { hideInspirationDialog(); }, 900);
 }
 
 // 模块三：待复习混合记忆引擎状态（needsReview 单词 + 语法错题统一卡组流式打卡）
@@ -3598,5 +3590,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=73');
+  navigator.serviceWorker.register('/sw.js?v=74');
 }
