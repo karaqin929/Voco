@@ -2184,7 +2184,7 @@ function renderDueDeck() {
 }
 
 // 未展开（正面）：词卡仅英文+音标（遮挡中文释义与例句）；错题卡仅错误句（遮挡纠正与规则）
-// 中央统一 [👁️ 点击显示答案]；展开后（背面）底部切换 [🔴 没记住] [🟢 记住了]
+// 中央统一 [👁️ 点击显示答案]；展开后（背面）底部切换 [没记住] [记住了]（v76 统一 ReviewButton 模板）
 function showDueCard() {
   const item = _dueDeck[_dueIdx];
   if (!item) return;
@@ -2235,14 +2235,14 @@ async function rateDueCard(rating) {
   }
   _dueResults[rating === 'good' ? 'remembered' : 'forgot'] += 1;
   if (rating === 'again') {
-    flowDueDeck('again'); // 🔴 没记住：保留在当前待复习队列（移回队尾继续循环）
+    flowDueDeck('again'); // 没记住：保留在当前待复习队列（移回队尾继续循环）
     showDueCard();
     return;
   }
   const body = document.getElementById('due-card-body');
   if (body) { body.style.opacity = '0'; body.style.transform = 'translateY(-8px)'; }
   setTimeout(() => {
-    const next = flowDueDeck('good'); // 🟢 记住了：平滑过渡收起后移除当前卡片
+    const next = flowDueDeck('good'); // 记住了：平滑过渡收起后移除当前卡片
     if (next === -1) endDueReview();
     else showDueCard();
   }, 250);
@@ -2254,7 +2254,7 @@ function endDueReview() {
     <div class="bg-[var(--c-surface)] rounded-2xl p-8 text-center border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
       <div class="text-4xl mb-3">🎉</div>
       <div class="text-base font-bold text-[var(--c-text)] mb-2">复习完成！</div>
-      <div class="text-sm text-[var(--c-text-dim)] mb-4">🟢 记住了 <strong>${_dueResults.remembered}</strong> 个 · 🔴 没记住 <strong>${_dueResults.forgot}</strong> 个</div>
+      <div class="text-sm text-[var(--c-text-dim)] mb-4">记住了 <strong>${_dueResults.remembered}</strong> 个 · 没记住 <strong>${_dueResults.forgot}</strong> 个</div>
       <button class="btn-primary" style="width:auto;padding:10px 24px;" onclick="loadWords()">再来一轮</button>
     </div>`;
 }
