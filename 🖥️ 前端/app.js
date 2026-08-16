@@ -2194,8 +2194,8 @@ async function reviewPatternItem(p, quality) {
 
 // ═══ v76 ReviewButton 全局模板（SSOT · 消灭样式碎片化）═══
 // 样式规范：浅粉/浅绿底 + 红/绿纯色圆点（CSS 绘制，零 emoji）+ 红/绿文字
-// 调用点：句型复习卡（srs-forgot/srs-remembered）、单词卡组（due-forgot/due-remembered）、
-//         语法错题卡（btn-again/btn-good）—— 三处共模板，尺寸/圆角由 cls 传入，样式绝对一致
+// 调用点：句型复习卡（srs-forgot/srs-remembered）、单词卡组（due-forgot/due-remembered）
+// v81：错题库总览列表 = 错题图鉴（非 SM-2 复习模式），已移除 btn-again/btn-good，仅保留 🛡️ 防御开关
 function reviewButtonHTML({ id = '', kind = 'again', label = '', cls = 'py-3 text-sm rounded-2xl' }) {
   const isBad = kind === 'again';
   const color = isBad ? 'var(--c-red)' : 'var(--c-green)';
