@@ -47,10 +47,10 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v74）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v84）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v75）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v85）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v74 / voco-v84**（灵感舱迁回 Profile 居中模态：首页清爽化，只留看板与待办）。
+- 当前线上：**v75 / voco-v85**（历史日报视图修复：点小熊日历历史日期 → 指标/洞察/三卡渲染该日日报真实数据，不再全零）。
 - **⚠️ 待用户手动执行：`⚙️ 后端/migration_v2.1.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——patterns 表 SM-2 列（status/mastered/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）+ 到期回填 + 索引。跑之前句型写回静默降级本地会话态（不报错）。
 
 ## Architecture Notes
@@ -141,6 +141,11 @@
   - 居中模态 `#inspiration-dialog`（**严禁 Bottom Sheet**）：外层 `fixed inset-0 z-[300] hidden` + `absolute inset-0 bg-black/40 backdrop-blur-sm`（点击蒙版关闭）+ `pointer-events-none` 居中包层 + `pointer-events-auto` 圆角卡（rounded-[20px] max-w-[480px] max-h-[85vh] animate modalPop）；头部=标题 + ✕ 关闭钮（克隆 import-dialog 的 `w-[30px] h-[30px] rounded-full bg-[var(--c-bg)]` 样式）；体部=🔗 URL 输入 / 💡 灵感 textarea / #topic-pill-slot 7 Pill（`-ml-1 pl-1 pr-4` 右缘防切断）/ 全宽渐变生成按钮
   - 交互闭环：fireTopicGeneratorPrompt 复制成功 → ✅ 反馈 900ms 后 `hideInspirationDialog()`（按钮 2000ms 恢复逻辑不变）；Pill 单选 toggleTopicPill 与 Prompt 组装逻辑零改动（id 不变直接迁入模态）
   - **既存代码保护铁律（v74）**：`#import-dialog` DOM 与 showImportDialog/hideImportDialog/importReport 一律零修改（注意 import-dialog 现状是 bottom-sheet 形态，属历史事实不可动；新模态不得照抄 items-end 定位，必须居中）
+- **v75 历史日报视图修复（_historyParsed 渲染链路）**：点小熊日历历史日期（showBearDay → `_viewDate = date`）此前指标/洞察/三卡全部显示 0——根因是 v63 时间网关：`buildGlobalMissionInputs` 只解析今日日报进 `_reportParsed`，三个渲染组件的 `hasRealTodayReport` 门对无今日日报的用户全拦（用户无 8/16 日报 → 点 12号/15号 全零，观感「功能全塌」，实为设计缺陷非 v73/v74 回归）
+  - 修复：新增全局 `_historyParsed`（buildGlobalMissionInputs 内 `_viewDate && _viewDate !== today` 时解析所选日期 isDailyReport 行，meta.date 回写；回到今天/未选 → null，今日链路零影响）
+  - 四个渲染点早分支 `historyMode = !!(_viewDate && _historyParsed)`（先于今日时间网关判定）：renderMetricsOverview（评分公式同今日分支，newWords/corrections 改直取 parsed 数组长度，因 ms.today* 只对今日有意义）、renderContentCards（三卡增量=该日日报数量）、renderInsightsSection（跳过内部 730 行今日门，`p = _historyParsed`，dt 改从 `p` 取 dailyThought）、loadHome（displayThoughts/displayGoodPoints 直取历史解析）
+  - 洞察卡标题历史语境：`dayLabel = historyMode ? '当日' : '今日'`（对话主题/对话想法/做得好的地方/需要提升 四标签）；Card E 私教对战胶囊不改（其按钮动作本质是「生成今日 Prompt」，与浏览历史无关）
+  - 边界：所选日期无日报行 → banner toast「该日期无日报数据」并自动回今天（原有逻辑）；有行非 daily-report → `_historyParsed` null → 走今日门（零/空状态，无崩溃）
 - **Voco 2.0 跟读页转型（v73）句型记忆卡片模式 —— SM-2 全链路闭环**：
   - 页面重构：`renderSentenceReview(sentences, startIndex)` 渲染单卡翻转视口（正面英文原句 → 点击翻转翻译解析）；**机械录音三键（听原音/按住录音/听自己）与录音函数族整体物理删除**（speakWord TTS 保留，词汇列表发音在用）；底部导航更名「句型复习」（icon repeat，data-tab 仍 'speak'，全部 ?tab=speak 兼容链不动）
   - 反馈双键完全克隆词汇复习（图18）：😅 还没记住 = `bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)]`、🚀 记住了 = 绿色同构——高度/圆角/内边距逐字一致，严禁第二套按钮样式
