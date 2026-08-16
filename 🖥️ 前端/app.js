@@ -59,7 +59,7 @@ const fmtLocalDate = (d) => {
 const localDateOf = (isoTs) => fmtLocalDate(new Date(isoTs));
 
 // ── 模块二：精准路由锚定（真实路径，绝不死链）──────────────
-// 规范路由：/review?tab=all|grammar|due|topics（复习页四 Tab）· /shadowing?id=xxx（跟读页锚定指定句）· /（首页）
+// 规范路由：/review?tab=all|grammar|due|topics（复习页四 Tab）· /shadowing?id=xxx（句型复习页锚定指定句）· /（首页）
 // navigateToTab 保留为兼容层：旧调用（?tab= 体系）自动翻译为规范路由
 function navigateToTab(tab, filter, label) {
   if (tab === 'words') {
@@ -97,12 +97,12 @@ function navigateReview(tab, filter) {
   _navigatingViaProgram = false;
 }
 
-// /shadowing?id=${item.id} — 跟读页按 id 锚定到指定句（绝不从第 0 句开始）
+// /shadowing?id=${item.id} — 句型复习页按 id 锚定到指定句（绝不从第 0 句开始）
 function navigateShadowing(id, sentence) {
   _activeFilter = null; _activeFilterLabel = '';
   const qs = [];
   if (id !== undefined && id !== null && id !== '') qs.push('id=' + encodeURIComponent(id));
-  // sentence：首页「今天需要提升」点击的句文本 —— 播放器动态加载这一句，禁止从默认句开始
+  // sentence：首页「今天需要提升」点击的句文本 —— 卡片队列以这一句为首张，禁止从默认句开始
   if (sentence) qs.push('sentence=' + encodeURIComponent(sentence));
   window.history.pushState({}, '', '/shadowing' + (qs.length ? '?' + qs.join('&') : ''));
   _navigatingViaProgram = true;
@@ -149,7 +149,7 @@ function handleRoute() {
       : (['all', 'grammar', 'due', 'topics', 'new', 'mistakes', 'review'].includes(t) ? t : 'all');
   } else if (path === '/shadowing') {
     tab = 'speak';
-    _activeFilter = null; _activeFilterLabel = ''; // URL 的 filter/id 参数才是跟读页唯一事实源
+    _activeFilter = null; _activeFilterLabel = ''; // URL 的 filter/id 参数才是句型复习页唯一事实源
   } else if (path === '/') {
     const t = new URLSearchParams(location.search).get('tab') || 'home';
     const legacy = { words: 'words', new: 'words', mistakes: 'words', review: 'words', speak: 'speak', me: 'me' };
@@ -286,13 +286,13 @@ const mockDashboardData = {
       { type:'grammar', issue:'语法纠错', wrong:'I have went to three interviews last month.', correct:'I have gone to three interviews last month.', explanation:'注意时态的一致性：现在完成时需用 have + 过去分词（gone），不能用过去式 went', detail:"'I have went' → 应为 'I have gone'", action:'专项攻克', tab:'speak', filter:'tense', filterLabel:'时态句型', errorCategory:'tense' },
       { type:'grammar', issue:'语法纠错', wrong:'I went to store.', correct:'I went to the store.', explanation:'冠词遗漏：单数可数名词 store 前需要冠词 the', detail:"'I went to store' → 应为 'I went to the store'", action:'查看纠错', tab:'words', filter:'mistakes', filterLabel:'高频错词', errorCategory:'article' },
       // 💡 Soft Upgrade — 语法没错，但不够地道：不做删除线，只做升级替换
-      { type:'expression', issue:'地道表达', wrong:'I think I can do this job.', correct:"I believe I'm a strong fit for this role.", explanation:'使用更具商务感的词汇：面试场景下 believe / strong fit 比口语化的 I think 更专业自信', detail:"'I think I can do this job' → 'I believe I'm a strong fit for this role'", action:'专项跟读', tab:'speak', filter:'connective', filterLabel:'地道表达', errorCategory:'collocation' },
+      { type:'expression', issue:'地道表达', wrong:'I think I can do this job.', correct:"I believe I'm a strong fit for this role.", explanation:'使用更具商务感的词汇：面试场景下 believe / strong fit 比口语化的 I think 更专业自信', detail:"'I think I can do this job' → 'I believe I'm a strong fit for this role'", action:'专项句型复习', tab:'speak', filter:'connective', filterLabel:'地道表达', errorCategory:'collocation' },
       // 🎯 Structure — 逻辑断层：连接词让层次更分明
-      { type:'structure', issue:'逻辑与结构', wrong:'I wanted to go out. It was raining.', correct:'I wanted to go out. However, it was raining.', explanation:'表达转折时使用 however / therefore 等连接词，让层次更分明', detail:'多处句子之间缺乏 however/therefore 等过渡词', action:'专项跟读', tab:'speak', filter:'connective', filterLabel:'连接词句型', errorCategory:'connective' }
+      { type:'structure', issue:'逻辑与结构', wrong:'I wanted to go out. It was raining.', correct:'I wanted to go out. However, it was raining.', explanation:'表达转折时使用 however / therefore 等连接词，让层次更分明', detail:'多处句子之间缺乏 however/therefore 等过渡词', action:'专项句型复习', tab:'speak', filter:'connective', filterLabel:'连接词句型', errorCategory:'connective' }
     ],
     nextSteps: [
-      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项跟读', tab: 'speak', filter: 'connective', filterLabel: '连接词句型' },
-      { step: '刻意练习过去时态与现在完成时的区分', action: '专项跟读', tab: 'speak', filter: 'tense', filterLabel: '时态句型' },
+      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项句型复习', tab: 'speak', filter: 'connective', filterLabel: '连接词句型' },
+      { step: '刻意练习过去时态与现在完成时的区分', action: '专项句型复习', tab: 'speak', filter: 'tense', filterLabel: '时态句型' },
       { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words', filter: 'new', filterLabel: '今日新词' }
     ],
     // ── v6.0 高管摘要（Card F 重构） ──
@@ -303,8 +303,8 @@ const mockDashboardData = {
       { text: '语音语调自然，停顿位置合理，语速适中' }
     ],
     targetAreas: [
-      { category:'tense', label:'时态混淆', keyword:'过去时 vs 完成时', count:3, filterKey:'tense', filterLabel:'时态句型', actionLabel:'专项跟读' },
-      { category:'connective', label:'连接词缺失', keyword:'however / therefore', count:2, filterKey:'connective', filterLabel:'连接词句型', actionLabel:'专项跟读' },
+      { category:'tense', label:'时态混淆', keyword:'过去时 vs 完成时', count:3, filterKey:'tense', filterLabel:'时态句型', actionLabel:'专项句型复习' },
+      { category:'connective', label:'连接词缺失', keyword:'however / therefore', count:2, filterKey:'connective', filterLabel:'连接词句型', actionLabel:'专项句型复习' },
       { category:'article', label:'冠词遗漏', keyword:'a / an / the', count:2, filterKey:'mistakes', filterLabel:'高频错词', actionLabel:'去纠错' }
     ],
     overallReview: "本次练习围绕个人成长展开，用户能够表达较复杂的观点，在描述抽象概念时展现了较好的语言组织能力。整体流利度有明显提升，但在语法细节和连接词使用上仍有优化空间。建议在下次练习中刻意关注时态一致性和逻辑连接词的运用。"
@@ -318,7 +318,7 @@ const mockDashboardData = {
   // todos 字段已删除：今日待办由 renderTodoList 三闭环动态生成（v61），不留硬编码残存
 };
 
-// 2. 跟读/口语数据 (绝对不允许拆分，必须是嵌套对象)
+// 2. 句型复习/口语数据 (绝对不允许拆分，必须是嵌套对象)
 const mockSentences = [
   {
     id: 1,
@@ -370,7 +370,7 @@ async function loadHome() {
   ]);
 
   // Voco 2.0 状态孤岛断根：home 与 review 共用同一状态构建器（SSOT 输入唯一出处）
-  // 第 4 参 patterns → 句型 SRS 历史库打标（_patternLibrary），供待办任务 2 与跟读队列混合
+  // 第 4 参 patterns → 句型 SRS 历史库打标（_patternLibrary），供待办任务 2 与句型复习队列混合
   buildGlobalMissionInputs(vocab, errors, reports, patterns);
   const vList = _wordsAll;                      // SSOT 唯一词库快照（含日报生词合并后的全量）
   const eList = errors || [];
@@ -394,7 +394,7 @@ async function loadHome() {
   });
   const emptyHero = document.getElementById('home-empty-hero');
   if (emptyHero) emptyHero.classList.toggle('hidden', !showEmptyHero);
-  // 跟读打卡戳：播放器录完最后一句写入 voco-speak-done，此处只读比对（时间判断仍在加载层）
+  // 句型复习打卡戳：卡片队列复习完最后一张时写入 voco-speak-done，此处只读比对（时间判断仍在加载层）
   const speakDoneToday = (() => { try { return localStorage.getItem('voco-speak-done') === today; } catch (e) { return false; } })();
 
   // Section 1: Header
@@ -718,8 +718,8 @@ function metricsDonut(score) {
 // grammar（硬伤，红线纠正）/ expression（软性升级，灰句+高阶替换，绝不画删除线）/ structure（逻辑衔接）
 const IMPROVE_TYPES = {
   grammar:    { badge: '⚠️ 语法纠错',   badgeCls: 'bg-red-50 text-[var(--c-red)]',   wrongCls: 'line-through text-[var(--c-red)]', rightCls: 'text-[var(--c-green)]', btn: '查看纠错' },
-  expression: { badge: '💡 地道表达',   badgeCls: 'bg-amber-50 text-amber-600',      wrongCls: 'text-[var(--c-text-dim)]',        rightCls: 'text-[var(--c-blue)]',  btn: '跟读体验' },
-  structure:  { badge: '🎯 逻辑与结构', badgeCls: 'bg-blue-50 text-[var(--c-blue)]', wrongCls: 'text-[var(--c-text-dim)]',        rightCls: 'text-[var(--c-blue)]',  btn: '专项跟读' }
+  expression: { badge: '💡 地道表达',   badgeCls: 'bg-amber-50 text-amber-600',      wrongCls: 'text-[var(--c-text-dim)]',        rightCls: 'text-[var(--c-blue)]',  btn: '句型复习体验' },
+  structure:  { badge: '🎯 逻辑与结构', badgeCls: 'bg-blue-50 text-[var(--c-blue)]', wrongCls: 'text-[var(--c-text-dim)]',        rightCls: 'text-[var(--c-blue)]',  btn: '专项句型复习' }
 };
 
 // ── Section 4: Insights (Cards A-F) ─────────────────────
@@ -759,7 +759,7 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
       type: 'expression', issue: '地道表达',
       wrong: e.original || '', correct: e.better || '', explanation: e.scene || '',
       detail: (e.original||'') + ' → ' + (e.better||''),
-      action: '专项跟读', tab: 'speak', filter: '', filterLabel: '地道表达',
+      action: '专项句型复习', tab: 'speak', filter: '', filterLabel: '地道表达',
       itemId: e.id || null // 模块二：句型唯一 id，供 /shadowing?id= 精准锚定
     }))
   ];
@@ -842,14 +842,14 @@ function showImprovementDetail(idx) {
   // 教练视角：硬伤给纠错建议，软性升级给语感建议，绝不把地道表达当错误训斥
   const advice = {
     grammar:    '在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。',
-    expression: '你这样说语法完全没错，只是不够地道。下次尝试替换成母语者的自然说法，并跟读 3 遍形成语感。',
+    expression: '你这样说语法完全没错，只是不够地道。下次尝试替换成母语者的自然说法，并朗读 3 遍形成语感。',
     structure:  '长段表达时留意句子之间的逻辑衔接。练习用 however / therefore 等连接词，让层次更分明。'
   }[im.type] || '在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。';
   // 模块二：教练卡按钮精准锚定 — 语法纠错 → /review?tab=grammar；地道表达/逻辑结构 → startImprovementSpeak 携带用户点击的句文本
   const navArgs = im.type === 'grammar'
     ? `navigateReview('grammar')`
     : `startImprovementSpeak(${idx})`;
-  const btnLabel = im.type === 'grammar' ? '去复习页查看语法错题' : '去跟读页专项跟读';
+  const btnLabel = im.type === 'grammar' ? '去复习页查看语法错题' : '去句型复习页专项练习';
   const modal = document.createElement('div');
   modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
   modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
@@ -870,7 +870,7 @@ function showImprovementDetail(idx) {
   refreshIcons(modal);
 }
 
-// 教练卡跟读入口：携带用户点击的这一句（correct 优先）经 ?sentence= 路由参数动态加载播放器
+// 教练卡句型入口：携带用户点击的这一句（correct 优先）经 ?sentence= 路由参数动态加载卡片队列
 // 禁止 navigateShadowing() 无参调用 —— 那会从写死的默认句（核心句型第 0 句）开始播放，与点击内容完全错位
 function startImprovementSpeak(idx) {
   const d = _currentInsights || mockDashboardData.insights;
@@ -880,19 +880,19 @@ function startImprovementSpeak(idx) {
   navigateShadowing(undefined, im.correct || im.wrong || '');
 }
 
-// ── 学习建议类型分流：sentence=句型练习(锚定跟读) / vocab=词汇(复习页) / coach=私教任务弹窗 ──
+// ── 学习建议类型分流：sentence=句型练习(锚定句型复习) / vocab=词汇(复习页) / coach=私教任务弹窗 ──
 function classifySuggestion(step) {
   const s = step || '';
   if (/单词|词汇|生词/.test(s)) return 'vocab';
   if (/复述|听力|自由对话|对话|挑战/.test(s)) return 'coach';
-  if (/句型|跟读|朗读|核心句/.test(s)) return 'sentence';
+  if (/句型|句型复习|朗读|核心句/.test(s)) return 'sentence';
   // 兜底：建议文本包含当前日报某条核心句型原文 → 视作句型练习（可精准锚定）
   const pats = (_insightsParsed && _insightsParsed.sentence_patterns) || [];
   const hit = pats.some(p => {
     const t = String(p.pattern || p.targetSentence || '');
     return t.length > 6 && s.toLowerCase().includes(t.slice(0, 24).toLowerCase());
   });
-  return hit ? 'sentence' : 'coach'; // 复述/听力/自由对话/话题挑战等一律进私教任务弹窗，绝不盲目跳跟读页
+  return hit ? 'sentence' : 'coach'; // 复述/听力/自由对话/话题挑战等一律进私教任务弹窗，绝不盲目跳句型复习页
 }
 
 // ── Next-step detail: contextual action, not blind tab switch ──
@@ -902,7 +902,7 @@ function showNextStepDetail(idx) {
   if (!ns) return;
   const kind = classifySuggestion(ns.step);
   if (kind === 'sentence') {
-    // 句型练习：从当前日报核心句型中匹配本条建议，携带唯一 id 精准锚定播放器
+    // 句型练习：从当前日报核心句型中匹配本条建议，携带唯一 id 精准锚定卡片
     const pats = (_insightsParsed && _insightsParsed.sentence_patterns) || [];
     const stepLower = ns.step.toLowerCase();
     const hit = pats.findIndex(p => {
@@ -912,7 +912,7 @@ function showNextStepDetail(idx) {
     const anchor = hit >= 0 ? `navigateShadowing('core-${hit}')` : `navigateShadowing()`;
     showSuggestionModal(idx, ns.step,
       `${icon('mic','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为句型练习任务，已为你定位到对应核心句型。`,
-      `<button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="${anchor};this.closest('.fixed').remove()">去跟读页定位练习 ${icon('arrow-right','w-3.5 h-3.5')}</button>`
+      `<button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="${anchor};this.closest('.fixed').remove()">去句型复习页定位练习 ${icon('arrow-right','w-3.5 h-3.5')}</button>`
     );
     return;
   }
@@ -923,7 +923,7 @@ function showNextStepDetail(idx) {
     );
     return;
   }
-  // coach：复述听力/自由对话挑战 → 私教任务弹窗（练习指引 + 一键复制 ChatGPT Prompt），绝不跳跟读播放器
+  // coach：复述听力/自由对话挑战 → 私教任务弹窗（练习指引 + 一键复制 ChatGPT Prompt），绝不跳句型复习页
   const prompt = `你现在是我的英语口语私教。请带我完成下面的专项训练任务：
 
 【任务】${ns.step}
@@ -934,7 +934,7 @@ function showNextStepDetail(idx) {
 3. 请我用英语复述要点，实时指出我的语法、发音和用词问题并给出纠正；
 4. 最后给我一个围绕同一主题的自由对话挑战，至少追问 3 个回合。`;
   showSuggestionModal(idx, ns.step,
-    `${icon('lightbulb','w-3.5 h-3.5 text-amber-500 inline-block mr-1')} 这是私教任务，不是跟读练习。点击下方按钮复制对话 Prompt，到 ChatGPT 开启专项训练。`,
+    `${icon('lightbulb','w-3.5 h-3.5 text-amber-500 inline-block mr-1')} 这是私教任务，不是句型复习练习。点击下方按钮复制对话 Prompt，到 ChatGPT 开启专项训练。`,
     `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-3 rounded-xl mb-3 whitespace-pre-wrap max-h-32 overflow-y-auto">${h(prompt)}</div>
      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="copyText(\`${prompt.replace(/`/g, '\\`')}\`);this.closest('.fixed').remove()">📋 一键复制 ChatGPT Prompt</button>`
   );
@@ -1009,14 +1009,14 @@ function renderTodoList(speakDoneToday) {
   const dueCount = ms.totalDueVocabCount;       // SM-2 到期全量（今日新词 + 历史到期词），与 tab=due 同源
   const reviewedToday = ms.reviewedVocabToday;  // 今日实际完成反馈（🟢/🔴）的词数（id 集合大小）
   // 任务 2 三态：
-  // ① patternTaskCount === 0（无新句无到期）→ 置灰防御态「暂无跟读任务」，无空心圆圈、无 chevron、不可点击 —— 根治 (0句) 弱智态
-  // ② 有今日日报 → 「完成核心句型跟读 (N句)」，N = 今日新句型 + 历史到期句（队列已混合）
+  // ① patternTaskCount === 0（无新句无到期）→ 置灰防御态「暂无句型复习任务」，无空心圆圈、无 chevron、不可点击 —— 根治 (0句) 弱智态
+  // ② 有今日日报 → 「完成今日句型复习 (N句)」，N = 今日新句型 + 历史到期句（队列已混合）
   // ③ 无今日日报但有到期句 → 「完成句型复习 (N句)」，纯历史复习队列
   const patternTask = patternTaskCount === 0
-    ? { text: '跟读打卡 · 暂无跟读任务', sub: '导入日报获得新句型，或等待历史句型到期', done: false, disabled: true, action: null }
+    ? { text: '句型复习打卡 · 暂无复习任务', sub: '导入日报获得新句型，或等待历史句型到期', done: false, disabled: true, action: null }
     : {
-        text: hasTodayReport ? `跟读打卡 · 完成核心句型跟读 (${patternTaskCount}句)` : `跟读打卡 · 完成句型复习 (${patternTaskCount}句)`,
-        sub: speakDoneToday ? '今日跟读已完成' : (hasTodayReport ? '今日新句型 + 历史到期句型混合队列' : '历史到期句型复习队列'),
+        text: hasTodayReport ? `句型复习打卡 · 完成今日句型复习 (${patternTaskCount}句)` : `句型复习打卡 · 完成句型复习 (${patternTaskCount}句)`,
+        sub: speakDoneToday ? '今日句型复习已完成' : (hasTodayReport ? '今日新句型 + 历史到期句型混合队列' : '历史到期句型复习队列'),
         done: !!speakDoneToday,
         disabled: false,
         action: () => { navigateShadowing(); }
@@ -1024,7 +1024,7 @@ function renderTodoList(speakDoneToday) {
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
     { text: '对练打卡 · 导入今日日报', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
-    // 任务 2（跟读打卡）：句型 SRS 队列 —— 点击直达混合跟读队列；录完最后一句自动打卡 + SM-2 写回
+    // 任务 2（句型复习打卡）：句型 SRS 卡片队列 —— 点击直达今日到期队列；复习完最后一张卡片自动打卡 + SM-2 写回
     patternTask,
     // 任务 3（复习打卡）：完成今日到期复习 —— 打卡完成强制绑定 SSOT isReviewFinished
     // （dueCount === 0 保持未完成，禁止加载默认值 0 误判完成；文案标明「到期复习」区别于「今日新词」）
@@ -1065,14 +1065,14 @@ function isDailyReport(report) {
 
 // ── 无损数据迁移与清洗层 (Data Migration & Normalization) ──
 // 任意历史日报（如 8.10 / 8.12）在渲染前必须经过本函数：
-//   · sentences（跟读句型）与 mistakes（错题）老格式（字符串 / 数组元组 / 残缺对象）→ 结构校验补齐为对象
+//   · sentences（句型复习句型）与 mistakes（错题）老格式（字符串 / 数组元组 / 残缺对象）→ 结构校验补齐为对象
 //   · 新格式 → 原样透传（spread 保留全部原始键，绝不删改、绝不丢弃任何历史数据）
 // 幂等设计：对同一份数据重复清洗，结果不变。
 function normalizeDailyData(rawDailyData) {
   if (!rawDailyData || typeof rawDailyData !== 'object') return rawDailyData;
   const d = { ...rawDailyData };
 
-  // 1) 跟读句型清洗：sentences / coreSentences / sentence_patterns 三态统一
+  // 1) 句型复习句型清洗：sentences / coreSentences / sentence_patterns 三态统一
   const sentSrc = Array.isArray(d.sentences) ? d.sentences
     : Array.isArray(d.coreSentences) ? d.coreSentences
     : Array.isArray(d.sentence_patterns) ? d.sentence_patterns : null;
@@ -1082,9 +1082,9 @@ function normalizeDailyData(rawDailyData) {
         return { id: `migrated_${index}`, targetSentence: item, replacedSentence: '', explanation: '历史导入内容', isTodayCore: true };
       }
       if (!item || typeof item !== 'object') {
-        return { id: `migrated_${index}`, targetSentence: '有效跟读训练', replacedSentence: '', explanation: '历史导入内容', isTodayCore: true };
+        return { id: `migrated_${index}`, targetSentence: '有效句型复习训练', replacedSentence: '', explanation: '历史导入内容', isTodayCore: true };
       }
-      const target = item.targetSentence || item.pattern || item.text || '有效跟读训练';
+      const target = item.targetSentence || item.pattern || item.text || '有效句型复习训练';
       return {
         ...item,
         id: item.id || `migrated_${index}`,
@@ -1174,7 +1174,7 @@ function cleanLegacyLocalStorage() {
 }
 
 // ── 智能解析路由：新版 JSON 日报 → 归一化为内部结构；否则回退 Markdown 解析器 ──
-// 所有链路（首页 / 历史日期切换 / 单词页 / 跟读页 / 导入预览）读到的数据
+// 所有链路（首页 / 历史日期切换 / 单词页 / 句型复习页 / 导入预览）读到的数据
 // 都先经 normalizeDailyData 无损清洗，再进入 UI 渲染。
 function parseSmartReport(content) {
   const t = String(content || '').trim();
@@ -1592,7 +1592,7 @@ function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocab
   // 5. 今日已实际完成复习的数量（id 集合大小）
   const reviewedVocabToday = reviewedVocabIds.size;
 
-  // 6. 句型间隔重复（Sentence SRS）—— 跟读打卡总任务数 = 今日新解析句型数 + 历史到期句型数
+  // 6. 句型间隔重复（Sentence SRS）—— 句型复习打卡总任务数 = 今日新解析句型数 + 历史到期句型数
   //    历史到期 = patternLibrary（patterns 表打标后）中 needsReview===true 的句型；
   //    文本去重：与今日已含句（targetSentence 小写比对）一致的库行不再计入，绝无双计
   const todayPatterns = hasRealTodayReport ? (patternsAll || []) : [];
@@ -1614,10 +1614,10 @@ function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocab
     dueVocabList, // 真实待复习词表（对战胶囊 3+1+1 组装数据字典：取前 3 词）
     // 只有总数大于 0，且实际复习数达标，才算真正完成打卡（dueCount===0 保持未完成，禁止加载默认值误判）
     isReviewFinished: totalDueVocabCount > 0 && reviewedVocabToday >= totalDueVocabCount,
-    // ── 句型 SRS 输出（待办任务 2 / 跟读队列共用同一口径，UI 层严禁自行 .filter）──
-    duePatternList,          // 历史到期句型表（跟读队列组装数据字典）
+    // ── 句型 SRS 输出（待办任务 2 / 句型复习队列共用同一口径，UI 层严禁自行 .filter）──
+    duePatternList,          // 历史到期句型表（句型复习队列组装数据字典）
     totalDuePatternCount,    // 历史到期句型数
-    totalPatternTaskCount    // 跟读打卡总任务数 = 今日新句型 + 历史到期句型（0 句 → UI 防御态）
+    totalPatternTaskCount    // 句型复习打卡总任务数 = 今日新句型 + 历史到期句型（0 句 → UI 防御态）
   };
 }
 
@@ -2021,52 +2021,106 @@ function buildDueDeck() {
   return [...words, ...errs];
 }
 
-// 纯逻辑：SM-2 反馈映射（🔴没记住 quality=0 / 🟢记住了 quality=3）—— UI 与测试共用
-function applyDueRating(item, rating) {
-  const quality = rating === 'again' ? 0 : 3;
-  if (item.kind === 'word') {
-    const v = item.ref;
-    const result = sm2(v.ease_factor, v.sm2_interval, v.sm2_repetitions, quality);
-    const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
-    const status = rating === 'again' ? 'learning' : (result.repetitions >= 5 ? 'mastered' : 'learning');
-    return { quality, sm2: result, next_review_date: fmtLocalDate(nextDate), status, mastered: status === 'mastered' };
+// ═══ SM-2 统一反馈服务（单词复习 + 句型复习卡片共用同一出口）═══
+// handleReviewFeedback(id, status, itemRef)：status 'again'（quality 0）/ 'good'（quality 3）
+// 调度顺序：句型库行（patterns 数字主键）→ 今日新句（core-N 队列 ref，INSERT 入库）→ 单词库行
+// 返回 { kind: 'pattern' | 'word' | 'unknown', ok } —— 所有回写失败静默降级本地会话态
+async function handleReviewFeedback(id, status, itemRef) {
+  const quality = status === 'again' ? 0 : 3;
+  const sid = String(id);
+  // ① 句型库行：patterns.id 为 BIGSERIAL 数字主键，_speakAll 打标行携带 SM-2 字段
+  const pat = (_speakAll || []).find(p => String(p.id) === sid && /^\d+$/.test(String(p.id)));
+  if (pat) { await reviewPatternItem(pat, quality); return { kind: 'pattern', ok: true }; }
+  // ② 今日新句（core-N / sentence-anchor）：无库行，由队列 ref 承载 → INSERT 正式进入记忆曲线
+  if (itemRef && (itemRef.targetSentence || itemRef.better || itemRef.pattern)) {
+    await reviewPatternItem(itemRef, quality);
+    return { kind: 'pattern', ok: true };
   }
-  return { quality };
+  // ③ 单词库行：与词汇复习完全同一条写回路径
+  const word = (_wordsAll || []).find(w => String(w.id) === sid);
+  if (word) { await reviewWordItem(word, quality); return { kind: 'word', ok: true }; }
+  return { kind: 'unknown', ok: false };
 }
 
-// ═══ 句型 SM-2 写回（Sentence SRS 闭环）═══
-// 跟读队列完整录完最后一句 → 本局所有真实库句（UUID 主键）按质量 3（记住了）推进记忆曲线
-// 过滤铁律：core-N（今日解析句）/ sentence-anchor（教练卡锚定）/ migrated-N（历史迁移）/ Mock 演示句 ——
-// 一律无库行、绝不写回；写回字段与单词 SM-2 完全同构（status/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）
-const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-async function recordPatternReviews() {
-  for (const item of _playerSentences) {
-    const id = item && item.id;
-    if (typeof id !== 'string' || !_UUID_RE.test(id)) continue; // 仅真实库行参与 SRS
-    const src = (_speakAll || []).find(p => String(p.id) === id);
-    if (!src || src.needsReview !== true) continue; // 仅到期句推进（今日新句未入库，无 SM-2 行）
-    const result = sm2(src.ease_factor, src.sm2_interval, src.sm2_repetitions, 3);
-    const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
-    const status = result.repetitions >= 5 ? 'mastered' : 'learning';
-    // 本地快照即时同步：needsReview 摘除 + SM-2 字段推进（本会话内不再重复入队）
-    src.ease_factor = result.ease_factor; src.sm2_interval = result.interval; src.sm2_repetitions = result.repetitions;
-    src.review_count = (src.review_count || 0) + 1;
-    src.status = status; src.mastered = status === 'mastered';
-    src.next_review_date = fmtLocalDate(nextDate);
-    src.last_reviewed_at = new Date().toISOString();
-    src.needsReview = false;
-    // 云端句型库回写（行缺失/无权限时静默降级为本地会话态，绝不报错打扰跟读流程）
+// 单词 SM-2 推进 + 回写（原 applyDueRating + rateDueCard 写回逻辑的无损提取）
+async function reviewWordItem(v, quality) {
+  const result = sm2(v.ease_factor, v.sm2_interval, v.sm2_repetitions, quality);
+  const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
+  const status = quality < 3 ? 'learning' : (result.repetitions >= 5 ? 'mastered' : 'learning');
+  // 本地快照即时同步：熟练度星级随 review_count 推进，到期时间随 SM-2 推进
+  v.review_count = (v.review_count || 0) + 1;
+  v.ease_factor = result.ease_factor; v.sm2_interval = result.interval; v.sm2_repetitions = result.repetitions;
+  v.status = status; v.mastered = status === 'mastered';
+  v.next_review_date = fmtLocalDate(nextDate); v.last_reviewed_at = new Date().toISOString();
+  if (quality >= 3) v.needsReview = false; // 🟢记住了：移出待复习队列（下次到期再回来）
+  try {
+    const { data: row, error } = await sb.from('vocabulary').select('*').eq('id', v.id).single();
+    if (!error && row) {
+      await sb.from('vocabulary').update({
+        status, mastered: status === 'mastered',
+        ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
+        review_count: v.review_count, next_review_date: v.next_review_date, last_reviewed_at: v.last_reviewed_at
+      }).eq('id', v.id);
+    }
+  } catch (e) { /* 演示数据：仅本地会话态 */ }
+  return true;
+}
+
+// 句型 SM-2 推进 + 回写：
+//   · 数字主键（BIGSERIAL）→ 库行 UPDATE（与单词写回同构；migration_v2.1 列未跑时 PostgREST 拒绝 → 静默本地态）
+//   · core-N / sentence-anchor → 今日新句 INSERT 入库（正式进入记忆曲线；列未跑时同样静默本地态）
+async function reviewPatternItem(p, quality) {
+  const result = sm2(p.ease_factor, p.sm2_interval, p.sm2_repetitions, quality);
+  const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
+  const status = quality < 3 ? 'learning' : (result.repetitions >= 5 ? 'mastered' : 'learning');
+  const isDbRow = /^\d+$/.test(String(p.id));
+  const isTodayNew = /^(core-\d+|sentence-anchor)$/.test(String(p.id));
+  if (isDbRow) {
+    // 库行：本地快照 + SM-2 UPDATE
+    p.review_count = (p.review_count || 0) + 1;
+    p.ease_factor = result.ease_factor; p.sm2_interval = result.interval; p.sm2_repetitions = result.repetitions;
+    p.status = status; p.mastered = status === 'mastered';
+    p.next_review_date = fmtLocalDate(nextDate); p.last_reviewed_at = new Date().toISOString();
+    if (quality >= 3) p.needsReview = false;
     try {
-      const { data: row, error } = await sb.from('patterns').select('*').eq('id', id).single();
+      const { data: row, error } = await sb.from('patterns').select('*').eq('id', p.id).single();
       if (!error && row) {
         await sb.from('patterns').update({
           status, mastered: status === 'mastered',
           ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
-          review_count: src.review_count, next_review_date: src.next_review_date, last_reviewed_at: src.last_reviewed_at
-        }).eq('id', id);
+          review_count: p.review_count, next_review_date: p.next_review_date, last_reviewed_at: p.last_reviewed_at
+        }).eq('id', p.id);
       }
-    } catch (e) { /* 演示数据：仅本地会话态 */ }
+    } catch (e) { /* 列缺失：仅本地会话态 */ }
+  } else if (isTodayNew) {
+    // 今日新句：INSERT 入库（user_id 必须显式注入，RLS 校验 auth.uid() = user_id）
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return false;
+    const insertRow = {
+      user_id: session.user.id,
+      original: p.replacedSentence || '',
+      better: p.targetSentence || '',
+      scene: p.explanation || '',
+      date_added: getLocalToday(),
+      source_topic: '今日日报',
+      status, mastered: status === 'mastered',
+      ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
+      review_count: 1, next_review_date: fmtLocalDate(nextDate), last_reviewed_at: new Date().toISOString()
+    };
+    try {
+      const { data: inserted, error } = await sb.from('patterns').insert(insertRow).select().single();
+      if (!error && inserted) {
+        // 本地挂新主键 + SM-2 快照，同会话不重复插入
+        p.id = inserted.id;
+        p.review_count = 1;
+        p.ease_factor = result.ease_factor; p.sm2_interval = result.interval; p.sm2_repetitions = result.repetitions;
+        p.status = status; p.mastered = status === 'mastered';
+        p.next_review_date = fmtLocalDate(nextDate); p.last_reviewed_at = insertRow.last_reviewed_at;
+        p.needsReview = false;
+      }
+    } catch (e) { /* 列缺失：仅本地会话态 */ }
   }
+  return true;
 }
 
 // 纯逻辑：卡组流转（🔴没记住→移回队尾继续循环；🟢记住了→移出队列；清空返回 -1）
@@ -2144,26 +2198,9 @@ function revealDueAnswer() {
 async function rateDueCard(rating) {
   const item = _dueDeck[_dueIdx];
   if (!item || !_dueRevealed) return;
-  const r = applyDueRating(item, rating);
   if (item.kind === 'word') {
-    const v = item.ref;
-    // 本地快照即时同步：熟练度星级随 review_count 推进（圆点填充），到期时间随 SM-2 推进
-    v.review_count = (v.review_count || 0) + 1;
-    v.ease_factor = r.sm2.ease_factor; v.sm2_interval = r.sm2.interval; v.sm2_repetitions = r.sm2.repetitions;
-    v.status = r.status; v.mastered = r.mastered;
-    v.next_review_date = r.next_review_date; v.last_reviewed_at = new Date().toISOString();
-    if (rating === 'good') v.needsReview = false; // 🟢记住了：移出待复习队列（下次到期再回来）
-    // 云端词库回写（演示词无数据库行时静默降级为本地会话态，绝不报错打扰）
-    try {
-      const { data: row, error } = await sb.from('vocabulary').select('*').eq('id', v.id).single();
-      if (!error && row) {
-        await sb.from('vocabulary').update({
-          status: r.status, mastered: r.mastered,
-          ease_factor: r.sm2.ease_factor, sm2_interval: r.sm2.interval, sm2_repetitions: r.sm2.repetitions,
-          review_count: v.review_count, next_review_date: r.next_review_date, last_reviewed_at: new Date().toISOString()
-        }).eq('id', v.id);
-      }
-    } catch (e) { /* 演示数据：仅本地会话态 */ }
+    // 统一反馈服务：与句型复习卡片共用同一 SM-2 写回路径（deck item id 带 'w-' 前缀 → 传原始单词 id）
+    await handleReviewFeedback(String(item.ref.id), rating);
   } else if (rating === 'good') {
     _reviewedErrorIds.add(String(item.id)); // 错题🟢记住：本会话不再重复打卡
   }
@@ -2350,7 +2387,7 @@ function matchSpeakFilter(p, filter) {
 }
 
 // 当前日报解析器：今天日报 → 用户正在查看的历史日期 → 最新一份有效日报（三级回退）
-// 跟读页/复习页共用 —— 绝不再因为日报不是「今天」生成的就回退到 Mock 数据断流
+// 句型复习页/复习页共用 —— 绝不再因为日报不是「今天」生成的就回退到 Mock 数据断流
 function resolveActiveReport(reports) {
   const list = reports || [];
   const today = getLocalToday();
@@ -2366,59 +2403,37 @@ async function loadSpeak() {
     sb.from('patterns').select('*').order('created_at', { ascending: false }),
     sb.from('reports').select('*').order('date', { ascending: false }).limit(90)
   ]);
-  // 句型 SRS：真实库与展示库分离 —— _speakAll 空库时回退 Mock 仅用于播放器展示；
+  // 句型 SRS：真实库与展示库分离 —— _speakAll 空库时回退 Mock 仅用于兜底展示；
   // _patternLibrary 只收真实 patterns 行（打标后），Mock 严禁混入 SRS 到期判定与 SM-2 写回
   const taggedPatterns = (patterns && patterns.length) ? stampPatternTags(patterns) : [];
   _speakAll = taggedPatterns.length ? taggedPatterns : mockSentences; // 打标网关：唯一 id + isTodayCore + needsReview + 标准嵌套字段
   _patternLibrary = taggedPatterns;
 
   // 真实解析数据源：当前日报的核心句型（parser 原样输出，只消费不修改）
-  // 铁律：优先加载当前日报的全部句型 —— 日报有 8 句就必须 (1/8)~(8/8)，绝不回退 2 条内置 Mock
-  // v63 时间网关：默认训练队列 = 「今日」核心句型队列 —— 无今日日报时队列为空（播放器空状态），
-  // 严禁 resolveActiveReport 的「最新有效日报」回退让昨日句型冒充今日队列；历史视图（_viewDate）除外
   const today = getLocalToday();
   const todayReport = _viewDate
     ? resolveActiveReport(reports)
     : ((reports || []).find(r => r.date === today && isDailyReport(r)) || null);
   const parsed = todayReport ? parseSmartReport(todayReport.content) : null;
 
-  // /speaking?filter=core_sentences — 专注模式的唯一事实源是 URL 的 filter 参数
+  // v73 卡片复习模式：页面只展示「今日到期句型队列」（getDueSentencesQueue 唯一事实源 = 今日新句型 + 历史到期句型）
+  // ?id= / ?sentence= 锚定仅决定起始卡片（首页「今天需要提升」跳转仍然生效），绝不改变队列内容
+  const sentences = getDueSentencesQueue(parsed, _speakAll);
   const params = new URLSearchParams(window.location.search);
-  const urlFilter = params.get('filter') || null;
-  const activeFilter = _activeFilter || urlFilter;
-
-  // 首页教练卡点击句（?sentence=）：动态单句队列，最高优先 —— 播放用户点击的这一句，禁止默认句开头
-  const anchorSentence = params.get('sentence') || null;
-
-  let sentences;
-  if (anchorSentence) {
-    sentences = [{
-      id: 'sentence-anchor',
-      targetSentence: anchorSentence,
-      replacedSentence: '',
-      explanation: '来自首页「今天需要提升」的专项句'
-    }];
-  } else if (activeFilter) {
-    const q = String(activeFilter).toLowerCase();
-    if (q === 'core_sentences' || q === 'core') {
-      // 核心句型队列：今日新句型 + 历史到期句型混合（句型 SRS），真实解析 > 到期库 > 内置核心句型
-      sentences = mergedPatternQueue(parsed, _speakAll);
-    } else {
-      sentences = _speakAll.filter(p => matchSpeakFilter(p, activeFilter)).map(toPlayerItem);
-    }
-  } else {
-    // 默认训练队列 = 句型 SRS 混合队列：今日新解析句型 + 历史到期待复习句型（与待办任务 2 同一口径）
-    // 无今日日报但历史到期 5 句 → 队列 5 句「完成句型复习」；两者皆无 → 空队列（播放器空状态），严禁回退 Mock
-    sentences = mergedPatternQueue(parsed, _speakAll);
-  }
-
-  // 模块二：/shadowing?id=xxx — 精准锚定：收到 id 直接定位到对应句，绝不从第 0 句开始
   const anchorId = params.get('id') || null;
-  const startIndex = resolveAnchorIndex(sentences, anchorId);
-  if (anchorId && startIndex === 0 && !(sentences[0] && String(sentences[0].id) === String(anchorId))) {
-    showToast('未找到指定句子，已从头开始');
+  const anchorText = params.get('sentence') || null;
+  let startIndex = 0;
+  if (anchorId) startIndex = resolveAnchorIndex(sentences, anchorId);
+  else if (anchorText) {
+    const hit = sentences.findIndex(s => String(s.targetSentence || '').toLowerCase().trim() === String(anchorText).toLowerCase().trim());
+    if (hit >= 0) startIndex = hit;
   }
-  renderShadowingPlayer(sentences, startIndex);
+  const anchoredAt = (anchorId || anchorText) ? sentences[startIndex] : null;
+  if ((anchorId || anchorText) && (!anchoredAt || (String(anchoredAt.id) !== String(anchorId) && String(anchoredAt.targetSentence || '').toLowerCase().trim() !== String(anchorText || '').toLowerCase().trim()))) {
+    showToast('未找到指定句子，已从头开始');
+    startIndex = 0;
+  }
+  renderSentenceReview(sentences, startIndex);
 }
 
 // 纯逻辑：id 锚定定位（缺失/越界/无匹配 → 0；字符串化比对，绝不误判数字 id）
@@ -2446,10 +2461,11 @@ function coreDeck(parsed, speakAll) {
   return demo.length ? demo : (speakAll || []).map(toPlayerItem);
 }
 
-// 句型 SRS 队列混合（跟读打卡总任务数同源）：今日新句型（coreDeck 真实解析）+ 历史到期句型（needsReview===true）
+// getDueSentencesQueue —— 今日到期句型队列唯一事实源（句型复习打卡总任务数同源）：
+// 今日新句型（coreDeck 真实解析）+ 历史到期句型（needsReview===true）
 // 文本去重：与今日已含句（targetSentence 小写比对）一致的库行不再入队 —— 今日新学即为今日复习，绝无双计
 // 无今日日报 → 纯历史到期队列（完成句型复习）；两者皆无 → 空队列（UI 空状态，严禁回退 Mock）
-function mergedPatternQueue(parsed, speakAll) {
+function getDueSentencesQueue(parsed, speakAll) {
   const todayItems = parsed ? coreDeck(parsed, speakAll) : [];
   const todayTexts = new Set(todayItems.map(it => String(it.targetSentence || '').toLowerCase().trim()).filter(Boolean));
   const dueItems = (speakAll || [])
@@ -2484,40 +2500,37 @@ function toPlayerItem(p) {
 let _speakAll = [];
 
 // ═══════════════════════════════════════════════════════
-// 沉浸式跟读播放器 — ShadowingPlayer
-// React 组件 1:1 移植为 vanilla JS（本应用无 React 构建步骤）
-// 铁律：单卡片视图，绝不允许 .map 瀑布流列表；DOM 结构与组件逐字对应
+// 句型记忆卡片 — Sentence SRS Cards（v73 重大策略调整）
+// 机械录音（听原音/按住录音/听自己）暂时下线；页面转型为 SM-2 卡片复习：
+// 正面英文原句 → 点击翻转翻译与解析 → 底部 😅/🚀 反馈（克隆词汇复习按钮样式）
+// 铁律：单卡片视口，绝不允许 .map 瀑布流列表；队列 = getDueSentencesQueue 唯一事实源
 // ═══════════════════════════════════════════════════════
-let _playerSentences = [];
-let _playerIndex = 0;
-let _playerIsRecording = false;
-let _playerHasRecorded = false;
-let _playerRecorder = null;
-let _playerChunks = [];
-let _playerAudioUrl = null;
-let _playerReviewWritten = false; // 句型 SRS 写回 once-guard：每次渲染播放器重置，本局只写一次 SM-2
+let _srsQueue = [];                  // 今日到期句型队列
+let _srsIdx = 0;                     // 当前卡片下标
+let _srsReviewed = 0;                // 已复习数（🎯 句型复习 (已复习 x / 总计 y)）
+let _srsTotal = 0;                   // 队列总长（开局快照，splice 移除后不变）
+let _srsResults = { remembered: 0, forgot: 0 };
+let _srsFlipped = false;             // 卡片翻转态
 
-function renderShadowingPlayer(sentences, startIndex) {
+function renderSentenceReview(sentences, startIndex) {
   const container = document.getElementById('speak-player');
-  _playerSentences = sentences || [];
-  // 模块二：id 锚定入口 — startIndex 越界/缺省时安全回退到第 0 句
-  _playerIndex = (Number.isInteger(startIndex) && startIndex >= 0 && startIndex < _playerSentences.length) ? startIndex : 0;
-  _playerIsRecording = false;
-  _playerHasRecorded = false;
-  _playerReviewWritten = false; // 新队列新生命周期：允许本局完成后重新写回
-  releasePlayerAudio();
+  _srsQueue = (sentences || []).slice();
+  _srsIdx = (Number.isInteger(startIndex) && startIndex >= 0 && startIndex < _srsQueue.length) ? startIndex : 0;
+  _srsReviewed = 0;
+  _srsTotal = _srsQueue.length;
+  _srsResults = { remembered: 0, forgot: 0 };
+  _srsFlipped = false;
 
   // 边界处理：没有数据 → 句型 SRS 空状态（温润极简：微圆底块 + 克制线性图标，绝不出现「(0句)」计数）
-  // 卡片渐变与 CTA 渐变与首页 #home-empty-hero 完全同构（linear-gradient 160deg primary-light→surface / 135deg primary→green）
-  if (_playerSentences.length === 0) {
+  if (_srsQueue.length === 0) {
     container.innerHTML = `
       <div class="flex h-full items-center justify-center">
         <div class="w-full max-w-[320px] rounded-3xl px-6 pt-9 pb-8 text-center border border-[var(--c-border-light)]"
              style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 65%);box-shadow:var(--c-shadow)">
           <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--c-primary-light)] flex items-center justify-center" style="box-shadow:inset 0 0 0 1px var(--c-primary)">
-            <i data-lucide="mic-off" class="w-5 h-5 text-[var(--c-primary)]"></i>
+            <i data-lucide="book-open" class="w-5 h-5 text-[var(--c-primary)]"></i>
           </div>
-          <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">暂无跟读任务</div>
+          <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">暂无待复习句型</div>
           <div class="text-[13px] text-[var(--c-text-dim)] mb-6 leading-relaxed">导入今日日报获得新句型<br/>或等待历史句型复习到期</div>
           <button onclick="showImportDialog()" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
             style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
@@ -2531,193 +2544,98 @@ function renderShadowingPlayer(sentences, startIndex) {
 
   container.innerHTML = `
     <div class="flex flex-col h-full">
-      <div class="text-center text-xs font-medium text-gray-400 pt-4 mb-6 tracking-widest" id="player-progress"></div>
-      <div class="flex-1 flex flex-col justify-center min-h-0 mb-4">
-        <div class="bg-white p-7 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col items-center text-center relative min-h-[220px] justify-center">
-          <h2 class="text-[28px] font-serif font-bold text-gray-800 leading-snug mb-6" id="player-sentence"></h2>
-          <div class="flex flex-col gap-3 w-full pt-6 border-t border-gray-50" id="player-context">
-            <p class="text-xs text-gray-400" id="player-replaced">代替: <span class="line-through"></span></p>
-            <div class="flex justify-center" id="player-explanation-wrap">
-              <p class="text-[11px] text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg" id="player-explanation"></p>
-            </div>
+      <!-- 顶部进度栏：与词汇复习统一 —— 🎯 句型复习 (已复习 x / 总计 y) + 进度条 -->
+      <div class="flex items-center gap-2 mb-3">
+        <span id="srs-progress-text" class="text-xs font-semibold text-[var(--c-text)] shrink-0"></span>
+        <div class="flex-1 h-1.5 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div id="srs-progress-fill" class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-300" style="width:0%"></div></div>
+      </div>
+      <!-- 翻转卡片：正面英文原句 → 点击翻转翻译与解析 -->
+      <div class="srs-flip-scene flex-1 min-h-0 mb-4 cursor-pointer" onclick="flipSrsCard()">
+        <div class="srs-flip-inner h-full" id="srs-flip-inner">
+          <div class="srs-flip-face flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-9" style="background:var(--c-surface);box-shadow:var(--c-shadow)">
+            <div class="text-[11px] text-[var(--c-text-ultradim)] mb-4 tracking-widest">点击卡片查看翻译与解析</div>
+            <h2 id="srs-card-front" class="text-[26px] font-serif font-bold text-[var(--c-text)] leading-snug"></h2>
+          </div>
+          <div class="srs-flip-face srs-flip-back flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-9" style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 70%);box-shadow:var(--c-shadow)">
+            <div class="text-[11px] text-[var(--c-text-ultradim)] mb-4 tracking-widest">点击卡片返回原句</div>
+            <div id="srs-card-back-original" class="text-[13px] text-[var(--c-text-dim)] line-through mb-2"></div>
+            <p id="srs-card-back-explanation" class="text-[15px] font-semibold text-[var(--c-text)] leading-relaxed"></p>
           </div>
         </div>
       </div>
-      <div id="player-dock">
-        <div>
-          <div class="flex items-center justify-center gap-6">
-            <button id="player-listen" class="flex flex-col items-center gap-2 w-20 group">
-              <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-xl text-gray-600 transition-colors group-hover:bg-gray-300">🔊</div>
-              <span class="text-xs text-gray-500">听原音</span>
-            </button>
-            <button id="player-record" class="flex flex-col items-center gap-2 z-10">
-              <div class="w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white shadow-xl transition-all duration-200" id="player-record-btn">🎙️</div>
-              <span class="text-xs font-medium transition-colors" id="player-record-label"></span>
-            </button>
-            <button id="player-hear" disabled class="flex flex-col items-center gap-2 w-20 transition-opacity">
-              <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl transition-colors" id="player-hear-btn">🗣️</div>
-              <span class="text-xs text-gray-500">听自己</span>
-            </button>
-          </div>
-          <button id="player-next" class="w-full py-4 rounded-2xl font-semibold text-base transition-all duration-200"></button>
-        </div>
+      <!-- 反馈区：完全克隆词汇复习（图18）按钮 —— 浅粉底红字 / 浅绿底绿字，高度圆角内边距逐字一致 -->
+      <div class="flex items-center justify-center gap-3">
+        <button id="srs-forgot" class="flex-1 py-3 bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)] cursor-pointer transition-all">😅 还没记住</button>
+        <button id="srs-remembered" class="flex-1 py-3 bg-green-50 hover:bg-green-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-green)] cursor-pointer transition-all">🚀 记住了</button>
       </div>
     </div>`;
-  updatePlayerView();
-  wirePlayerHandlers();
+  renderSrsCard();
+  document.getElementById('srs-forgot').addEventListener('click', () => rateSentenceCard('again'));
+  document.getElementById('srs-remembered').addEventListener('click', () => rateSentenceCard('good'));
+  refreshIcons(container);
 }
 
-// 状态驱动渲染：对应 React 的 isRecording / hasRecorded / currentIndex 条件分支
-function updatePlayerView() {
-  const item = _playerSentences[_playerIndex];
+// 状态驱动渲染：当前卡片主句/解析/进度
+function renderSrsCard() {
+  const item = _srsQueue[_srsIdx];
   if (!item) return;
-
-  // 进度指示器
-  document.getElementById('player-progress').textContent = `🎯 专注训练 (${_playerIndex + 1}/${_playerSentences.length})`;
-
-  // 核心提词器大卡片（衬线主句居中）
-  const sEl = document.getElementById('player-sentence');
-  const nextText = item.targetSentence || '';
-  if (sEl.textContent !== nextText) {
-    sEl.textContent = nextText;
-    // 平滑递增 currentIndex：仅主句变化时重触发入场动画（reflow 手法），录音状态刷新绝不闪动主句
-    sEl.style.animation = 'none';
-    void sEl.offsetWidth;
-    sEl.style.animation = '';
-  }
-  const replaced = document.getElementById('player-replaced');
+  document.getElementById('srs-progress-text').textContent = `🎯 句型复习 (已复习 ${_srsReviewed} / 总计 ${_srsTotal})`;
+  document.getElementById('srs-progress-fill').style.width = `${(_srsReviewed / _srsTotal) * 100}%`;
+  document.getElementById('srs-card-front').textContent = item.targetSentence || '';
+  const backOri = document.getElementById('srs-card-back-original');
   if (item.replacedSentence) {
-    replaced.style.display = '';
-    replaced.querySelector('span').textContent = item.replacedSentence;
+    backOri.style.display = '';
+    backOri.textContent = '代替: ' + item.replacedSentence;
   } else {
-    replaced.style.display = 'none';
+    backOri.style.display = 'none';
   }
-  const expWrap = document.getElementById('player-explanation-wrap');
-  if (item.explanation) {
-    expWrap.style.display = '';
-    document.getElementById('player-explanation').textContent = `🎬 ${item.explanation}`;
-  } else {
-    expWrap.style.display = 'none';
-  }
-
-  // 巨大的核心录音键（按下变色缩放）
-  const recBtn = document.getElementById('player-record-btn');
-  const recLabel = document.getElementById('player-record-label');
-  if (_playerIsRecording) {
-    recBtn.className = 'w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white shadow-xl transition-all duration-200 bg-teal-800 scale-90 shadow-inner';
-    recLabel.className = 'text-xs font-medium transition-colors text-teal-700';
-    recLabel.textContent = '松开结束';
-  } else {
-    recBtn.className = 'w-20 h-20 rounded-full flex items-center justify-center text-3xl text-white shadow-xl transition-all duration-200 bg-teal-600 hover:bg-teal-700 hover:scale-105';
-    recLabel.className = 'text-xs font-medium transition-colors text-gray-600';
-    recLabel.textContent = '按住录音';
-  }
-
-  // 听自己（仅在录音后可用）
-  const hear = document.getElementById('player-hear');
-  const hearBtn = document.getElementById('player-hear-btn');
-  if (_playerHasRecorded) {
-    hear.disabled = false;
-    hear.className = 'flex flex-col items-center gap-2 w-20 transition-opacity opacity-100';
-    hearBtn.className = 'w-12 h-12 rounded-full flex items-center justify-center text-xl transition-colors bg-amber-100 text-amber-700 hover:bg-amber-200';
-  } else {
-    hear.disabled = true;
-    hear.className = 'flex flex-col items-center gap-2 w-20 transition-opacity opacity-30 cursor-not-allowed';
-    hearBtn.className = 'w-12 h-12 rounded-full flex items-center justify-center text-xl transition-colors bg-gray-100 text-gray-400';
-  }
-
-  // 流式切换：下一句
-  const next = document.getElementById('player-next');
-  const last = _playerIndex === _playerSentences.length - 1;
-  // 跟读打卡闭环：录完最后一句 → 打当日完成戳（首页待办任务 2 自动完成）+ 句型 SM-2 写回（本局仅一次）
-  if (last && _playerHasRecorded) {
-    try { localStorage.setItem('voco-speak-done', getLocalToday()); } catch (e) {}
-    if (!_playerReviewWritten) {
-      _playerReviewWritten = true;
-      recordPatternReviews();
-    }
-  }
-  next.disabled = last;
-  next.textContent = last ? '🎉 训练完成' : '下一句 →';
-  next.className = `w-full py-4 rounded-2xl font-semibold text-base transition-all duration-200 ${last ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 text-white hover:bg-gray-800 shadow-md hover:shadow-lg'}`;
+  document.getElementById('srs-card-back-explanation').textContent = item.explanation ? `🎬 ${item.explanation}` : '（暂无解析）';
+  _srsFlipped = false;
+  document.getElementById('srs-flip-inner').classList.remove('flipped');
 }
 
-function wirePlayerHandlers() {
-  // 听原音
-  document.getElementById('player-listen').addEventListener('click', () => {
-    const item = _playerSentences[_playerIndex];
-    if (item && item.targetSentence) speakWord(item.targetSentence);
-  });
-
-  // 巨大的核心录音键：按住录音 / 松开结束（鼠标 + 触屏双端）
-  const rec = document.getElementById('player-record');
-  rec.addEventListener('mousedown', e => { e.preventDefault(); startPlayerRecording(); });
-  rec.addEventListener('mouseup', e => { e.preventDefault(); stopPlayerRecording(); });
-  rec.addEventListener('mouseleave', () => { if (_playerIsRecording) stopPlayerRecording(); });
-  rec.addEventListener('touchstart', e => { e.preventDefault(); startPlayerRecording(); }, { passive: false });
-  rec.addEventListener('touchend', e => { e.preventDefault(); stopPlayerRecording(); }, { passive: false });
-
-  // 听自己（仅在录音后可用）
-  document.getElementById('player-hear').addEventListener('click', () => {
-    if (!_playerHasRecorded || !_playerAudioUrl) return;
-    new Audio(_playerAudioUrl).play();
-  });
-
-  // 流式切换：下一句
-  document.getElementById('player-next').addEventListener('click', handlePlayerNext);
+function flipSrsCard() {
+  _srsFlipped = !_srsFlipped;
+  document.getElementById('srs-flip-inner').classList.toggle('flipped', _srsFlipped);
 }
 
-// 切换下一句：与组件 handleNext 一致 — 切换句子时重置对比状态
-function handlePlayerNext() {
-  if (_playerIndex < _playerSentences.length - 1) {
-    _playerIndex += 1;
-    _playerHasRecorded = false;
-    releasePlayerAudio();
-    if (window.speechSynthesis) speechSynthesis.cancel(); // 切句即停上一句 TTS，避免串音
-    updatePlayerView();
-  }
+// 反馈闭环：😅/🚀 → handleReviewFeedback（SM-2 统一服务）→ 当前句出队 → 进度即时更新
+// 队列清空 → 精致 Done 卡 + 点亮首页【句型复习打卡】（voco-speak-done 当日戳）
+function rateSentenceCard(status) {
+  const item = _srsQueue[_srsIdx];
+  if (!item) return;
+  handleReviewFeedback(String(item.id), status, item); // 异步写回不阻塞出队节奏（fire-and-forget）
+  _srsResults[status === 'again' ? 'forgot' : 'remembered'] += 1;
+  _srsReviewed += 1;
+  _srsQueue.splice(_srsIdx, 1); // 点击后自动从队列移除（与 PM 闭环要求一致）
+  if (_srsQueue.length === 0) { showSrsDone(); return; }
+  _srsIdx = _srsIdx % _srsQueue.length;
+  renderSrsCard();
 }
 
-async function startPlayerRecording() {
-  if (_playerIsRecording) return;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
-    showToast('当前浏览器不支持录音，请使用 Chrome / Safari');
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    _playerChunks = [];
-    const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
-      : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
-    _playerRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-    _playerRecorder.ondataavailable = e => { if (e.data && e.data.size) _playerChunks.push(e.data); };
-    _playerRecorder.onstop = () => {
-      stream.getTracks().forEach(t => t.stop());
-      if (!_playerChunks.length) { updatePlayerView(); return; }
-      const blob = new Blob(_playerChunks, { type: _playerRecorder.mimeType || 'audio/webm' });
-      releasePlayerAudio();
-      _playerAudioUrl = URL.createObjectURL(blob);
-      _playerHasRecorded = true;
-      updatePlayerView();
-    };
-    _playerRecorder.start();
-    _playerIsRecording = true;
-    updatePlayerView();
-  } catch (err) {
-    showToast('无法访问麦克风，请检查浏览器权限设置');
-  }
+function showSrsDone() {
+  try { localStorage.setItem('voco-speak-done', getLocalToday()); } catch (e) {} // 点亮首页【句型复习打卡】
+  const container = document.getElementById('speak-player');
+  container.innerHTML = `
+    <div class="flex h-full items-center justify-center">
+      <div class="w-full max-w-[320px] rounded-3xl px-6 pt-9 pb-8 text-center border border-[var(--c-border-light)]"
+           style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 65%);box-shadow:var(--c-shadow)">
+        <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--c-green-light)] flex items-center justify-center" style="box-shadow:inset 0 0 0 1px var(--c-green)">
+          <i data-lucide="party-popper" class="w-5 h-5 text-[var(--c-green)]"></i>
+        </div>
+        <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">句型复习完成！</div>
+        <div class="text-[13px] text-[var(--c-text-dim)] mb-1">记住了 ${_srsResults.remembered} · 还没记住 ${_srsResults.forgot}</div>
+        <div class="text-[11px] text-[var(--c-text-ultradim)] mb-6">已点亮首页【句型复习打卡】</div>
+        <button onclick="navigateToTab('home')" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
+          style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
+          🏠 回到首页 <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>`;
+  refreshIcons(container);
 }
 
-function stopPlayerRecording() {
-  if (!_playerIsRecording || !_playerRecorder) return;
-  _playerIsRecording = false;
-  try { _playerRecorder.stop(); } catch (e) {}
-  updatePlayerView();
-}
-
-function releasePlayerAudio() {
-  if (_playerAudioUrl) { URL.revokeObjectURL(_playerAudioUrl); _playerAudioUrl = null; }
-}
+// v73：机械录音（听原音/按住录音/听自己）已整体下线 —— 录音函数与播放器状态驱动全部移除
 
 // ═══════════════════════════════════════════════════════
 // TAB 4: ME (v5.0 Grouped List)
@@ -3658,7 +3576,7 @@ document.getElementById('words-search')?.addEventListener('input', () => {
   if (_wordsFilter === 'all') renderVocabList(getFilteredVocab(_wordsAll, 'all'));
 });
 
-// Speak — 沉浸式跟读播放器（renderShadowingPlayer 内部自接线，无全局按钮绑定）
+// Speak — 句型复习卡片模式（renderSentenceReview 内部自接线，无全局按钮绑定）
 
 // ═══════════════════════════════════════════════════════
 // Init
@@ -3680,5 +3598,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=72');
+  navigator.serviceWorker.register('/sw.js?v=73');
 }

@@ -180,25 +180,39 @@ body {
    ═══════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════
-   SPEAK Tab — 模块四：沉浸式播放器（单卡片视口）
+   SPEAK Tab — 模块四：句型复习卡片模式（单卡片翻转视口）
    ═══════════════════════════════════════════════════════ */
-/* 满屏高、禁滚动：主句卡片垂直居中，交互台固定在视口底部 */
+/* 满屏高、禁滚动：卡片垂直居中，反馈双键固定在视口底部 */
 #speak-player {
   height: calc(100dvh - 92px);
   min-height: 420px;
   overflow: hidden;
 }
-/* 主句衬线体切换动画：下一句时重触发（JS reflow 手法） */
-#player-sentence { font-family: Georgia, "Times New Roman", serif; animation: playerSwitch 0.28s ease-out; }
+
+/* ── 3D 卡片翻转（正面英文原句 → 背面翻译与解析）── */
+.srs-flip-scene { perspective: 1200px; }
+.srs-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform .5s cubic-bezier(.4, 0, .2, 1);
+  transform-style: preserve-3d;
+}
+.srs-flip-inner.flipped { transform: rotateY(180deg); }
+.srs-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.srs-flip-back { transform: rotateY(180deg); }
+
+/* 卡片切入动画：下一句时重触发（JS reflow 手法） */
+#srs-card-front { font-family: Georgia, "Times New Roman", serif; animation: playerSwitch 0.28s ease-out; }
 @keyframes playerSwitch {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* 交互台：锚定视口底部，绝不随卡片滚动；玻璃台面内 四键一行 + 下一句 竖排 */
-#player-dock { margin-top: auto; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
-#player-dock > div { display: flex; flex-direction: column; gap: 10px; background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(8px); border-radius: 24px; padding: 12px; box-shadow: var(--shadow-sm); }
-[data-mode="dark"] #player-dock > div { background: rgba(30, 30, 30, 0.75); }
-[data-mode="eye-care"] #player-dock > div { background: rgba(251, 243, 232, 0.85); }
 
 /* ═══════════════════════════════════════════════════════
    [v5.0] Me Tab & Theme Picker CSS removed — now Tailwind-only.
