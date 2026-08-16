@@ -47,10 +47,10 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v76）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v86）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v77）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v87）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v76 / voco-v86**（CODE RED 全局审计：TabBar 加固 + 字体净化 + 空状态优雅化 + 待办绑定队列同源 + ReviewButton 全局模板零 emoji）。
+- 当前线上：**v77 / voco-v87**（系统级重构：错题本 CorrectionCard 组件化 + 动态标签 + 🛡️ 对练防御注入；句型卡情境完形防石化 + 队列 15 句截断）。
 - **⚠️ 待用户手动执行：`⚙️ 后端/migration_v2.1.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——patterns 表 SM-2 列（status/mastered/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）+ 到期回填 + 索引。跑之前句型写回静默降级本地会话态（不报错）。
 
 ## Architecture Notes
@@ -152,6 +152,13 @@
   - Bug 3 空状态：「无/暂无/没有/未记录/none/n/a」正则判空（`NO_THOUGHT_RE`）+ dt trim 净化 → 历史视图渲染「当日未记录想法」；根治日报数据里 thoughts: "无" 直接渲染的裸露单字
   - Bug 4 SRS 绑定：首页待办任务 2 数字改绑 `getDueSentencesQueue(_reportParsed, _patternLibrary).length`（与句型复习页实际队列 100% 同源）。**审计结论：过滤链从未被绕过**（needsReview===true 由 `isDueBySrs` 判定，null next_review_date → 到期），102 句 = 全部未复习句型的合法到期集合（bootstrap 态）；每张卡复习后 SM-2 即推进，数字自然下降；若需「每日新卡配额」属产品决策，未擅自实施
   - Bug 5 统一模板：`reviewButtonHTML({id, kind, label, cls})` 全局 ReviewButton（浅粉/浅绿底 + CSS 纯色圆点 + 红/绿文字，零 emoji）——三个调用点：句型复习卡（srs-*）、单词卡组（due-*）、语法错题卡（btn-again/btn-good，事件绑定 class 保留）；进度条审计确认 v73 已存在（renderSrsCard `🎯 句型复习 (已复习 x / 总计 y)`），未重复造轮子；全库按钮/注释/完成统计 emoji 清零（grep 验证 0 残留）
+- **v77 系统级重构（错题本组件化 + 句型卡认知重塑）**：
+  - 错题本 CorrectionCard 组件化：👁️ 双阶段揭示（btn-reveal/revealed-content）整体物理删除；卡片 = 动态徽章（errorBadge：📖 语法 blue-50 / 🗣️ 发音 orange-50 / 🎯 选词 green-50，按 type/issue 判定）+ 大字绿色正确句（17px bold green 主视觉）+ 原句小字灰显（无删除线）+ 📖 规则框 + ReviewButton 反馈；btn-again → 轻提示保留、btn-good → _reviewedErrorIds + 平滑移除（原逻辑保留）
+  - 正向输入原则全局化：IMPROVE_TYPES.grammar.wrongCls 由 `line-through text-[var(--c-red)]` → `text-[var(--c-text-ultradim)]`（首页 Card D 同步受益，全句红色删除线绝迹）
+  - 🛡️ 对练防御闭环：toggleDefense 以「原句|正确句」签名为键持久化 localStorage（voco-defense-sigs，err_N 顺序 id 不稳定故用签名）；fireDailyMissionPrompt 生成 Prompt 时签名匹配 _errorsAll ∪ allGrammarErrors → generateDailyMissionPrompt 第 4 参 defenseItems 注入「请重点盯防以下毛病：[…]」（最多 3 条）
+  - 句型卡认知重塑（防错误石化）：正面 = 💡 想要表达[explanation 中文情境] + buildCloze 完形填空（地道句挖空 1–3 个 ≥4 字母内容词，STOP 功能词表跳过，不足从末尾倒序补足）——**用户原句（replacedSentence/Chinglish）正面背面均不再出现**；背面 = 24px 绿色加粗地道句 + 🎬 解析；srs-card-back-original 删除线背面整体移除
+  - 排版降噪：style.css 去 Georgia 报纸衬线（#srs-card-front font-family: inherit）；.srs-flip-inner 改 min-height:250px 自适应内容（正面 static 定义高度，背面 absolute inset-0 overflow-y auto），删除 flex-1 撑满全屏
+  - SM-2 漏斗：`PATTERN_SESSION_CAP = 15` → getDueSentencesQueue 末尾 `slice(0, 15)` 单日截断（92 → 15）；首页待办与复习页同源绑定自动同步为 15；未入队到期句次日仍到期（SM-2 未推进），逐日消化无丢失
 - **Voco 2.0 跟读页转型（v73）句型记忆卡片模式 —— SM-2 全链路闭环**：
   - 页面重构：`renderSentenceReview(sentences, startIndex)` 渲染单卡翻转视口（正面英文原句 → 点击翻转翻译解析）；**机械录音三键（听原音/按住录音/听自己）与录音函数族整体物理删除**（speakWord TTS 保留，词汇列表发音在用）；底部导航更名「句型复习」（icon repeat，data-tab 仍 'speak'，全部 ?tab=speak 兼容链不动）
   - 反馈双键完全克隆词汇复习（图18）：😅 还没记住 = `bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)]`、🚀 记住了 = 绿色同构——高度/圆角/内边距逐字一致，严禁第二套按钮样式
