@@ -800,12 +800,17 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // Card A: Topics
   html += card(0.03, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('message-circle','w-3.5 h-3.5')} ${dayLabel}对话主题</div><div class="flex gap-2 flex-wrap">${d.topics.map(t=>`<span class="px-3 py-1 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-xs font-medium">#${h(t)}</span>`).join('')}</div>`);
   // Card B: 今日对话想法 —— 动态渲染：优先 _reportParsed.summary.dailyThought，次取本函数解析的日报 dailyThought；零硬编码金句
-  const dt = (((p && p.summary && p.summary.dailyThought) || null) || d.thoughts) || {};
-  if (dt.en || dt.zh) {
-    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div>${dt.en ? `<div class="font-[Georgia,serif] text-[15px] italic text-[var(--c-text)] leading-[1.7] mb-2">"${h(dt.en)}"</div>` : ''}<div class="text-[13px] text-[var(--c-text-dim)]">${h(dt.zh)}</div>`);
+  // v76 修复：① 值净化（trim + 「无/暂无/没有/未记录」判空 → 优雅空状态，绝不渲染生硬「无」字）
+  //         ② 字体规范（font-sans not-italic 全局无衬线，删除 Georgia 衬线斜体引语样式）
+  const dtRaw = (((p && p.summary && p.summary.dailyThought) || null) || d.thoughts) || {};
+  const dt = { en: String(dtRaw.en || '').trim(), zh: String(dtRaw.zh || '').trim() };
+  const NO_THOUGHT_RE = /^(无|暂无|没有|未记录|none?|n\/a)$/i;
+  const hasThought = !!(dt.en || (dt.zh && !NO_THOUGHT_RE.test(dt.zh)));
+  if (hasThought) {
+    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div>${dt.en ? `<div class="font-sans not-italic text-[15px] text-[var(--c-text)] leading-[1.7] mb-2">"${h(dt.en)}"</div>` : ''}<div class="font-sans not-italic text-[13px] text-[var(--c-text-dim)]">${h(dt.zh)}</div>`);
   } else {
-    // 空状态：今日未导入日报或无该字段 → 引导卡（不显示任何假数据）
-    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div><div class="text-[13px] text-[var(--c-text-dim)]">💡 导入今日日报后，在此提炼你的核心表达观点</div>`);
+    // 空状态：v76 优雅缺省文案 —— 历史视图「当日未记录想法」；今日视图保留导入引导（不显示任何假数据）
+    html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div><div class="text-sm text-[var(--c-text-ultradim)] not-italic">${historyMode ? '当日未记录想法' : '💡 导入今日日报后，在此提炼你的核心表达观点'}</div>`);
   }
   // Card C: Strengths
   html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} ${dayLabel}做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
@@ -1014,8 +1019,10 @@ function renderTodoList(speakDoneToday) {
   // ── 今日待办三闭环（Voco 2.0）：底部待办 = SM-2 记忆任务，数据一律取自全局任务状态中心 ──
   const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
   const hasTodayReport = ms.hasRealTodayReport;
-  // 句型 SRS 任务口径：总任务数 = 今日新句型 + 历史到期句型（SSOT 第 6 块输出，UI 严禁自行 .filter）
-  const patternTaskCount = ms.totalPatternTaskCount;
+  // 句型 SRS 任务口径（v76 同源绑定）：待办数字 = 句型复习页实际队列 getDueSentencesQueue 的 .length
+  // —— 今日新句型（coreDeck 真实解析）+ 历史到期句型（needsReview === true，SM-2 到期判定 isDueBySrs）
+  // 过滤条件仅此两条，文本与今日句去重；严禁任何全量数组 .length 或独立 .filter 路径
+  const patternTaskCount = getDueSentencesQueue(_reportParsed, _patternLibrary).length;
   const dueCount = ms.totalDueVocabCount;       // SM-2 到期全量（今日新词 + 历史到期词），与 tab=due 同源
   const reviewedToday = ms.reviewedVocabToday;  // 今日实际完成反馈（🟢/🔴）的词数（id 集合大小）
   // 任务 2 三态：
@@ -1993,8 +2000,8 @@ function renderErrorCards(items) {
         <div class="text-sm font-semibold text-[var(--c-green)] mb-1">${h(e.correction || '—')}</div>
         ${e.rule ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg mb-3">${h(e.rule)}</div>` : ''}
         <div class="flex justify-end gap-2 pt-2 border-t border-[var(--c-border-light)]">
-          <button class="btn-again px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg border-0 cursor-pointer">🔴 没记住</button>
-          <button class="btn-good px-3 py-1.5 text-xs bg-emerald-50 text-emerald-600 rounded-lg border-0 cursor-pointer">🟢 记住了</button>
+          ${reviewButtonHTML({ id: '', kind: 'again', label: '没记住', cls: 'btn-again px-3 py-1.5 text-xs rounded-lg' })}
+          ${reviewButtonHTML({ id: '', kind: 'good', label: '记住了', cls: 'btn-good px-3 py-1.5 text-xs rounded-lg' })}
         </div>
       </div>
     </div>
@@ -2134,7 +2141,18 @@ async function reviewPatternItem(p, quality) {
   return true;
 }
 
-// 纯逻辑：卡组流转（🔴没记住→移回队尾继续循环；🟢记住了→移出队列；清空返回 -1）
+// ═══ v76 ReviewButton 全局模板（SSOT · 消灭样式碎片化）═══
+// 样式规范：浅粉/浅绿底 + 红/绿纯色圆点（CSS 绘制，零 emoji）+ 红/绿文字
+// 调用点：句型复习卡（srs-forgot/srs-remembered）、单词卡组（due-forgot/due-remembered）、
+//         语法错题卡（btn-again/btn-good）—— 三处共模板，尺寸/圆角由 cls 传入，样式绝对一致
+function reviewButtonHTML({ id = '', kind = 'again', label = '', cls = 'py-3 text-sm rounded-2xl' }) {
+  const isBad = kind === 'again';
+  const color = isBad ? 'var(--c-red)' : 'var(--c-green)';
+  const bg = isBad ? 'bg-red-50 hover:bg-red-100' : 'bg-green-50 hover:bg-green-100';
+  return `<button${id ? ` id="${id}"` : ''} class="${cls} inline-flex items-center justify-center gap-1.5 ${bg} border-0 font-bold cursor-pointer transition-all" style="color:${color}"><span class="w-2 h-2 rounded-full shrink-0" style="background:${color}"></span>${label}</button>`;
+}
+
+// 纯逻辑：卡组流转（没记住→移回队尾继续循环；记住了→移出队列；清空返回 -1）
 function flowDueDeck(rating) {
   if (rating === 'again') {
     if (_dueDeck.length > 1) { const cur = _dueDeck.splice(_dueIdx, 1)[0]; _dueDeck.push(cur); }
@@ -2200,8 +2218,8 @@ function revealDueAnswer() {
   const fb = document.getElementById('due-feedback');
   fb.className = 'mt-5 flex items-center justify-center gap-3';
   fb.innerHTML = `
-    <button id="due-forgot" class="flex-1 py-3 bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)] cursor-pointer transition-all">🔴 没记住</button>
-    <button id="due-remembered" class="flex-1 py-3 bg-green-50 hover:bg-green-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-green)] cursor-pointer transition-all">🟢 记住了</button>`;
+    ${reviewButtonHTML({ id: 'due-forgot', kind: 'again', label: '没记住', cls: 'flex-1 py-3 text-sm rounded-2xl' })}
+    ${reviewButtonHTML({ id: 'due-remembered', kind: 'good', label: '记住了', cls: 'flex-1 py-3 text-sm rounded-2xl' })}`;
   document.getElementById('due-forgot').addEventListener('click', () => rateDueCard('again'));
   document.getElementById('due-remembered').addEventListener('click', () => rateDueCard('good'));
 }
@@ -2574,10 +2592,10 @@ function renderSentenceReview(sentences, startIndex) {
           </div>
         </div>
       </div>
-      <!-- 反馈区：完全克隆词汇复习（图18）按钮 —— 浅粉底红字 / 浅绿底绿字，高度圆角内边距逐字一致 -->
+      <!-- 反馈区：v76 统一 ReviewButton 模板 —— 浅粉/浅绿底 + 纯色圆点 + 红/绿文字，零 emoji，与单词复习页绝对一致 -->
       <div class="flex items-center justify-center gap-3">
-        <button id="srs-forgot" class="flex-1 py-3 bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)] cursor-pointer transition-all">😅 还没记住</button>
-        <button id="srs-remembered" class="flex-1 py-3 bg-green-50 hover:bg-green-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-green)] cursor-pointer transition-all">🚀 记住了</button>
+        ${reviewButtonHTML({ id: 'srs-forgot', kind: 'again', label: '还没记住', cls: 'flex-1 py-3 text-sm rounded-2xl' })}
+        ${reviewButtonHTML({ id: 'srs-remembered', kind: 'good', label: '记住了', cls: 'flex-1 py-3 text-sm rounded-2xl' })}
       </div>
     </div>`;
   renderSrsCard();
@@ -3609,5 +3627,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=75');
+  navigator.serviceWorker.register('/sw.js?v=76');
 }

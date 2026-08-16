@@ -135,7 +135,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   background: var(--bg); color: var(--text);
   min-height: 100vh; min-height: 100dvh;
-  padding-bottom: 80px;
+  padding-bottom: 96px; /* v76：pb-24 补偿固定 TabBar，长列表滚到底不被遮挡 */
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
 }
@@ -155,7 +155,7 @@ body {
    Tab Bar (4 tabs)
    ═══════════════════════════════════════════════════════ */
 .tab-bar {
-  position: fixed; bottom: 0; left: 0; right: 0;
+  position: fixed; bottom: 0; left: 0; right: 0; width: 100%; /* v76 加固：强制钉死视口底部 */
   display: flex; background: var(--surface);
   border-top: 1px solid var(--border-light);
   z-index: 100; padding: 4px 8px;
