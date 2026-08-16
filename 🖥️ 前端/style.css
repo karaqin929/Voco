@@ -189,26 +189,26 @@ body {
   overflow: hidden;
 }
 
-/* ── 3D 卡片翻转（正面英文原句 → 背面翻译与解析）── */
+/* ── 3D 卡片翻转（v77 认知重塑：正面=情境提示+完形填空，背面=绿色地道句+解析）── */
 .srs-flip-scene { perspective: 1200px; }
 .srs-flip-inner {
   position: relative;
   width: 100%;
-  height: 100%;
+  min-height: 250px; /* v77：自适应内容高度 + 合理最小高度，不再撑满全屏 */
   transition: transform .5s cubic-bezier(.4, 0, .2, 1);
   transform-style: preserve-3d;
 }
 .srs-flip-inner.flipped { transform: rotateY(180deg); }
 .srs-flip-face {
-  position: absolute;
-  inset: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-.srs-flip-back { transform: rotateY(180deg); }
+/* 正面（情境+完形）以正常文档流定义卡片高度；背面绝对覆盖同一区域（长解析可滚动兜底） */
+.srs-flip-front { min-height: 250px; }
+.srs-flip-back { position: absolute; inset: 0; transform: rotateY(180deg); overflow-y: auto; }
 
-/* 卡片切入动画：下一句时重触发（JS reflow 手法） */
-#srs-card-front { font-family: Georgia, "Times New Roman", serif; animation: playerSwitch 0.28s ease-out; }
+/* 卡片切入动画：下一句时重触发（JS reflow 手法）。v77 去衬线：全局无衬线体，禁 Georgia 报纸体 */
+#srs-card-front { font-family: inherit; animation: playerSwitch 0.28s ease-out; }
 @keyframes playerSwitch {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }

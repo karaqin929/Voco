@@ -719,11 +719,12 @@ function metricsDonut(score) {
 }
 
 // ── 「今天需要提升」教练视角分类配置 ─────────────────────
-// grammar（硬伤，红线纠正）/ expression（软性升级，灰句+高阶替换，绝不画删除线）/ structure（逻辑衔接）
+// grammar（硬伤）/ expression（软性升级）/ structure（逻辑衔接）
+// v77 正向输入原则：原句仅小字灰显对照，全句红色删除线绝对禁止（防错误印象石化）
 const IMPROVE_TYPES = {
-  grammar:    { badge: '⚠️ 语法纠错',   badgeCls: 'bg-red-50 text-[var(--c-red)]',   wrongCls: 'line-through text-[var(--c-red)]', rightCls: 'text-[var(--c-green)]', btn: '查看纠错' },
-  expression: { badge: '💡 地道表达',   badgeCls: 'bg-amber-50 text-amber-600',      wrongCls: 'text-[var(--c-text-dim)]',        rightCls: 'text-[var(--c-blue)]',  btn: '句型复习体验' },
-  structure:  { badge: '🎯 逻辑与结构', badgeCls: 'bg-blue-50 text-[var(--c-blue)]', wrongCls: 'text-[var(--c-text-dim)]',        rightCls: 'text-[var(--c-blue)]',  btn: '专项句型复习' }
+  grammar:    { badge: '📖 语法',       badgeCls: 'bg-red-50 text-[var(--c-red)]',   wrongCls: 'text-[var(--c-text-ultradim)]', rightCls: 'text-[var(--c-green)]', btn: '查看纠错' },
+  expression: { badge: '🎯 选词',       badgeCls: 'bg-amber-50 text-amber-600',      wrongCls: 'text-[var(--c-text-dim)]',      rightCls: 'text-[var(--c-blue)]',  btn: '句型复习体验' },
+  structure:  { badge: '📖 语法',       badgeCls: 'bg-blue-50 text-[var(--c-blue)]', wrongCls: 'text-[var(--c-text-dim)]',      rightCls: 'text-[var(--c-blue)]',  btn: '专项句型复习' }
 };
 
 // ── Section 4: Insights (Cards A-F) ─────────────────────
@@ -1651,7 +1652,7 @@ function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocab
 // Voco 2.0 今日对战胶囊（3+1+1）Prompt 组装器
 // 全自动提取：3 个待复习词汇 + 1 个核心句型 + 1 个历史语法错误 → 纯文本 Prompt（防空 fallback）
 // ═══════════════════════════════════════════════════════
-function generateDailyMissionPrompt(dueVocabList, corePatterns, grammarErrors) {
+function generateDailyMissionPrompt(dueVocabList, corePatterns, grammarErrors, defenseItems = []) {
   // 提取 3 个复习词
   const targetWords = dueVocabList.slice(0, 3).map(v => v.word).join(', ') || '任意高级词汇';
 
@@ -1665,7 +1666,12 @@ function generateDailyMissionPrompt(dueVocabList, corePatterns, grammarErrors) {
     ? (grammarErrors[0].rule || grammarErrors[0].original)
     : '时态和单复数一致性';
 
-  return `作为我的英语口语私教，请开启今天的对话。在接下来的交流中，请你自然地引导我使用以下词汇：[${targetWords}]，以及句型：[${targetPattern}]。并且在对话结束时，请严格检查我是否犯了关于 [${targetError}] 的语法毛病，给出反馈。`;
+  // v77 实战防御闭环：错题本 🛡️ 开关选中的错题 → 静默注入 Prompt，AI 全程重点盯防（最多 3 条）
+  const defenseText = (defenseItems && defenseItems.length)
+    ? `另外，请在整个对话中重点盯防并即时纠正我容易犯的以下毛病：[${defenseItems.slice(0, 3).map(d => d.rule || d.original || d.correction).join('；')}]。`
+    : '';
+
+  return `作为我的英语口语私教，请开启今天的对话。在接下来的交流中，请你自然地引导我使用以下词汇：[${targetWords}]，以及句型：[${targetPattern}]。并且在对话结束时，请严格检查我是否犯了关于 [${targetError}] 的语法毛病，给出反馈。${defenseText}`;
 }
 // ── 今日对战胶囊（Voco 2.0）：一个主视觉大按钮 → SSOT 数据字典 → 私教 Prompt → 剪贴板 ──
 function missionCapsuleHTML() {
@@ -1698,7 +1704,11 @@ async function copyToClipboardWithFallback(text) {
 async function fireDailyMissionPrompt(btn) {
   // 数据字典一律直取任务状态中心（SSOT）：3 个待复习词 + 今日核心句型 + 历史语法错误
   const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
-  const prompt = generateDailyMissionPrompt(ms.dueVocabList, _dailyPatterns, _errorsAll || []);
+  // v77 对练防御注入：签名匹配已开关的错题（错误表 + 今日日报解析双源检索）
+  const defenseSigs = getDefenseSigs();
+  const defensePool = [...(_errorsAll || []), ...allGrammarErrors()];
+  const defenseItems = defenseSigs.map(sig => defensePool.find(x => errorSignature(x) === sig)).filter(Boolean);
+  const prompt = generateDailyMissionPrompt(ms.dueVocabList, _dailyPatterns, _errorsAll || [], defenseItems);
   const copied = await copyToClipboardWithFallback(prompt);
   if (!copied) { showToast('复制失败，请长按文本手动复制'); return; }
   const originalHTML = btn.innerHTML;
@@ -1909,7 +1919,7 @@ function switchWordsView(mode) {
 }
 
 // ── 模块三：四 Tab 严格渲染隔离 ─────────────────────────────────
-// all=仅全量词汇卡 / grammar=仅语法错题卡（删除线原句+绿色正句） / due=混合记忆卡组（Active Recall） / topics=话题卡片墙
+// all=仅全量词汇卡 / grammar=仅语法错题卡（绿色正句为主视觉，原句小字灰显） / due=混合记忆卡组（Active Recall） / topics=话题卡片墙
 function renderWordsList(mode) {
   if (mode === 'grammar' || mode === 'mistakes') { renderErrorCards(allGrammarErrors()); return; }
   if (mode === 'due' || mode === 'review') { renderDueDeck(); return; }
@@ -1981,45 +1991,75 @@ async function fireTopicRevivalPrompt(btn, idx) {
   showToast('📋 话题复盘 Prompt 已复制', 'success');
 }
 
-// 一条纠错 = 一张卡片（单外层容器铁律）：顶部标签 → 遮罩正面（删除线原句）→ 中央 [👁️] 揭示按钮
-// → 遮罩背面（正确表达 + 解析 + 🔴/🟢 双反馈按钮）。Active Recall 双阶段：未展开绝不显示纠正与规则。
+// ═══ v77 错题本：动态标签 + 对练防御（SSOT）═══
+// 标签三态：📖 语法（语法/逻辑衔接默认）、🗣️ 发音（发音与重音）、🎯 选词（地道表达）——严禁硬编码 ⚠️ 语法纠错
+function errorBadge(type, issue) {
+  const t = String(type || '');
+  const iss = String(issue || '');
+  if (t === '发音与重音' || iss.includes('发音')) return { label: '🗣️ 发音', cls: 'bg-orange-50 text-[var(--c-orange)]' };
+  if (t === '地道表达' || iss.includes('地道') || iss.includes('选词')) return { label: '🎯 选词', cls: 'bg-green-50 text-[var(--c-green)]' };
+  return { label: '📖 语法', cls: 'bg-blue-50 text-[var(--c-blue)]' };
+}
+// 对练防御开关：以「原句|正确句」签名为键持久化（err_N 顺序 id 不稳定，签名跨会话稳定）
+function getDefenseSigs() { try { return JSON.parse(localStorage.getItem('voco-defense-sigs') || '[]'); } catch (e) { return []; } }
+function setDefenseSigs(sigs) { try { localStorage.setItem('voco-defense-sigs', JSON.stringify(sigs)); } catch (e) {} }
+function errorSignature(item) { return [String((item && item.original) || '').trim(), String((item && item.correction) || '').trim()].join('|'); }
+function toggleDefense(btn) {
+  const sig = btn.getAttribute('data-sig') || '';
+  if (!sig) return;
+  const sigs = getDefenseSigs();
+  const idx = sigs.indexOf(sig);
+  const on = idx < 0;
+  if (on) sigs.push(sig); else sigs.splice(idx, 1);
+  setDefenseSigs(sigs);
+  paintDefenseToggle(btn, on);
+  showToast(on ? '🛡️ 已加入对练防御，下次对话 Prompt 将重点盯防' : '已取消对练防御');
+}
+function paintDefenseToggle(btn, on) {
+  btn.className = `def-toggle inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0 ${on ? 'bg-[var(--c-primary-light)] border-[var(--c-primary)] text-[var(--c-primary)]' : 'bg-[var(--c-bg)] border-[var(--c-border)] text-[var(--c-text-dim)]'}`;
+  btn.innerHTML = `${on ? '🛡️ 对练防御中' : '🛡️ 加入对练防御'}`;
+}
+
+// v77 CorrectionCard 组件化：复用首页「今日需要提升」正向输入卡结构（绿色加粗正确句为主视觉，
+// 原句仅小字灰显对照，零红色删除线、零 👁️ 揭示按钮）+ 右上角 🛡️ 对练防御开关
 function renderErrorCards(items) {
   const container = document.getElementById('words-content');
   if (!items.length) {
     container.innerHTML = EmptyState({ message: '没有语法错题，继续保持！', size: 80 });
     return;
   }
-  container.innerHTML = items.map((e, i) => `
+  const defSigs = new Set(getDefenseSigs());
+  container.innerHTML = items.map((e, i) => {
+    const b = errorBadge(e.type, e.issue);
+    const sig = errorSignature(e);
+    const defOn = defSigs.has(sig);
+    return `
     <div class="err-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)] transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
-      <div class="flex justify-between items-center mb-2">
-        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700">⚠️ ${h(e.issue || '语法纠错')}</span>
+      <div class="flex items-start justify-between gap-3 mb-2.5">
+        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.cls}">${b.label}</span>
+        <button class="def-toggle inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0 ${defOn ? 'bg-[var(--c-primary-light)] border-[var(--c-primary)] text-[var(--c-primary)]' : 'bg-[var(--c-bg)] border-[var(--c-border)] text-[var(--c-text-dim)]'}" data-sig="${h(sig)}" onclick="toggleDefense(this)">${defOn ? '🛡️ 对练防御中' : '🛡️ 加入对练防御'}</button>
       </div>
-      <div class="text-sm text-[var(--c-red)] line-through mb-2">${h(e.original)}</div>
-      <button class="btn-reveal w-full py-2 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] border-0 text-[var(--c-text-dim)] text-xs rounded-xl cursor-pointer transition-colors">👁️ 点击查看纠正与解析</button>
-      <div class="revealed-content hidden">
-        <div class="text-sm font-semibold text-[var(--c-green)] mb-1">${h(e.correction || '—')}</div>
-        ${e.rule ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg mb-3">${h(e.rule)}</div>` : ''}
-        <div class="flex justify-end gap-2 pt-2 border-t border-[var(--c-border-light)]">
-          ${reviewButtonHTML({ id: '', kind: 'again', label: '没记住', cls: 'btn-again px-3 py-1.5 text-xs rounded-lg' })}
-          ${reviewButtonHTML({ id: '', kind: 'good', label: '记住了', cls: 'btn-good px-3 py-1.5 text-xs rounded-lg' })}
-        </div>
+      <!-- 正向输入原则：主视觉 = 大字绿色正确知识点；历史错误仅小字灰显对照（无删除线、无 👁️ 遮罩） -->
+      <div class="text-[17px] font-bold text-[var(--c-green)] mb-1.5">${h(e.correction || '—')}</div>
+      <div class="text-xs text-[var(--c-text-ultradim)] mb-2">原句：${h(e.original)}</div>
+      ${e.rule ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg mb-3">📖 ${h(e.rule)}</div>` : ''}
+      <div class="flex justify-end gap-2 pt-2 border-t border-[var(--c-border-light)]">
+        ${reviewButtonHTML({ id: '', kind: 'again', label: '没记住', cls: 'btn-again px-3 py-1.5 text-xs rounded-lg' })}
+        ${reviewButtonHTML({ id: '', kind: 'good', label: '记住了', cls: 'btn-good px-3 py-1.5 text-xs rounded-lg' })}
       </div>
     </div>
-  `).join('');
-  // 双阶段交互接线：揭示 → 展开背面；🔴 → 收起遮罩复位；🟢 → 会话去重 + 平滑收起
+  `}).join('');
+  // v77 接线：双阶段揭示已废弃——没记住 → 保留卡片轻提示；记住了 → 会话去重 + 平滑移除
   container.querySelectorAll('.err-card').forEach((card, idx) => {
     const item = items[idx];
-    const reveal = card.querySelector('.btn-reveal');
-    const back = card.querySelector('.revealed-content');
-    reveal.addEventListener('click', () => { reveal.classList.add('hidden'); back.classList.remove('hidden'); });
     card.querySelector('.btn-again').addEventListener('click', () => {
-      back.classList.add('hidden'); reveal.classList.remove('hidden');
+      showToast('已保留，稍后再练这条');
     });
     card.querySelector('.btn-good').addEventListener('click', () => {
       if (item && item.id) _reviewedErrorIds.add(String(item.id));
       card.style.opacity = '0';
       card.style.transform = 'translateY(-8px)';
-      showToast('🟢 已记住这条纠错');
+      showToast('已记住这条纠错');
       setTimeout(() => { card.remove(); if (!container.querySelector('.err-card')) container.innerHTML = EmptyState({ message: '没有语法错题，继续保持！', size: 80 }); }, 250);
     });
   });
@@ -2494,6 +2534,9 @@ function coreDeck(parsed, speakAll) {
 // 今日新句型（coreDeck 真实解析）+ 历史到期句型（needsReview===true）
 // 文本去重：与今日已含句（targetSentence 小写比对）一致的库行不再入队 —— 今日新学即为今日复习，绝无双计
 // 无今日日报 → 纯历史到期队列（完成句型复习）；两者皆无 → 空队列（UI 空状态，严禁回退 Mock）
+// v77 SM-2 漏斗：单日队列上限截断 slice(0, PATTERN_SESSION_CAP) —— 只取今日到期前 15 句，严禁整个数据库倒给前端；
+// 未入队的到期句次日仍在队列（SM-2 未推进 = 仍到期），逐日消化，绝无丢失
+const PATTERN_SESSION_CAP = 15;
 function getDueSentencesQueue(parsed, speakAll) {
   const todayItems = parsed ? coreDeck(parsed, speakAll) : [];
   const todayTexts = new Set(todayItems.map(it => String(it.targetSentence || '').toLowerCase().trim()).filter(Boolean));
@@ -2501,7 +2544,7 @@ function getDueSentencesQueue(parsed, speakAll) {
     .filter(p => p.needsReview === true
       && !todayTexts.has(String(p.targetSentence || p.better || p.original || '').toLowerCase().trim()))
     .map(toPlayerItem);
-  return todayItems.concat(dueItems);
+  return todayItems.concat(dueItems).slice(0, PATTERN_SESSION_CAP);
 }
 
 // 词条 → 提词器句子：兼容两种数据形状（嵌套对象 targetSentence / 云端 better+original+scene）
@@ -2531,7 +2574,7 @@ let _speakAll = [];
 // ═══════════════════════════════════════════════════════
 // 句型记忆卡片 — Sentence SRS Cards（v73 重大策略调整）
 // 机械录音（听原音/按住录音/听自己）暂时下线；页面转型为 SM-2 卡片复习：
-// 正面英文原句 → 点击翻转翻译与解析 → 底部 😅/🚀 反馈（克隆词汇复习按钮样式）
+// 正面 = 情境提示 + 完形填空 → 点击翻转绿色地道句与解析 → 底部统一 ReviewButton 反馈
 // 铁律：单卡片视口，绝不允许 .map 瀑布流列表；队列 = getDueSentencesQueue 唯一事实源
 // ═══════════════════════════════════════════════════════
 let _srsQueue = [];                  // 今日到期句型队列
@@ -2540,6 +2583,23 @@ let _srsReviewed = 0;                // 已复习数（🎯 句型复习 (已复
 let _srsTotal = 0;                   // 队列总长（开局快照，splice 移除后不变）
 let _srsResults = { remembered: 0, forgot: 0 };
 let _srsFlipped = false;             // 卡片翻转态
+
+// v77 完形填空引擎（防错误石化）：对地道目标句挖空 1–3 个关键词（≥4 字母内容词，跳过功能词），
+// 正面只暴露「情境 + 挖空句」，原句仅在背面揭晓——用户绝不接触自己的 Chinglish 原句
+function buildCloze(targetSentence) {
+  const words = String(targetSentence || '').split(/\s+/).filter(Boolean);
+  if (words.length <= 2) return { display: words.join(' ') || '______', blanks: [] };
+  const STOP = new Set(['the','a','an','is','are','was','were','to','of','in','on','at','for','with','and','or','but','it','this','that','i','you','he','she','we','they','my','your','his','her','its','me','him','us','them','be','been','do','does','did','not','no','yes','so','as','if','by','from','have','has','had','will','would','can','could','should','may','might']);
+  const picks = [];
+  words.forEach((w, i) => {
+    if (picks.length >= 3) return;
+    if (w.length >= 4 && !STOP.has(w.toLowerCase().replace(/[^a-z]/g, ''))) picks.push(i);
+  });
+  for (let i = words.length - 1; i >= 0 && picks.length < 3; i--) { if (!picks.includes(i)) picks.push(i); }
+  picks.sort((a, b) => a - b);
+  const display = words.map((w, i) => picks.includes(i) ? '______' : w).join(' ');
+  return { display, blanks: words.filter((w, i) => picks.includes(i)) };
+}
 
 function renderSentenceReview(sentences, startIndex) {
   const container = document.getElementById('speak-player');
@@ -2578,17 +2638,20 @@ function renderSentenceReview(sentences, startIndex) {
         <span id="srs-progress-text" class="text-xs font-semibold text-[var(--c-text)] shrink-0"></span>
         <div class="flex-1 h-1.5 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div id="srs-progress-fill" class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-300" style="width:0%"></div></div>
       </div>
-      <!-- 翻转卡片：正面英文原句 → 点击翻转翻译与解析 -->
-      <div class="srs-flip-scene flex-1 min-h-0 mb-4 cursor-pointer" onclick="flipSrsCard()">
-        <div class="srs-flip-inner h-full" id="srs-flip-inner">
-          <div class="srs-flip-face flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-9" style="background:var(--c-surface);box-shadow:var(--c-shadow)">
-            <div class="text-[11px] text-[var(--c-text-ultradim)] mb-4 tracking-widest">点击卡片查看翻译与解析</div>
-            <h2 id="srs-card-front" class="text-[26px] font-serif font-bold text-[var(--c-text)] leading-snug"></h2>
+      <!-- 翻转卡片（v77 认知重塑）：正面 = 💡 情境提示 + 完形填空（绝不展示用户原句，防错误石化）
+           背面 = 居中放大绿色地道句 + 解析；容器自适应内容（min-h 250px），不再撑满全屏 -->
+      <div class="srs-flip-scene mb-4 cursor-pointer" onclick="flipSrsCard()">
+        <div class="srs-flip-inner" id="srs-flip-inner">
+          <div class="srs-flip-face srs-flip-front flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:var(--c-surface);box-shadow:var(--c-shadow)">
+            <div class="text-[11px] text-[var(--c-text-ultradim)] mb-4 tracking-widest">情境完形 · 回忆地道表达</div>
+            <div id="srs-card-clue" class="font-sans text-[13px] text-[var(--c-text-dim)] mb-5 leading-relaxed"></div>
+            <h2 id="srs-card-front" class="font-sans font-bold text-[22px] text-[var(--c-text)] leading-relaxed"></h2>
+            <div class="text-[11px] text-[var(--c-text-ultradim)] mt-4">点击卡片查看完整地道句</div>
           </div>
-          <div class="srs-flip-face srs-flip-back flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-9" style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 70%);box-shadow:var(--c-shadow)">
-            <div class="text-[11px] text-[var(--c-text-ultradim)] mb-4 tracking-widest">点击卡片返回原句</div>
-            <div id="srs-card-back-original" class="text-[13px] text-[var(--c-text-dim)] line-through mb-2"></div>
-            <p id="srs-card-back-explanation" class="text-[15px] font-semibold text-[var(--c-text)] leading-relaxed"></p>
+          <div class="srs-flip-face srs-flip-back flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 70%);box-shadow:var(--c-shadow)">
+            <div class="text-[11px] text-[var(--c-text-ultradim)] mb-4 tracking-widest">点击卡片返回情境</div>
+            <p id="srs-card-back-correct" class="font-sans font-bold text-[24px] text-[var(--c-green)] leading-snug"></p>
+            <div id="srs-card-back-explanation" class="font-sans text-[13px] text-[var(--c-text-dim)] mt-4 leading-relaxed"></div>
           </div>
         </div>
       </div>
@@ -2604,21 +2667,21 @@ function renderSentenceReview(sentences, startIndex) {
   refreshIcons(container);
 }
 
-// 状态驱动渲染：当前卡片主句/解析/进度
+// 状态驱动渲染（v77 认知重塑）：正面 = 中文情境 + 地道句完形填空；背面 = 绿色完整地道句 + 解析
+// 铁律：用户原始错误句（replacedSentence/Chinglish）在任何一面都不再出现，防错误印象石化
 function renderSrsCard() {
   const item = _srsQueue[_srsIdx];
   if (!item) return;
   document.getElementById('srs-progress-text').textContent = `🎯 句型复习 (已复习 ${_srsReviewed} / 总计 ${_srsTotal})`;
   document.getElementById('srs-progress-fill').style.width = `${(_srsReviewed / _srsTotal) * 100}%`;
-  document.getElementById('srs-card-front').textContent = item.targetSentence || '';
-  const backOri = document.getElementById('srs-card-back-original');
-  if (item.replacedSentence) {
-    backOri.style.display = '';
-    backOri.textContent = '代替: ' + item.replacedSentence;
-  } else {
-    backOri.style.display = 'none';
-  }
-  document.getElementById('srs-card-back-explanation').textContent = item.explanation ? `🎬 ${item.explanation}` : '（暂无解析）';
+  const target = String(item.targetSentence || '').trim() || '______';
+  const expl = String(item.explanation || '').trim();
+  // 正面：💡 想要表达：[中文情境] + 完形填空（只暴露地道句挖空版，绝不暴露原句）
+  document.getElementById('srs-card-clue').textContent = expl ? `💡 想要表达：${expl}` : '💡 想要表达：完成下面的地道表达';
+  document.getElementById('srs-card-front').textContent = buildCloze(target).display;
+  // 背面：居中放大绿色地道句 + 解析
+  document.getElementById('srs-card-back-correct').textContent = target;
+  document.getElementById('srs-card-back-explanation').textContent = expl ? `🎬 ${expl}` : '（暂无解析）';
   _srsFlipped = false;
   document.getElementById('srs-flip-inner').classList.remove('flipped');
 }
@@ -2628,7 +2691,7 @@ function flipSrsCard() {
   document.getElementById('srs-flip-inner').classList.toggle('flipped', _srsFlipped);
 }
 
-// 反馈闭环：😅/🚀 → handleReviewFeedback（SM-2 统一服务）→ 当前句出队 → 进度即时更新
+// 反馈闭环：ReviewButton → handleReviewFeedback（SM-2 统一服务）→ 当前句出队 → 进度即时更新
 // 队列清空 → 精致 Done 卡 + 点亮首页【句型复习打卡】（voco-speak-done 当日戳）
 function rateSentenceCard(status) {
   const item = _srsQueue[_srsIdx];
@@ -3627,5 +3690,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=76');
+  navigator.serviceWorker.register('/sw.js?v=77');
 }
