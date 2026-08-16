@@ -361,6 +361,7 @@ async function loadHome() {
   const hasTodayReport = rList.some(r => r.date === today && isDailyReport(r));
   // 时间计算上收加载层：渲染组件零 new Date() 过滤
   const reviewedToday = vList.filter(v => v.last_reviewed_at && v.last_reviewed_at.slice(0, 10) === today).length;
+  _reviewedVocabToday = reviewedToday; // 任务状态中心输入：今日反馈词数（单一事实源）
   // 跟读打卡戳：播放器录完最后一句写入 voco-speak-done，此处只读比对（时间判断仍在加载层）
   const speakDoneToday = (() => { try { return localStorage.getItem('voco-speak-done') === today; } catch (e) { return false; } })();
 
@@ -373,15 +374,15 @@ async function loadHome() {
   // Section 2: Streak / Check-in Card
   renderStreakCard(streak, todayReport, vList, rList);
 
-  // Section 3: Metrics
-  renderMetricsOverview(activeReport, vList, eList, pList, prog);
+  // Section 3: Metrics —— 数据一律取自任务状态中心（v63），组件不再接收历史回退 activeReport
+  renderMetricsOverview();
 
   // Section 4: Insights (Cards A-F)
-  renderInsightsSection(activeReport);
+  renderInsightsSection();
 
   // Section 5: Content Cards + Todos
-  renderContentCards(activeReport, vList, eList, pList);
-  renderTodoList(todayReport, vList, eList, rList, streak, reviewedToday, speakDoneToday);
+  renderContentCards();
+  renderTodoList(speakDoneToday);
   _homeLoading = false;
 }
 
@@ -587,31 +588,27 @@ function countReviewWords(words) {
   return (words || []).filter(w => w.needsReview === true).length;
 }
 
-function renderMetricsOverview(todayReport, vocab, errors, patterns, prog) {
+function renderMetricsOverview() {
   const grid = document.getElementById('home-metrics');
-  if(!todayReport || !isDailyReport(todayReport)) {
-    // Show mock data when no report — 数字全部动态计算，严禁硬编码
-    const m = mockDashboardData.metrics;
-    const words = (vocab || []); // 打标网关已在加载层合并内置词库，此处只读布尔标签
-    const newWords = countTodayWords(words);
-    const corrections = countMistakeWords(words, errors);
-    const expressions = (patterns && patterns.length) ? patterns.length : mockSentences.length;
-    grid.innerHTML = metricsHTML(m.overall, m.speakMin, m.totalMin, m.fluency, m.grammar, m.vocab, m.natural, m.topics, newWords, expressions, corrections);
+  const ms = getTodayMissionState();
+  // 时间网关（v63）：今日未导入日报 → 数字全部清零（四维度 0/100、综合 --），绝不回退 Mock 或历史数据
+  if (!ms.hasTodayReport) {
+    grid.innerHTML = metricsHTML('--', '--', '--', 0, 0, 0, 0, 0, 0, 0, 0);
     refreshIcons(grid);
     return;
   }
-  const parsed = parseSmartReport(todayReport.content);
+  const parsed = _reportParsed; // 单一事实源：loadWords 已强制 = 今日日报解析，禁止重新解析
   const fluency = Math.min((parsed.summary.fluency||0) * 10, 100);
   const accuracy = Math.min((parsed.summary.accuracy||0) * 10, 100);
   const natural = Math.min((parsed.summary.naturalness||Math.round((parsed.summary.fluency||0)*0.8)) * 10, 100);
   const vocabScore = Math.min(parsed.vocabulary.length * 20, 100);
   const overall = Math.round((fluency+accuracy+natural+vocabScore)/4);
-  const duration = parsed.meta.duration||(prog?.total_minutes||0);
+  const duration = parsed.meta.duration||0;
   const speakTime = Math.round(duration*0.6);
-  const topics = prog?.topics?.length||mockDashboardData.metrics.topics;
-  const newWords = parsed.vocabulary.length;
-  const expressions = parsed.patterns.length;
-  const corrections = (parsed.grammar||[]).length+(parsed.pronunciation||[]).length;
+  const topics = (parsed.meta.topic || '') ? String(parsed.meta.topic).split(/[,，、]/).filter(Boolean).length : 0;
+  const newWords = ms.todayNewWordsCount;
+  const expressions = (parsed.patterns || []).length;
+  const corrections = ms.todayCorrectionsCount;
   grid.innerHTML = metricsHTML(overall, speakTime, duration, fluency, accuracy, vocabScore, natural, topics, newWords, expressions, corrections);
   refreshIcons(grid);
 }
@@ -656,8 +653,10 @@ function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natur
 }
 
 function metricsDonut(score) {
-  const r=34,cx=44,cy=44,sw=8,circ=2*Math.PI*r,len=(score/100)*circ;
-  const color=score>=70?'var(--c-green)':score>=40?'var(--c-orange)':'var(--c-red)';
+  // v63 空状态守卫：综合分 '--'（非数字）→ 空环 + 中性色，绝不渲染 NaN 破环
+  const n = Number(score);
+  const r=34,cx=44,cy=44,sw=8,circ=2*Math.PI*r,len=(isNaN(n)?0:(n/100)*circ);
+  const color=isNaN(n)?'var(--c-border)':n>=70?'var(--c-green)':n>=40?'var(--c-orange)':'var(--c-red)';
   return `<svg viewBox="0 0 88 88" width="88" height="88"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--c-border-light)" stroke-width="${sw}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${len} ${circ-len}" stroke-dashoffset="0" transform="rotate(-90 44 44)" stroke-linecap="round"/></svg><div class="absolute inset-0 flex items-center justify-center text-[26px] font-extrabold text-[var(--c-text)]">${score}</div>`;
 }
 
@@ -670,56 +669,65 @@ const IMPROVE_TYPES = {
 };
 
 // ── Section 4: Insights (Cards A-F) ─────────────────────
-function renderInsightsSection(todayReport) {
+function renderInsightsSection() {
   const container = document.getElementById('home-insights');
-  // Merge real data with mock
-  let d = JSON.parse(JSON.stringify(mockDashboardData.insights));
   _insightsParsed = null;
-  if(todayReport && isDailyReport(todayReport)){
-    const p = parseSmartReport(todayReport.content);
-    _insightsParsed = p;
-    if(p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
-    if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
-    // 今日对话想法：日报 dailyThought 覆盖 mock 空占位（Card B 动态数据源之一）
-    if (p.summary.dailyThought && (p.summary.dailyThought.en || p.summary.dailyThought.zh)) d.thoughts = p.summary.dailyThought;
-    if(p.summary.strengths){ const lines = p.summary.strengths.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*]\s*/,'')); if(lines.length) d.strengths = lines; }
-    const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
-    // 双维度打标：grammar = 硬性错误（红线纠正）；expression = 地道升级（语法没错，只替换不判错）
-    const merged = [
-      ...allErr.slice(0, 2).map(e => ({
-        type: 'grammar', issue: e.type === 'pronunciation' ? '发音纠正' : '语法纠错',
-        wrong: e.original || '', correct: e.correction || '', explanation: e.rule || '',
-        detail: (e.original||'') + ' → ' + (e.correction||'') + (e.rule ? '（' + e.rule + '）' : ''),
-        action: '查看纠错', tab: 'words', filter: 'mistakes', filterLabel: '高频错词'
-      })),
-      ...(p.patterns || []).filter(x => x.better).slice(0, 2).map(e => ({
-        type: 'expression', issue: '地道表达',
-        wrong: e.original || '', correct: e.better || '', explanation: e.scene || '',
-        detail: (e.original||'') + ' → ' + (e.better||''),
-        action: '专项跟读', tab: 'speak', filter: '', filterLabel: '地道表达',
-        itemId: e.id || null // 模块二：句型唯一 id，供 /shadowing?id= 精准锚定
-      }))
-    ];
-    if (merged.length) d.improvements = merged;
-    if(p.summary.next_suggestions){ const steps = p.summary.next_suggestions.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*\d]+[\.\、]\s*/,'')); if(steps.length) d.nextSteps = steps.slice(0,3).map(s=>({step:s,action:'去练习',tab:'speak'})); }
-    // v6.0: derive executive summary fields from real report data
-    if(allErr.length) {
-      d.targetAreas = allErr.slice(0,3).map(e => ({
-        category: detectErrorCategory(e.original, e.correction),
-        label: e.rule || e.type || '表达纠正',
-        keyword: (e.correction || '').slice(0, 20),
-        count: 1,
-        filterKey: 'mistakes',
-        filterLabel: '高频错词',
-        actionLabel: '去纠错'
-      }));
-    }
-    if (d.strengths.length) {
-      d.highlights = d.strengths.slice(0, 3).map(s => ({ text: s }));
-    }
-    if (p.summary.review) {
-      d.executiveSummary = p.summary.review.slice(0, 100) + (p.summary.review.length > 100 ? '…' : '');
-    }
+  // 时间网关（v63）：今日未导入日报 → 整区优雅空状态，绝对禁止历史数据穿透进「今日」卡组
+  if (!getTodayMissionState().hasTodayReport) {
+    container.innerHTML = `<div class="bg-[var(--c-surface)] rounded-2xl p-6 text-center border border-dashed border-[var(--c-border)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="box-shadow:var(--c-shadow-sm)">
+      <div class="text-2xl mb-2">⏳</div>
+      <div class="text-sm font-semibold text-[var(--c-text)]">等待导入今日报告</div>
+      <div class="text-[12px] text-[var(--c-text-dim)] mt-1">导入今日日报后，这里将呈现今日对话想法、做得好的地方与提升建议</div>
+      <div class="inline-flex items-center gap-1 mt-3 px-4 py-2 rounded-full bg-[var(--c-primary-light)] text-[13px] font-semibold text-[var(--c-primary)] cursor-pointer" onclick="showImportDialog()">${icon('upload','w-3.5 h-3.5')} 去导入 ${icon('arrow-right','w-3 h-3')}</div>
+    </div>`;
+    refreshIcons(container);
+    return;
+  }
+  // 单一事实源：_reportParsed（loadWords 已强制 = 今日日报解析），禁止在此重新解析
+  let d = JSON.parse(JSON.stringify(mockDashboardData.insights));
+  const p = _reportParsed;
+  _insightsParsed = p;
+  if(p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
+  if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
+  // 今日对话想法：日报 dailyThought 覆盖 mock 空占位（Card B 动态数据源之一）
+  if (p.summary.dailyThought && (p.summary.dailyThought.en || p.summary.dailyThought.zh)) d.thoughts = p.summary.dailyThought;
+  if(p.summary.strengths){ const lines = p.summary.strengths.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*]\s*/,'')); if(lines.length) d.strengths = lines; }
+  const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
+  // 双维度打标：grammar = 硬性错误（红线纠正）；expression = 地道升级（语法没错，只替换不判错）
+  const merged = [
+    ...allErr.slice(0, 2).map(e => ({
+      type: 'grammar', issue: e.type === 'pronunciation' ? '发音纠正' : '语法纠错',
+      wrong: e.original || '', correct: e.correction || '', explanation: e.rule || '',
+      detail: (e.original||'') + ' → ' + (e.correction||'') + (e.rule ? '（' + e.rule + '）' : ''),
+      action: '查看纠错', tab: 'words', filter: 'mistakes', filterLabel: '高频错词'
+    })),
+    ...(p.patterns || []).filter(x => x.better).slice(0, 2).map(e => ({
+      type: 'expression', issue: '地道表达',
+      wrong: e.original || '', correct: e.better || '', explanation: e.scene || '',
+      detail: (e.original||'') + ' → ' + (e.better||''),
+      action: '专项跟读', tab: 'speak', filter: '', filterLabel: '地道表达',
+      itemId: e.id || null // 模块二：句型唯一 id，供 /shadowing?id= 精准锚定
+    }))
+  ];
+  if (merged.length) d.improvements = merged;
+  if(p.summary.next_suggestions){ const steps = p.summary.next_suggestions.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*\d]+[\.\、]\s*/,'')); if(steps.length) d.nextSteps = steps.slice(0,3).map(s=>({step:s,action:'去练习',tab:'speak'})); }
+  // v6.0: derive executive summary fields from real report data
+  if(allErr.length) {
+    d.targetAreas = allErr.slice(0,3).map(e => ({
+      category: detectErrorCategory(e.original, e.correction),
+      label: e.rule || e.type || '表达纠正',
+      keyword: (e.correction || '').slice(0, 20),
+      count: 1,
+      filterKey: 'mistakes',
+      filterLabel: '高频错词',
+      actionLabel: '去纠错'
+    }));
+  }
+  if (d.strengths.length) {
+    d.highlights = d.strengths.slice(0, 3).map(s => ({ text: s }));
+  }
+  if (p.summary.review) {
+    d.executiveSummary = p.summary.review.slice(0, 100) + (p.summary.review.length > 100 ? '…' : '');
   }
   const card = (delay,html) => `<div class="bg-[var(--c-surface)] rounded-2xl p-4 mb-2.5 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s;box-shadow:var(--c-shadow-sm)">${html}</div>`;
   const cardBg = (delay,html) => `<div class="bg-[var(--c-bg)] rounded-2xl p-4 mb-2.5 border-l-[3px] border-l-[var(--c-primary)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s">${html}</div>`;
@@ -911,24 +919,14 @@ async function copyText(txt) {
     ta.remove();
   }
 }
-function renderContentCards(todayReport, vocab, errors, patterns) {
+function renderContentCards() {
   const container = document.getElementById('home-summary-cards');
-  // 统一布尔数据源：内置词库已在打标网关合并，此处纯布尔读取
-  const words = (vocab || []);
-  const pats = (patterns && patterns.length) ? patterns : mockSentences;
-  let newCount = countTodayWords(words);
-  let coreCount = pats.filter(p => p.isTodayCore === true || p.is_core === true).length;
-  if (!coreCount) coreCount = mockSentences.filter(s => s.isTodayCore === true).length || pats.length; // 无打标时以内置核心句型数为准
-  let errCount = countMistakeWords(words, errors);
-
-  // 真实日报存在时以解析数据为准
-  if (todayReport && isDailyReport(todayReport)) {
-    const p = parseSmartReport(todayReport.content);
-    const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
-    newCount = p.vocabulary.length;
-    coreCount = (p.sentence_patterns||[]).length || coreCount;
-    errCount = allErr.length;
-  }
+  // 业务概念分离（v63）：顶部卡 = 今日增量，唯一数据源 = 全局任务状态中心；
+  // 无今日日报 → 0，绝不回退 mockWords/mockSentences 静默兜底（数字跳变断根）
+  const ms = getTodayMissionState();
+  const newCount = ms.todayNewWordsCount;
+  const coreCount = ms.todayCorePatternCount;
+  const errCount = ms.todayCorrectionsCount;
 
   // 红线1: 3 张卡片永驻 grid — 数据为 0 也强制渲染，绝不消失
   // 模块二：卡片按钮全部走规范路由（/review?tab=… · /shadowing），零死链
@@ -948,24 +946,21 @@ function renderContentCards(todayReport, vocab, errors, patterns) {
   refreshIcons(container);
 }
 
-function renderTodoList(todayReport, vocab, errors, reports, streak, reviewedToday, speakDoneToday) {
-  // ── 今日待办三闭环（v61）：对练打卡 / 跟读打卡 / 复习打卡 —— 全部动态生成，零硬编码 ──
-  const hasTodayReport = todayReport && isDailyReport(todayReport);
-  const parsed = hasTodayReport ? parseSmartReport(todayReport.content) : null;
-  // 任务 2 分母：今日核心句型数（真实日报优先，无日报回退内置核心句）
-  const coreCount = (parsed && parsed.sentence_patterns && parsed.sentence_patterns.length)
-    ? parsed.sentence_patterns.length
-    : (mockSentences.filter(s => s.isTodayCore === true).length || mockSentences.length);
-  // 任务 3 分母：到期复习词（needsReview 纯布尔计数）—— 与「今日新词」彻底区分，同复习页 tab=due 同源
-  const reviewSource = (_wordsAll && _wordsAll.length) ? _wordsAll : (vocab || []);
-  const dueCount = countReviewWords(reviewSource);
+function renderTodoList(speakDoneToday) {
+  // ── 今日待办三闭环（v63）：底部待办 = SM-2 记忆任务，数据一律取自全局任务状态中心 ──
+  const ms = getTodayMissionState();
+  const hasTodayReport = ms.hasTodayReport;
+  const coreCount = ms.todayCorePatternCount;   // 今日增量：日报核心句型（无日报 → 0，绝不回退 2 句 Mock）
+  const dueCount = ms.totalDueVocabCount;       // SM-2 到期全量（今日新词 + 历史到期词），与 tab=due 同源
+  const reviewedToday = ms.reviewedVocabToday;  // 今日实际完成反馈（🟢/🔴）的词数
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
     { text: '对练打卡 · 导入今日日报', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
     // 任务 2（跟读打卡）：完成核心句型跟读 —— 点击直达今日跟读队列；录完最后一句自动打卡
-    { text: `跟读打卡 · 完成核心句型跟读 (${coreCount}句)`, sub: speakDoneToday ? '今日跟读已完成' : '点击进入今日跟读队列', done: !!speakDoneToday, action: () => { navigateShadowing(); } },
-    // 任务 3（复习打卡）：完成今日到期复习 —— 标明「到期复习」区别于「今日新词」，点击直达待复习队列
-    { text: `复习打卡 · 完成今日到期复习 (${dueCount}词)`, sub: dueCount === 0 ? '今日无到期词' : (reviewedToday >= dueCount ? `已复习 ${reviewedToday} 个到期词` : `到期复习进度 ${reviewedToday}/${dueCount} · 到期词，非今日新词`), done: dueCount === 0 || reviewedToday >= dueCount, action: () => { navigateReview('due'); } }
+    { text: `跟读打卡 · 完成核心句型跟读 (${coreCount}句)`, sub: coreCount === 0 ? '导入今日日报后生成跟读队列' : (speakDoneToday ? '今日跟读已完成' : '点击进入今日跟读队列'), done: !!speakDoneToday, action: () => { navigateShadowing(); } },
+    // 任务 3（复习打卡）：完成今日到期复习 —— 严格完成条件：totalDueVocabCount > 0 && reviewedVocabToday >= totalDueVocabCount
+    // （dueCount === 0 保持未完成，禁止加载默认值 0 误判完成；文案标明「到期复习」区别于「今日新词」）
+    { text: `复习打卡 · 完成今日到期复习 (${dueCount}词)`, sub: dueCount === 0 ? '今日无到期词' : (reviewedToday >= dueCount ? `已复习 ${reviewedToday} 个到期词` : `到期复习进度 ${reviewedToday}/${dueCount} · 到期词，非今日新词`), done: dueCount > 0 && reviewedToday >= dueCount, action: () => { navigateReview('due'); } }
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -1413,9 +1408,11 @@ async function loadWords() {
     sb.from('errors').select('*'),
     sb.from('reports').select('*').order('date', { ascending: false }).limit(90)
   ]);
-  // 真实解析数据源：当前日报（今天 → 历史视图日期 → 最新有效），parseSmartReport 原样输出，只消费不修改
-  const todayReport = resolveActiveReport(reports);
-  _reportParsed = todayReport ? parseSmartReport(todayReport.content) : null;
+  // 真实解析数据源（v63 时间网关）：_reportParsed 只允许「今日」日报（报表行 r.date === today）
+  // resolveActiveReport 的「最新有效日报」历史回退产物严禁流入 —— 历史报告会被打 isNewToday 造成时间轴穿透
+  const strictToday = (reports && reports.length) ? reports.find(r => r.date === today && isDailyReport(r)) : null;
+  _reportParsed = strictToday ? parseSmartReport(strictToday.content) : null;
+  if (_reportParsed) _reportParsed.meta.date = strictToday.date; // meta.date 回写为报表行日期 —— 时间网关校验依据
 
   // 打标网关：内置词库合并 + 布尔标签一次性注入（渲染层只读布尔值，零时间判断）
   // 断流修复：日报 12 生词在此合并进全局词库 —— 首页/复习页数据源绝对一致
@@ -1447,7 +1444,37 @@ async function loadWords() {
 let _wordsAll = [];
 let _errorsAll = [];
 let _wordsFilter = 'all';
-let _reportParsed = null; // 当日日报的 parseSmartReport() 结果（只读消费，不修改解析逻辑）
+let _reportParsed = null; // 今日日报的 parseSmartReport() 结果（只读消费，不修改解析逻辑）
+let _reviewedVocabToday = 0; // 加载层上收：今日实际完成 SM-2 反馈（🟢/🔴）的词数
+
+// ═══════════════════════════════════════════════════════
+// v63 全局任务状态中心（单一事实源）+ 时间网关
+// ═══════════════════════════════════════════════════════
+// 时间网关：任何「今日」前缀数据放行前必须过 isTodayParsedGate()。
+// _reportParsed 已在 loadWords 处以报表行 r.date 严格过滤（严禁 resolveActiveReport 历史回退产物流入），
+// 且 meta.date 回写为行日期 —— 双层防线杜绝「最新有效日报」穿透时间轴。
+function isTodayParsedGate() {
+  if (!_reportParsed || !_reportParsed.meta) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return _reportParsed.meta.date === today;
+}
+
+// 业务概念分离（新学 vs 待复习）—— 首页所有数字的唯一数据源，各组件禁止自行 .length/硬过滤/Mock 兜底：
+//   todayNewWordsCount    今日增量 · 新学单词：唯一事实源 = 今日日报 vocabulary（无今日日报 → 0，绝不回退 mockWords）
+//   todayCorePatternCount 今日增量 · 核心句型：唯一事实源 = 今日日报 sentence_patterns（无今日日报 → 0，绝不回退 2 句 Mock）
+//   totalDueVocabCount    SM-2 记忆任务：needsReview === true 全量（今日新词 + 历史到期词），与复习页 tab=due 同源
+//   reviewedVocabToday    今日实际完成反馈（🟢/🔴）词数（加载层 last_reviewed_at 比对上收，勿在组件内自行计算）
+function getTodayMissionState() {
+  const hasTodayReport = isTodayParsedGate();
+  return {
+    hasTodayReport,
+    todayNewWordsCount: hasTodayReport ? (_reportParsed.vocabulary || []).length : 0,
+    todayCorePatternCount: hasTodayReport ? (_reportParsed.sentence_patterns || []).length : 0,
+    todayCorrectionsCount: hasTodayReport ? ((_reportParsed.grammar || []).length + (_reportParsed.pronunciation || []).length) : 0,
+    totalDueVocabCount: countReviewWords(_wordsAll || []),
+    reviewedVocabToday: _reviewedVocabToday || 0,
+  };
+}
 // 模块三：待复习混合记忆引擎状态（needsReview 单词 + 语法错题统一卡组流式打卡）
 let _dueDeck = [];
 let _dueIdx = 0;
@@ -1940,7 +1967,12 @@ async function loadSpeak() {
 
   // 真实解析数据源：当前日报的核心句型（parser 原样输出，只消费不修改）
   // 铁律：优先加载当前日报的全部句型 —— 日报有 8 句就必须 (1/8)~(8/8)，绝不回退 2 条内置 Mock
-  const todayReport = resolveActiveReport(reports);
+  // v63 时间网关：默认训练队列 = 「今日」核心句型队列 —— 无今日日报时队列为空（播放器空状态），
+  // 严禁 resolveActiveReport 的「最新有效日报」回退让昨日句型冒充今日队列；历史视图（_viewDate）除外
+  const today = new Date().toISOString().slice(0, 10);
+  const todayReport = _viewDate
+    ? resolveActiveReport(reports)
+    : ((reports || []).find(r => r.date === today && isDailyReport(r)) || null);
   const parsed = todayReport ? parseSmartReport(todayReport.content) : null;
 
   // /speaking?filter=core_sentences — 专注模式的唯一事实源是 URL 的 filter 参数
@@ -1969,7 +2001,8 @@ async function loadSpeak() {
     }
   } else {
     // 默认训练队列 = 今日核心句型（沉浸式单卡片训练，绝不把全库切碎成瀑布流）
-    sentences = coreDeck(parsed, _speakAll);
+    // v63：无今日日报解析 → 空队列（播放器空状态），严禁回退 mockSentences 2 句死数据
+    sentences = parsed ? coreDeck(parsed, _speakAll) : [];
   }
 
   // 模块二：/shadowing?id=xxx — 精准锚定：收到 id 直接定位到对应句，绝不从第 0 句开始
@@ -1989,16 +2022,17 @@ function resolveAnchorIndex(sentences, anchorId) {
 }
 
 // 核心句型训练队列组装：真实解析 sentence_patterns > isTodayCore 打标 > 内置核心句型
+// v63：parsed（今日日报解析）一旦存在就是唯一事实源 —— 0 句就 0 句，绝不回退打标/Mock；
+//      回退链仅服务于无日报解析的显式过滤视图（?filter=core_sentences），默认今日队列不经此路径
 function coreDeck(parsed, speakAll) {
-  const realCore = (parsed && parsed.sentence_patterns && parsed.sentence_patterns.length)
-    ? parsed.sentence_patterns.map((s, i) => ({
-        id: 'core-' + i,
-        targetSentence: s.pattern || s.targetSentence || s.text || '',
-        replacedSentence: '',
-        explanation: s.example || s.explanation || ''
-      }))
-    : null;
-  if (realCore) return realCore;
+  if (parsed) {
+    return (parsed.sentence_patterns || []).map((s, i) => ({
+      id: 'core-' + i,
+      targetSentence: s.pattern || s.targetSentence || s.text || '',
+      replacedSentence: '',
+      explanation: s.example || s.explanation || ''
+    }));
+  }
   const tagged = (speakAll || []).filter(p => p.isTodayCore === true || p.is_core === true).map(toPlayerItem);
   if (tagged.length) return tagged;
   const demo = mockSentences.filter(s => s.isTodayCore === true).map(toPlayerItem);
@@ -3120,5 +3154,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=62');
+  navigator.serviceWorker.register('/sw.js?v=63');
 }
