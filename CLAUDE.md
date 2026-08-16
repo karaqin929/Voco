@@ -47,10 +47,11 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v77）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v87）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v78）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v88）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v77 / voco-v87**（系统级重构：错题本 CorrectionCard 组件化 + 动态标签 + 🛡️ 对练防御注入；句型卡情境完形防石化 + 队列 15 句截断）。
+- 当前线上：**v78 / voco-v88**（对话想法卡片排版统一：cleanThoughtText 净化 + 恒定层级规格）。
+- v77 已发布（系统级重构：错题本 CorrectionCard 组件化 + 动态标签 + 🛡️ 对练防御注入；句型卡情境完形防石化 + 队列 15 句截断）。
 - **⚠️ 待用户手动执行：`⚙️ 后端/migration_v2.1.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——patterns 表 SM-2 列（status/mastered/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）+ 到期回填 + 索引。跑之前句型写回静默降级本地会话态（不报错）。
 
 ## Architecture Notes
@@ -159,6 +160,11 @@
   - 句型卡认知重塑（防错误石化）：正面 = 💡 想要表达[explanation 中文情境] + buildCloze 完形填空（地道句挖空 1–3 个 ≥4 字母内容词，STOP 功能词表跳过，不足从末尾倒序补足）——**用户原句（replacedSentence/Chinglish）正面背面均不再出现**；背面 = 24px 绿色加粗地道句 + 🎬 解析；srs-card-back-original 删除线背面整体移除
   - 排版降噪：style.css 去 Georgia 报纸衬线（#srs-card-front font-family: inherit）；.srs-flip-inner 改 min-height:250px 自适应内容（正面 static 定义高度，背面 absolute inset-0 overflow-y auto），删除 flex-1 撑满全屏
   - SM-2 漏斗：`PATTERN_SESSION_CAP = 15` → getDueSentencesQueue 末尾 `slice(0, 15)` 单日截断（92 → 15）；首页待办与复习页同源绑定自动同步为 15；未入队到期句次日仍到期（SM-2 未推进），逐日消化无丢失
+- **v78 对话想法卡片排版统一（净化 + 恒定层级规格）**：
+  - 根因：Card B 旧渲染按 en 有无分支——有 en = 15px 主色英文 + 13px 灰中文，无 en = 仅 13px 灰中文，且日报文本混入 markdown 星号/残留 HTML/换行 → 每天字体颜色字号漂移
+  - `cleanThoughtText(s)` 纯函数（app.js Helpers 区，h/hf 旁）：剥 HTML 标签 → 剥列表符 → 成对强调标记去符号 → 残余 `*_`~#` 兜底清除 → 空白折叠 → 换行并入单行 → 去包裹引号（渲染层统一加中文弯引号“”）
+  - 恒定规格：主体 `(dt.en || dt.zh)` 恒为 15px font-medium 主色（en 缺失时 zh 升主）；副行仅当 en 在场时显示 zh 释义，恒为 13px 灰 dim；外层 `border-l-[3px] border-l-[var(--c-primary)] pl-3` 引语块——层级不再随数据完整度变化
+  - 数据源不变：`_reportParsed/_historyParsed.summary.dailyThought`（parser.js parseDailyThought 归一化 {en, zh}），净化只发生在渲染层，上游消费方不受影响
 - **Voco 2.0 跟读页转型（v73）句型记忆卡片模式 —— SM-2 全链路闭环**：
   - 页面重构：`renderSentenceReview(sentences, startIndex)` 渲染单卡翻转视口（正面英文原句 → 点击翻转翻译解析）；**机械录音三键（听原音/按住录音/听自己）与录音函数族整体物理删除**（speakWord TTS 保留，词汇列表发音在用）；底部导航更名「句型复习」（icon repeat，data-tab 仍 'speak'，全部 ?tab=speak 兼容链不动）
   - 反馈双键完全克隆词汇复习（图18）：😅 还没记住 = `bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)]`、🚀 记住了 = 绿色同构——高度/圆角/内边距逐字一致，严禁第二套按钮样式
