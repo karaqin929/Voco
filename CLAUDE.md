@@ -47,10 +47,16 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v81）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v91）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v82）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v92）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v81 / voco-v91**（错题卡数据腰斩配对合并 + 图鉴列表去复习按钮 + 主视觉降级链去横杠）。
+- 当前线上：**v82 / voco-v92**（首页私教对战 Prompt 模块彻底移除 + 5 入口日期路由重构）。
+- v82 架构要点：
+  - 日期路由：`_ctxDate`（URL `?date=YYYY-MM-DD` 非今日上下文）+ `_reportsCache`（最近 90 条 reports 行）+ `parsedReportFor(date)`（今日→_reportParsed / _viewDate→_historyParsed / 其余现解析，Map 缓存）；解析点：handleRoute / loadWords / loadSpeak 三处读 URL。
+  - `navigateReview(tab, filter, date)` / `navigateShadowing(id, sentence, date)` 第三参 date：历史视图（historyMode）下统计三卡携带 `_viewDate`；待办打卡动作先清 `_viewDate/_historyParsed/_ctxDate` 再导航（保证今日到期队列严格，绝不历史劫持）。
+  - 首页 Prompt 模块已删：generateDailyMissionPrompt / missionCapsuleHTML / fireDailyMissionPrompt + Card E；🛡️ 对练防御注入迁至灵感舱 fireTopicGeneratorPrompt（getDefenseSigs 双源检索，最多 3 条）。
+  - `getFilteredVocab` mode today/new 与 `allGrammarErrors` 增加 `_ctxDate` 早分支（该日日报唯一数据源，无报 → 空，绝不回退今日）；`prependCtxDateBanner` 复习页顶部日期横幅；loadSpeak `_ctxDate` 存在时队列 = `coreDeck(parsedReportFor(date))`（不混 SM-2 到期）。
+- v81 已发布（错题卡数据腰斩配对合并 + 图鉴列表去复习按钮 + 主视觉降级链去横杠）。
 - v80 已发布（想法卡字号拉平 14px normal + dailyThought 解析兜底：thoughts 回退 + Markdown 标题变体加宽）。
 - v79 已发布（全局重构：due 卡组件化 + 死 CSS 清理 + emoji/斜体清零）。
 - v78 已发布（对话想法卡片排版统一：cleanThoughtText 净化 + 恒定层级规格）。

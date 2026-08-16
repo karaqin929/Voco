@@ -85,25 +85,31 @@ function navigateToTab(tab, filter, label) {
   _navigatingViaProgram = false;
 }
 
-// /review?tab=grammar · /review?tab=due · /review?tab=all&filter=today — 首页按钮的精准锚定入口（绝不写死 ?tab= 死链）
+// /review?tab=grammar · /review?tab=due · /review?tab=all&filter=today · /review?...&date=YYYY-MM-DD — 首页按钮的精准锚定入口（绝不写死 ?tab= 死链）
 // filter=today：今日单词过滤态（只渲染 isNewToday===true 的词），与三 Tab 正交
-function navigateReview(tab, filter) {
+// date：v82 日期路由 —— 历史视图下三卡跳转携带当前查看日期，目标页按该日日报过滤（今日日期不携带，保持默认今日链路）
+function navigateReview(tab, filter, date) {
   const t = ['all', 'grammar', 'due', 'topics'].includes(tab) ? tab : 'all';
-  const f = (filter === 'today') ? '&filter=today' : '';
+  const qs = [];
+  if (t !== 'all') qs.push('tab=' + t);
+  if (filter === 'today') qs.push('filter=today');
+  if (date && date !== getLocalToday()) qs.push('date=' + encodeURIComponent(date));
   _activeFilter = null; _activeFilterLabel = '';
-  window.history.pushState({}, '', '/review' + (t !== 'all' ? `?tab=${t}` : '') + (t === 'all' ? (f ? '?filter=today' : '') : f));
+  window.history.pushState({}, '', '/review' + (qs.length ? '?' + qs.join('&') : ''));
   _navigatingViaProgram = true;
   document.querySelector('.tab[data-tab=words]').click();
   _navigatingViaProgram = false;
 }
 
-// /shadowing?id=${item.id} — 句型复习页按 id 锚定到指定句（绝不从第 0 句开始）
-function navigateShadowing(id, sentence) {
+// /shadowing?id=${item.id}&date=YYYY-MM-DD — 句型复习页按 id 锚定到指定句（绝不从第 0 句开始）
+// date：v82 日期路由 —— 历史视图下跳转携带当前查看日期，卡片队列 = 该日日报核心句型（今日日期不携带）
+function navigateShadowing(id, sentence, date) {
   _activeFilter = null; _activeFilterLabel = '';
   const qs = [];
   if (id !== undefined && id !== null && id !== '') qs.push('id=' + encodeURIComponent(id));
   // sentence：首页「今天需要提升」点击的句文本 —— 卡片队列以这一句为首张，禁止从默认句开始
   if (sentence) qs.push('sentence=' + encodeURIComponent(sentence));
+  if (date && date !== getLocalToday()) qs.push('date=' + encodeURIComponent(date));
   window.history.pushState({}, '', '/shadowing' + (qs.length ? '?' + qs.join('&') : ''));
   _navigatingViaProgram = true;
   document.querySelector('.tab[data-tab=speak]').click();
@@ -144,13 +150,19 @@ function handleRoute() {
     _activeFilter = null; _activeFilterLabel = '';
     const sp = new URLSearchParams(location.search);
     const t = sp.get('tab') || 'all';
+    // v82 日期路由：?date=YYYY-MM-DD（非今日）→ 复习页日期上下文，目标列表按该日日报过滤
+    const dParam = sp.get('date');
+    _ctxDate = (dParam && dParam !== getLocalToday()) ? dParam : null;
     // filter=today：首页「复习今日单词」携带的过滤态，正交于三 Tab，只渲染 isNewToday 词
     _wordsFilter = sp.get('filter') === 'today' ? 'today'
       : (['all', 'grammar', 'due', 'topics', 'new', 'mistakes', 'review'].includes(t) ? t : 'all');
   } else if (path === '/shadowing') {
     tab = 'speak';
-    _activeFilter = null; _activeFilterLabel = ''; // URL 的 filter/id 参数才是句型复习页唯一事实源
+    _activeFilter = null; _activeFilterLabel = ''; // URL 的 filter/id/date 参数才是句型复习页唯一事实源
+    const dParam = new URLSearchParams(location.search).get('date');
+    _ctxDate = (dParam && dParam !== getLocalToday()) ? dParam : null;
   } else if (path === '/') {
+    _ctxDate = null; // 首页无日期上下文（历史视图走 _viewDate，不经 URL 路由）
     const t = new URLSearchParams(location.search).get('tab') || 'home';
     const legacy = { words: 'words', new: 'words', mistakes: 'words', review: 'words', speak: 'speak', me: 'me' };
     tab = legacy[t] || 'home';
@@ -849,15 +861,15 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
       </div>
     `);
   }).join('');
-  // Card E: 今日对战胶囊（Voco 2.0）—— 取代原「下一次学习建议」3 条分散列表，一个超级按钮直出私教 Prompt
-  html += card(0.15, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('target','w-3.5 h-3.5 text-amber-500')} 今日私教对战</div>${missionCapsuleHTML()}`);
+  // v82：Card E「今日私教对战 Prompt」胶囊模块已彻底移除 —— 首页洞察区终止于 Card D（需要提升），
+  // 私教 Prompt 生成统一收敛至【我的】页灵感配置舱（fireTopicGeneratorPrompt，含对练防御注入闭环）
   container.innerHTML = html;
   refreshIcons(container);
 }
 
 // Store current insights for detail popovers
 let _currentInsights = null;
-let _insightsParsed = null; // 当前日报 parseSmartReport 产物（学习建议锚定句型 / 私教任务 Prompt 用）
+let _insightsParsed = null; // 当前日报 parseSmartReport 产物（学习建议锚定句型用）
 
 // ── Improvement detail: coach advice by type, not a blind error dump ──
 function showImprovementDetail(idx) {
@@ -1011,10 +1023,12 @@ function renderContentCards() {
 
   // 红线1: 3 张卡片永驻 grid — 数据为 0 也强制渲染，绝不消失
   // 模块二：卡片按钮全部走规范路由（/review?tab=… · /shadowing），零死链
+  // v82 日期路由：历史视图（historyMode）下跳转携带 _viewDate —— 目标页按该日日报过滤，杜绝「看历史数字、跳到今日列表」的路由错乱
+  const dq = historyMode ? `, '${_viewDate}'` : '';
   const cards = [
-    { icon:'pen-line', num:newCount,  label:'新学单词', btn:'复习今日单词', nav:`navigateReview('all', 'today')` },
-    { icon:'ruler',    num:coreCount, label:'核心句型', btn:'练习句型',   nav:`navigateShadowing()` },
-    { icon:'wrench',   num:errCount,  label:'重点纠错', btn:'查看纠错',   nav:`navigateReview('grammar')` }
+    { icon:'pen-line', num:newCount,  label:'新学单词', btn: historyMode ? '复习当日单词' : '复习今日单词', nav:`navigateReview('all', 'today'${dq})` },
+    { icon:'ruler',    num:coreCount, label:'核心句型', btn:'练习句型',   nav:`navigateShadowing(undefined, undefined${dq})` },
+    { icon:'wrench',   num:errCount,  label:'重点纠错', btn:'查看纠错',   nav:`navigateReview('grammar', null${dq})` }
   ];
   container.innerHTML = cards.map(c=>`
     <div class="bg-[var(--c-surface)] rounded-2xl px-2.5 py-3.5 text-center cursor-pointer transition-all duration-150 border border-[var(--c-border-light)] active:scale-[0.96] active:bg-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" onclick="${c.nav}">
@@ -1048,7 +1062,9 @@ function renderTodoList(speakDoneToday) {
         sub: speakDoneToday ? '今日句型复习已完成' : (hasTodayReport ? '今日新句型 + 历史到期句型混合队列' : '历史到期句型复习队列'),
         done: !!speakDoneToday,
         disabled: false,
-        action: () => { navigateShadowing(); }
+        // v82：打卡 = 今日语境 —— 先清除历史视图残留（_viewDate/_historyParsed），
+        // 保证 /shadowing 无 date 参数时严格走「今日到期句型队列」的挖空卡片模式，绝不被历史日报劫持
+        action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateShadowing(); }
       };
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
@@ -1057,7 +1073,7 @@ function renderTodoList(speakDoneToday) {
     patternTask,
     // 任务 3（复习打卡）：完成今日到期复习 —— 打卡完成强制绑定 SSOT isReviewFinished
     // （dueCount === 0 保持未完成，禁止加载默认值 0 误判完成；文案标明「到期复习」区别于「今日新词」）
-    { text: `复习打卡 · 完成今日到期复习 (${dueCount}词)`, sub: dueCount === 0 ? '今日无到期词' : (reviewedToday >= dueCount ? `已复习 ${reviewedToday} 个到期词` : `到期复习进度 ${reviewedToday}/${dueCount} · 到期词，非今日新词`), done: ms.isReviewFinished, action: () => { navigateReview('due'); } }
+    { text: `复习打卡 · 完成今日到期复习 (${dueCount}词)`, sub: dueCount === 0 ? '今日无到期词' : (reviewedToday >= dueCount ? `已复习 ${reviewedToday} 个到期词` : `到期复习进度 ${reviewedToday}/${dueCount} · 到期词，非今日新词`), done: ms.isReviewFinished, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -1523,6 +1539,8 @@ function showDetailModal(label, count, tab) {
 // ═══════════════════════════════════════════════════════
 function buildGlobalMissionInputs(vocab, errors, reports, patterns) {
   const today = getLocalToday();
+  // v82 日期路由解析源：reports 行缓存（parsedReportFor 按日期检索，各页共享）
+  _reportsCache = (reports && reports.length) ? reports : _reportsCache;
   // 真实解析数据源（时间网关）：_reportParsed 只允许「今日」日报（报表行 r.date === today）
   // resolveActiveReport 的「最新有效日报」历史回退产物严禁流入 —— 历史报告会被打 isNewToday 造成时间轴穿透
   const strictToday = (reports && reports.length) ? reports.find(r => r.date === today && isDailyReport(r)) : null;
@@ -1550,6 +1568,25 @@ function buildGlobalMissionInputs(vocab, errors, reports, patterns) {
   );
 }
 
+// ═══════════════════════════════════════════════════════
+// v82 日期路由解析源（SSOT 副链）：任意日期 → 该日日报 parseSmartReport 结果
+// 优先复用已解析缓存：今日 → _reportParsed；历史视图所选日 → _historyParsed；其余 → _reportsCache 现解析
+// 该日无日报行/非日报内容 → null（调用方渲染空状态，绝不回退今日数据造成日期穿透）
+// ═══════════════════════════════════════════════════════
+const _parsedReportDateCache = new Map();
+function parsedReportFor(date) {
+  if (!date) return null;
+  const today = getLocalToday();
+  if (date === today) return _reportParsed;
+  if (date === _viewDate && _historyParsed) return _historyParsed;
+  if (_parsedReportDateCache.has(date)) return _parsedReportDateCache.get(date);
+  const row = (_reportsCache || []).find(r => r.date === date && isDailyReport(r));
+  const parsed = row ? parseSmartReport(row.content) : null;
+  if (parsed) parsed.meta.date = row.date; // meta.date 回写为报表行日期
+  _parsedReportDateCache.set(date, parsed);
+  return parsed;
+}
+
 async function loadWords() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
@@ -1567,6 +1604,9 @@ async function loadWords() {
 
   // URL 是唯一事实源：/review?tab=all|grammar|due|topics（规范四 Tab；兼容旧 new|mistakes|review 参数）+ filter=today 过滤态
   const params = new URLSearchParams(window.location.search);
+  // v82 日期路由：?date=YYYY-MM-DD（非今日）→ 复习页日期上下文（新学单词/重点纠错列表按该日日报过滤）
+  const dParam = params.get('date');
+  _ctxDate = (dParam && dParam !== getLocalToday()) ? dParam : null;
   const activeTab = params.get('tab') || 'all';
   let mode = ['new', 'mistakes', 'review', 'grammar', 'due', 'topics'].includes(activeTab) ? activeTab : 'all';
   if (params.get('filter') === 'today') mode = 'today';
@@ -1592,6 +1632,8 @@ let _errorsAll = [];
 let _wordsFilter = 'all';
 let _reportParsed = null;       // 今日日报的 parseSmartReport() 结果（buildGlobalMissionInputs 强制 = 今日日报，只读消费）
 let _historyParsed = null;      // v75 历史视图：所选日期（_viewDate）日报的 parseSmartReport() 结果；未选历史日期或该日无日报 → null（今日链路不受影响）
+let _reportsCache = [];         // v82 日期路由：最近 90 条 reports 行缓存（parsedReportFor 按日期检索解析源）
+let _ctxDate = null;            // v82 日期路由：URL ?date= 非今日日期上下文；目标页列表按该日日报过滤（null = 默认今日链路）
 let _dailyPatterns = [];        // 今日日报 sentence_patterns（SSOT todayCorePatternCount 输入）
 let _patternLibrary = [];       // patterns 表历史句型库（打标后，SSOT duePatternList / totalPatternTaskCount 输入）
 let _reviewedVocabTodayIds = new Set(); // 加载层上收：今日实际完成 SM-2 反馈（🟢/🔴）的词 id 集合（SSOT reviewedVocabToday 输入）
@@ -1649,7 +1691,7 @@ function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocab
     todayCorrectionsCount,
     totalDueVocabCount,
     reviewedVocabToday,
-    dueVocabList, // 真实待复习词表（对战胶囊 3+1+1 组装数据字典：取前 3 词）
+    dueVocabList, // 真实待复习词表（totalDueVocabCount 同源数组；v82 后对战胶囊已移除，无外部取词消费）
     // 只有总数大于 0，且实际复习数达标，才算真正完成打卡（dueCount===0 保持未完成，禁止加载默认值误判）
     isReviewFinished: totalDueVocabCount > 0 && reviewedVocabToday >= totalDueVocabCount,
     // ── 句型 SRS 输出（待办任务 2 / 句型复习队列共用同一口径，UI 层严禁自行 .filter）──
@@ -1659,40 +1701,11 @@ function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocab
   };
 }
 
-// ═══════════════════════════════════════════════════════
-// Voco 2.0 今日对战胶囊（3+1+1）Prompt 组装器
-// 全自动提取：3 个待复习词汇 + 1 个核心句型 + 1 个历史语法错误 → 纯文本 Prompt（防空 fallback）
-// ═══════════════════════════════════════════════════════
-function generateDailyMissionPrompt(dueVocabList, corePatterns, grammarErrors, defenseItems = []) {
-  // 提取 3 个复习词
-  const targetWords = dueVocabList.slice(0, 3).map(v => v.word).join(', ') || '任意高级词汇';
-
-  // 提取 1 个核心句型
-  const targetPattern = corePatterns && corePatterns.length > 0
-    ? corePatterns[0].targetSentence
-    : '高级复合句型';
-
-  // 提取 1 个历史语法纠错（取最近一条的 rule 或 original）
-  const targetError = grammarErrors && grammarErrors.length > 0
-    ? (grammarErrors[0].rule || grammarErrors[0].original)
-    : '时态和单复数一致性';
-
-  // v77 实战防御闭环：错题本 🛡️ 开关选中的错题 → 静默注入 Prompt，AI 全程重点盯防（最多 3 条）
-  const defenseText = (defenseItems && defenseItems.length)
-    ? `另外，请在整个对话中重点盯防并即时纠正我容易犯的以下毛病：[${defenseItems.slice(0, 3).map(d => d.rule || d.original || d.correction).join('；')}]。`
-    : '';
-
-  return `作为我的英语口语私教，请开启今天的对话。在接下来的交流中，请你自然地引导我使用以下词汇：[${targetWords}]，以及句型：[${targetPattern}]。并且在对话结束时，请严格检查我是否犯了关于 [${targetError}] 的语法毛病，给出反馈。${defenseText}`;
-}
-// ── 今日对战胶囊（Voco 2.0）：一个主视觉大按钮 → SSOT 数据字典 → 私教 Prompt → 剪贴板 ──
-function missionCapsuleHTML() {
-  return `<button id="btn-mission-prompt" onclick="fireDailyMissionPrompt(this)" class="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]" style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
-    🎯 获取今日私教对战 Prompt ${icon('sparkles','w-4 h-4')}
-  </button>`;
-}
+// v82：generateDailyMissionPrompt / missionCapsuleHTML / fireDailyMissionPrompt（今日对战胶囊 3+1+1）
+// 与首页 Card E 一并彻底移除 —— 私教 Prompt 唯一出口 = 【我的】页灵感配置舱 + 话题复盘生成器
 
 // ── 剪贴板共享工具：navigator.clipboard → textarea+execCommand 降级 ──
-// 对战胶囊（fireDailyMissionPrompt）与灵感配置舱（fireTopicGeneratorPrompt）共用
+// 灵感配置舱（fireTopicGeneratorPrompt）与话题复盘（fireTopicRevivalPrompt）共用
 async function copyToClipboardWithFallback(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -1712,25 +1725,7 @@ async function copyToClipboardWithFallback(text) {
   }
 }
 
-async function fireDailyMissionPrompt(btn) {
-  // 数据字典一律直取任务状态中心（SSOT）：3 个待复习词 + 今日核心句型 + 历史语法错误
-  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
-  // v77 对练防御注入：签名匹配已开关的错题（错误表 + 今日日报解析双源检索）
-  const defenseSigs = getDefenseSigs();
-  const defensePool = [...(_errorsAll || []), ...allGrammarErrors()];
-  const defenseItems = defenseSigs.map(sig => defensePool.find(x => errorSignature(x) === sig)).filter(Boolean);
-  const prompt = generateDailyMissionPrompt(ms.dueVocabList, _dailyPatterns, _errorsAll || [], defenseItems);
-  const copied = await copyToClipboardWithFallback(prompt);
-  if (!copied) { showToast('复制失败，请长按文本手动复制'); return; }
-  const originalHTML = btn.innerHTML;
-  const originalStyle = btn.getAttribute('style') || '';
-  btn.innerHTML = `✅ 已复制！去 ChatGPT 开口吧 ${icon('external-link','w-4 h-4')}`;
-  btn.style.background = 'var(--c-green)';
-  btn.style.boxShadow = 'none';
-  refreshIcons(btn);
-  setTimeout(() => { btn.innerHTML = originalHTML; btn.setAttribute('style', originalStyle); refreshIcons(btn); }, 2000);
-  showToast('📋 今日对战 Prompt 已复制');
-}
+// v82：fireDailyMissionPrompt 已随首页对战胶囊模块彻底移除（Prompt 出口收敛至灵感舱/话题复盘）
 
 // ── 聊前灵感配置舱（Voco 2.0 第四步）：【我的】页专属 ──
 // URL 投喂 + 灵感速记 + 7 话题 Pill（单选、可取消）→ 私教角色扮演 Prompt → 剪贴板
@@ -1795,6 +1790,15 @@ async function fireTopicGeneratorPrompt(btn) {
 
   prompt += "\n\n请用自然、引导式的语言回复我，一次不要说太多。并在交流中注意纠正我可能出现的发音和语法错误。";
 
+  // v82：v77 实战防御闭环自「今日对战胶囊」迁入 —— 错题本 🛡️ 开关选中的错题静默注入 Prompt，
+  // 错误表 + 日报解析双源签名检索，AI 全程重点盯防（最多 3 条），Prompt 出口收敛后闭环不丢
+  const defenseSigs = getDefenseSigs();
+  const defensePool = [...(_errorsAll || []), ...allGrammarErrors()];
+  const defenseItems = defenseSigs.map(sig => defensePool.find(x => errorSignature(x) === sig)).filter(Boolean);
+  if (defenseItems.length) {
+    prompt += `\n\n另外，请在整个对话中重点盯防并即时纠正我容易犯的以下毛病：[${defenseItems.slice(0, 3).map(d => d.rule || d.original || d.correction).join('；')}]。`;
+  }
+
   const copied = await copyToClipboardWithFallback(prompt);
   if (!copied) { showToast('复制失败，请长按文本手动复制'); return; }
 
@@ -1832,7 +1836,15 @@ function realReportErrors() {
 
 // ── 模块三：语法错题单一数据源（日报解析优先 → 错题表 → isMistake 词兜底）──
 // 统一输出形状 {id, issue, original, correction, rule, type}，供 tab=grammar 卡片流与待复习混合卡组共用
+// v82 日期路由：_ctxDate 存在 → 该日日报 grammar+pronunciation 为唯一数据源（无该日日报 → 空，绝不回退今日）
 function allGrammarErrors() {
+  if (_ctxDate) {
+    const dp = parsedReportFor(_ctxDate);
+    if (!dp) return [];
+    const g = (dp.grammar || []).map(e => Object.assign({ issue: '语法纠正' }, e));
+    const p = (dp.pronunciation || []).map(e => Object.assign({ issue: '发音纠正' }, e));
+    return standardizeErrorCards([...g, ...p].filter(e => e && (e.original || e.correction)));
+  }
   const real = realReportErrors();
   if (real.length) return standardizeErrorCards(real);
   const errRows = (_errorsAll || []).map((e, i) => ({
@@ -1942,12 +1954,22 @@ function switchWordsView(mode) {
 
 // ── 模块三：四 Tab 严格渲染隔离 ─────────────────────────────────
 // all=仅全量词汇卡 / grammar=仅语法错题卡（绿色正句为主视觉，原句小字灰显） / due=混合记忆卡组（Active Recall） / topics=话题卡片墙
+// v82 日期路由横幅：复习页正处历史日期上下文 → 列表顶部提示「正在查看该日数据」（今日链路零侵入）
+function prependCtxDateBanner() {
+  if (!_ctxDate) return;
+  const container = document.getElementById('words-content');
+  const banner = document.createElement('div');
+  banner.className = 'mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)] text-[13px] font-semibold text-[var(--c-primary)]';
+  banner.textContent = `📅 正在查看 ${_ctxDate} 的当日数据`;
+  container.insertBefore(banner, container.firstChild);
+}
+
 function renderWordsList(mode) {
-  if (mode === 'grammar' || mode === 'mistakes') { renderErrorCards(allGrammarErrors()); return; }
+  if (mode === 'grammar' || mode === 'mistakes') { renderErrorCards(allGrammarErrors()); prependCtxDateBanner(); return; }
   if (mode === 'due' || mode === 'review') { renderDueDeck(); return; }
   if (mode === 'topics') { renderTopicLibrary(); return; }
   // filter=today：今日单词过滤态（isNewToday 纯布尔），不污染 Tab 渲染
-  if (mode === 'today') { renderVocabList(getFilteredVocab(_wordsAll, 'today')); return; }
+  if (mode === 'today') { renderVocabList(getFilteredVocab(_wordsAll, 'today')); prependCtxDateBanner(); return; }
   renderVocabList(getFilteredVocab(_wordsAll, 'all'));
 }
 
@@ -2323,6 +2345,23 @@ function getFilteredVocab(items, mode) {
     return items.filter(v => v.needsReview === true);
   }
   if (mode === 'new' || mode === 'today') {
+    // v82 日期路由：_ctxDate 存在 → 该日日报生词为唯一数据源（该日无日报/无生词 → 空，绝不回退今日 isNewToday）
+    if (_ctxDate) {
+      const dp = parsedReportFor(_ctxDate);
+      if (!dp) return [];
+      return (dp.vocabulary || []).map((w, i) => {
+        const existing = items.find(x => String(x.word || '').toLowerCase() === String(w.word || '').toLowerCase());
+        return {
+          ...w,
+          id: (existing && existing.id !== undefined) ? existing.id : 'rep-' + i,
+          word: w.word, phonetic: w.phonetic || '', meaning: w.meaning || '', example: w.example || '',
+          source_topic: (existing && existing.source_topic) || `${_ctxDate} 日报`,
+          status: existing ? existing.status : 'new',
+          review_count: existing ? (existing.review_count || 0) : 0,
+          isNewToday: true, isMistake: false
+        };
+      });
+    }
     // 真实日报生词 = 「今日新词」唯一事实源（与首页 newCount = parsed.vocabulary.length 绝对一致）
     // 断流修复：移除「打标词优先短路」—— mock 2 词曾短路掉日报 12 词，导致首页 12 / 复习页 2
     const realVocab = (_reportParsed && _reportParsed.vocabulary) || [];
@@ -2495,18 +2534,29 @@ async function loadSpeak() {
   const taggedPatterns = (patterns && patterns.length) ? stampPatternTags(patterns) : [];
   _speakAll = taggedPatterns.length ? taggedPatterns : mockSentences; // 打标网关：唯一 id + isTodayCore + needsReview + 标准嵌套字段
   _patternLibrary = taggedPatterns;
+  _reportsCache = (reports && reports.length) ? reports : _reportsCache; // v82：日期路由解析源缓存刷新
 
-  // 真实解析数据源：当前日报的核心句型（parser 原样输出，只消费不修改）
+  // v82 日期路由：?date=YYYY-MM-DD（非今日）→ 句型卡队列 = 该日日报核心句型（挖空卡片模式，不混 SM-2 到期）
   const today = getLocalToday();
-  const todayReport = _viewDate
-    ? resolveActiveReport(reports)
-    : ((reports || []).find(r => r.date === today && isDailyReport(r)) || null);
-  const parsed = todayReport ? parseSmartReport(todayReport.content) : null;
-
-  // v73 卡片复习模式：页面只展示「今日到期句型队列」（getDueSentencesQueue 唯一事实源 = 今日新句型 + 历史到期句型）
-  // ?id= / ?sentence= 锚定仅决定起始卡片（首页「今天需要提升」跳转仍然生效），绝不改变队列内容
-  const sentences = getDueSentencesQueue(parsed, _speakAll);
   const params = new URLSearchParams(window.location.search);
+  const dParam = params.get('date');
+  _ctxDate = (dParam && dParam !== today) ? dParam : null;
+
+  let sentences;
+  if (_ctxDate) {
+    const dp = parsedReportFor(_ctxDate);
+    sentences = dp ? coreDeck(dp, _speakAll) : [];
+  } else {
+    // 真实解析数据源：当前日报的核心句型（parser 原样输出，只消费不修改）
+    // _viewDate 残留仅为历史浏览链路服务；待办打卡入口已在上游清空 _viewDate，此处严格今日
+    const todayReport = _viewDate
+      ? resolveActiveReport(reports)
+      : ((reports || []).find(r => r.date === today && isDailyReport(r)) || null);
+    const parsed = todayReport ? parseSmartReport(todayReport.content) : null;
+    // v73 卡片复习模式：页面只展示「今日到期句型队列」（getDueSentencesQueue 唯一事实源 = 今日新句型 + 历史到期句型）
+    sentences = getDueSentencesQueue(parsed, _speakAll);
+  }
+  // ?id= / ?sentence= 锚定仅决定起始卡片（首页「今天需要提升」跳转仍然生效），绝不改变队列内容
   const anchorId = params.get('id') || null;
   const anchorText = params.get('sentence') || null;
   let startIndex = 0;
@@ -2637,8 +2687,8 @@ function renderSentenceReview(sentences, startIndex) {
           <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--c-primary-light)] flex items-center justify-center" style="box-shadow:inset 0 0 0 1px var(--c-primary)">
             <i data-lucide="book-open" class="w-5 h-5 text-[var(--c-primary)]"></i>
           </div>
-          <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">暂无待复习句型</div>
-          <div class="text-[13px] text-[var(--c-text-dim)] mb-6 leading-relaxed">导入今日日报获得新句型<br/>或等待历史句型复习到期</div>
+          <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">${_ctxDate ? '该日暂无句型数据' : '暂无待复习句型'}</div>
+          <div class="text-[13px] text-[var(--c-text-dim)] mb-6 leading-relaxed">${_ctxDate ? `未找到 ${h(_ctxDate)} 的日报核心句型` : '导入今日日报获得新句型<br/>或等待历史句型复习到期'}</div>
           <button onclick="showImportDialog()" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
             style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
             📥 导入今日日报 <i data-lucide="arrow-right" class="w-4 h-4"></i>
