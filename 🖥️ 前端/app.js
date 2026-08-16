@@ -1,5 +1,7 @@
 // ═══════════════════════════════════════════════════════
-// Voco v5.0 — Tailwind Dashboard + Grouped-List Settings
+// Voco v84 — Tailwind Dashboard + Grouped-List Settings
+// v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
+//            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -457,7 +459,7 @@ function renderHeaderBears(vocab, reports, viewDate) {
   container.innerHTML = days.map(d => `
     <div class="flex flex-col items-center gap-px shrink-0 cursor-pointer w-8" onclick="showBearDay('${d.date}',${d.active})">
       <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===viewDate?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active?'/bear-active.png':'/bear-default.png'}" alt="${d.active?'🐻':'🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active?'🐻':'🌱'}</span>')" />
-      <span class="text-[8px] text-[var(--c-text-ultradim)] whitespace-nowrap text-center">${d.month}/${d.day}</span>
+      <span class="text-[0.6875rem] text-[var(--c-text-ultradim)] whitespace-nowrap text-center">${d.month}/${d.day}</span>
     </div>
   `).join('');
 }
@@ -470,7 +472,7 @@ function renderHistoryBanner(report, viewDate) {
   const d = new Date(viewDate+'T00:00:00');
   const wd = ['周日','周一','周二','周三','周四','周五','周六'];
   banner.innerHTML = `<span class="inline-flex items-center gap-1">${icon('calendar','w-3.5 h-3.5')} 正在查看 ${viewDate} ${wd[d.getDay()]} 的数据</span> <a onclick="_viewDate=null;loadHome();" class="inline-flex items-center gap-1 cursor-pointer text-[var(--c-blue)] font-semibold">回到今天 ${icon('arrow-right','w-3 h-3')}</a>`;
-  banner.className = 'flex justify-between items-center px-3.5 py-2 mb-2.5 text-[13px] text-[var(--c-text)] bg-[var(--c-primary-light)] rounded-2xl border-l-[3px] border-l-[var(--c-primary)]';
+  banner.className = 'flex justify-between items-center px-3.5 py-2 mb-2.5 text-[0.875rem] text-[var(--c-text)] bg-[var(--c-primary-light)] rounded-2xl border-l-[3px] border-l-[var(--c-primary)]';
   refreshIcons(banner);
 }
 
@@ -500,20 +502,20 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
 
   el.innerHTML = `
     <div class="flex justify-between items-center mb-3">
-      <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--c-text-dim)]">
+      <span class="inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-[var(--c-text-dim)]">
         ${icon('calendar','w-3.5 h-3.5')} 本周打卡
         ${streak > 0 ? `<span class="inline-flex items-center gap-0.5 text-emerald-500">· ${icon('flame','w-3.5 h-3.5')}${streak}天</span>` : ''}
       </span>
       ${hasToday
-        ? `<span class="inline-flex items-center gap-1 text-[11px] text-emerald-500 font-semibold">${icon('check-circle-2','w-3.5 h-3.5')}已打卡</span>`
-        : `<span onclick="showImportDialog()" class="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--c-primary)] cursor-pointer">${icon('upload','w-3.5 h-3.5')}去打卡</span>`
+        ? `<span class="inline-flex items-center gap-1 text-[0.6875rem] text-emerald-500 font-semibold">${icon('check-circle-2','w-3.5 h-3.5')}已打卡</span>`
+        : `<span onclick="showImportDialog()" class="inline-flex items-center gap-1 text-[0.6875rem] font-semibold text-[var(--c-primary)] cursor-pointer">${icon('upload','w-3.5 h-3.5')}去打卡</span>`
       }
     </div>
     <div class="flex justify-between items-end">
       ${days.map(d => `
         <div class="flex flex-col items-center gap-px cursor-pointer w-8" onclick="showBearDay('${d.date}',${d.active})">
           <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
-          <span class="text-[8px] text-[var(--c-text-ultradim)] whitespace-nowrap text-center">${d.month}/${d.day}</span>
+          <span class="text-[0.6875rem] text-[var(--c-text-ultradim)] whitespace-nowrap text-center">${d.month}/${d.day}</span>
         </div>
       `).join('')}
     </div>`;
@@ -681,15 +683,15 @@ function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natur
         const userPct = Math.max(0, Math.min(100, Math.round(ratio.user / (ratio.user + ratio.ai) * 100)));
         const aiPct = 100 - userPct;
         return `<div class="mt-2">
-          <div class="flex justify-between text-[11px] font-semibold mb-1"><span class="text-[var(--c-primary)]">你 ${userPct}%</span><span class="text-[var(--c-text-dim)]">AI ${aiPct}%</span></div>
+          <div class="flex justify-between text-[0.6875rem] font-semibold mb-1"><span class="text-[var(--c-primary)]">你 ${userPct}%</span><span class="text-[var(--c-text-dim)]">AI ${aiPct}%</span></div>
           <div class="w-full h-2 rounded-full overflow-hidden flex bg-[var(--c-border-light)]">
             <div class="h-full transition-all duration-700" style="width:${userPct}%;background:var(--c-primary)"></div>
             <div class="h-full transition-all duration-700" style="width:${aiPct}%;background:var(--c-blue)"></div>
           </div>
-          <div class="text-[10px] text-[var(--c-text-ultradim)] mt-1">对话占比 · 你 ${ratio.user} 词 / AI ${ratio.ai} 词</div>
+          <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-1">对话占比 · 你 ${ratio.user} 词 / AI ${ratio.ai} 词</div>
         </div>`;
       })()
-    : `<div class="mt-2 text-[10px] text-[var(--c-text-ultradim)]">对话占比 · 导入含对话记录的日报后展示</div>`;
+    : `<div class="mt-2 text-[0.6875rem] text-[var(--c-text-ultradim)]">对话占比 · 导入含对话记录的日报后展示</div>`;
   return `
     <div class="flex items-center gap-5 mb-4">
       <div class="relative shrink-0 w-[88px] h-[88px]">${metricsDonut(overall)}</div>
@@ -715,10 +717,10 @@ function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natur
       </div>`).join('')}
     </div>
     <div class="flex gap-1.5 flex-wrap pt-3 border-t border-[var(--c-border-light)]">
-      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[11px] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-[15px] text-[var(--c-text)] font-bold">${icon('message-circle','w-3.5 h-3.5')} ${topics}</strong>个话题</div>
-      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[11px] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-[15px] text-[var(--c-text)] font-bold">${icon('pen-line','w-3.5 h-3.5')} ${newWords}</strong>个新词</div>
-      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[11px] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-[15px] text-[var(--c-text)] font-bold">${icon('message-square-text','w-3.5 h-3.5')} ${expressions}</strong>个表达</div>
-      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[11px] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-[15px] text-[var(--c-text)] font-bold">${icon('wrench','w-3.5 h-3.5')} ${corrections}</strong>项纠正</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('message-circle','w-3.5 h-3.5')} ${topics}</strong>个话题</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('pen-line','w-3.5 h-3.5')} ${newWords}</strong>个新词</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('message-square-text','w-3.5 h-3.5')} ${expressions}</strong>个表达</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('wrench','w-3.5 h-3.5')} ${corrections}</strong>项纠正</div>
     </div>`;
 }
 
@@ -727,7 +729,7 @@ function metricsDonut(score) {
   const n = Number(score);
   const r=34,cx=44,cy=44,sw=8,circ=2*Math.PI*r,len=(isNaN(n)?0:(n/100)*circ);
   const color=isNaN(n)?'var(--c-border)':n>=70?'var(--c-green)':n>=40?'var(--c-orange)':'var(--c-red)';
-  return `<svg viewBox="0 0 88 88" width="88" height="88"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--c-border-light)" stroke-width="${sw}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${len} ${circ-len}" stroke-dashoffset="0" transform="rotate(-90 44 44)" stroke-linecap="round"/></svg><div class="absolute inset-0 flex items-center justify-center text-[26px] font-extrabold text-[var(--c-text)]">${score}</div>`;
+  return `<svg viewBox="0 0 88 88" width="88" height="88"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--c-border-light)" stroke-width="${sw}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${len} ${circ-len}" stroke-dashoffset="0" transform="rotate(-90 44 44)" stroke-linecap="round"/></svg><div class="absolute inset-0 flex items-center justify-center text-[1.5rem] font-extrabold text-[var(--c-text)]">${score}</div>`;
 }
 
 // ── 「今天需要提升」教练视角分类配置 ─────────────────────
@@ -750,8 +752,8 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
     container.innerHTML = `<div class="bg-[var(--c-surface)] rounded-2xl p-6 text-center border border-dashed border-[var(--c-border)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="box-shadow:var(--c-shadow-sm)">
       <div class="text-2xl mb-2">⏳</div>
       <div class="text-sm font-semibold text-[var(--c-text)]">等待导入今日报告</div>
-      <div class="text-[12px] text-[var(--c-text-dim)] mt-1">导入今日日报后，这里将呈现今日对话想法、做得好的地方与提升建议</div>
-      <div class="inline-flex items-center gap-1 mt-3 px-4 py-2 rounded-full bg-[var(--c-primary-light)] text-[13px] font-semibold text-[var(--c-primary)] cursor-pointer" onclick="showImportDialog()">${icon('upload','w-3.5 h-3.5')} 去导入 ${icon('arrow-right','w-3 h-3')}</div>
+      <div class="text-xs text-[var(--c-text-dim)] mt-1">导入今日日报后，这里将呈现今日对话想法、做得好的地方与提升建议</div>
+      <div class="inline-flex items-center gap-1 mt-3 px-4 py-2 rounded-full bg-[var(--c-primary-light)] text-[0.875rem] font-semibold text-[var(--c-primary)] cursor-pointer" onclick="showImportDialog()">${icon('upload','w-3.5 h-3.5')} 去导入 ${icon('arrow-right','w-3 h-3')}</div>
     </div>`;
     refreshIcons(container);
     return;
@@ -830,14 +832,14 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
     html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div>
       <div class="border-l-[3px] border-l-[var(--c-primary)] pl-3">
         <div class="font-sans not-italic text-sm font-normal text-[var(--c-text)] leading-[1.7]">“${h(quote)}”</div>
-        ${sub ? `<div class="font-sans not-italic text-[13px] font-normal text-[var(--c-text-dim)] mt-1.5 leading-[1.7]">${h(sub)}</div>` : ''}
+        ${sub ? `<div class="font-sans not-italic text-[0.875rem] font-normal text-[var(--c-text-dim)] mt-1.5 leading-[1.7]">${h(sub)}</div>` : ''}
       </div>`);
   } else {
     // 空状态：v76 优雅缺省文案 —— 历史视图「当日未记录想法」；今日视图保留导入引导（不显示任何假数据）
     html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div><div class="text-sm text-[var(--c-text-ultradim)] not-italic">${historyMode ? '当日未记录想法' : '💡 导入今日日报后，在此提炼你的核心表达观点'}</div>`);
   }
   // Card C: Strengths
-  html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} ${dayLabel}做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[13px] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
+  html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} ${dayLabel}做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[0.875rem] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
   // Card D: 进阶引导 — 一条 = 一卡，按 type 分流教练视角（硬伤红线 / 软性升级 / 逻辑结构）
   html += `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2 px-1">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} ${dayLabel}需要提升</div>`;
   html += d.improvements.map((im, i) => {
@@ -893,7 +895,7 @@ function showImprovementDetail(idx) {
   modal.innerHTML = `<div class="bg-[var(--c-surface)] rounded-t-[20px] w-full max-w-[480px] max-h-[70vh] flex flex-col overflow-hidden animate-[slideUp_0.25s_ease-out]">
     <div class="flex justify-between items-center px-5 py-4 border-b border-[var(--c-border-light)]">
       <div class="flex items-center gap-2 text-sm font-bold text-[var(--c-text)]">${icon('alert-circle','w-4 h-4 text-amber-500')} ${h(im.issue)}</div>
-      <button class="w-7 h-7 rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-base cursor-pointer flex items-center justify-center" onclick="this.closest('.fixed').remove()">✕</button>
+      <button class="w-7 h-7 rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-sm cursor-pointer flex items-center justify-center" onclick="this.closest('.fixed').remove()">✕</button>
     </div>
     <div class="px-5 py-4 overflow-y-auto">
       <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">问题详情</div>
@@ -984,7 +986,7 @@ function showSuggestionModal(idx, step, hint, actionHtml) {
   modal.innerHTML = `<div class="bg-[var(--c-surface)] rounded-t-[20px] w-full max-w-[480px] max-h-[70vh] flex flex-col overflow-hidden animate-[slideUp_0.25s_ease-out]">
     <div class="flex justify-between items-center px-5 py-4 border-b border-[var(--c-border-light)]">
       <div class="flex items-center gap-2 text-sm font-bold text-[var(--c-text)]">${icon('target','w-4 h-4 text-amber-500')} 学习建议 ${idx+1}</div>
-      <button class="w-7 h-7 rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-base cursor-pointer flex items-center justify-center" onclick="this.closest('.fixed').remove()">✕</button>
+      <button class="w-7 h-7 rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-sm cursor-pointer flex items-center justify-center" onclick="this.closest('.fixed').remove()">✕</button>
     </div>
     <div class="px-5 py-4 overflow-y-auto">
       <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-primary-light)] rounded-xl">${h(step)}</div>
@@ -1033,9 +1035,9 @@ function renderContentCards() {
   container.innerHTML = cards.map(c=>`
     <div class="bg-[var(--c-surface)] rounded-2xl px-2.5 py-3.5 text-center cursor-pointer transition-all duration-150 border border-[var(--c-border-light)] active:scale-[0.96] active:bg-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" onclick="${c.nav}">
       <div class="flex justify-center mb-1">${icon(c.icon,'w-[22px] h-[22px] text-[var(--c-primary)]')}</div>
-      <div class="text-[22px] font-extrabold text-[var(--c-primary)]">${c.num}</div>
-      <div class="text-[11px] text-[var(--c-text-dim)] mt-0.5">${c.label}</div>
-      <div class="inline-flex items-center gap-0.5 text-[11px] text-[var(--c-blue)] mt-1.5 font-medium">${c.btn} ${icon('arrow-right','w-3 h-3')}</div>
+      <div class="text-xl font-extrabold text-[var(--c-primary)]">${c.num}</div>
+      <div class="text-[0.6875rem] text-[var(--c-text-dim)] mt-0.5">${c.label}</div>
+      <div class="inline-flex items-center gap-0.5 text-[0.6875rem] text-[var(--c-blue)] mt-1.5 font-medium">${c.btn} ${icon('arrow-right','w-3 h-3')}</div>
     </div>
   `).join('');
   refreshIcons(container);
@@ -1078,14 +1080,14 @@ function renderTodoList(speakDoneToday) {
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
   container.innerHTML = `
-    <div class="flex justify-between items-center mb-2"><span class="inline-flex items-center gap-1.5 text-[15px] font-bold text-[var(--c-text)]">${icon('list-todo','w-[18px] h-[18px]')} 今日待办</span><span class="text-[13px] text-[var(--c-primary)] font-semibold">${done}/3</span></div>
+    <div class="flex justify-between items-center mb-2"><span class="inline-flex items-center gap-1.5 text-base font-bold text-[var(--c-text)]">${icon('list-todo','w-[18px] h-[18px]')} 今日待办</span><span class="text-xs text-[var(--c-primary)] font-semibold">${done}/3</span></div>
     <div class="h-1.5 bg-[var(--c-border-light)] rounded-full overflow-hidden mb-3"><div class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-400" style="width:${(done/3)*100}%"></div></div>
     <div class="flex flex-col gap-1.5">${todos.map((q,i)=>`
       <div class="flex items-center gap-2.5 px-3.5 py-3 bg-[var(--c-bg)] rounded-lg transition-all duration-200 border-l-[3px] ${q.disabled?'border-l-transparent opacity-45 cursor-default':(q.done?'border-l-transparent opacity-55 cursor-pointer':'border-l-[var(--c-blue)] cursor-pointer active:scale-[0.98]')}" data-todo-idx="${i}">
         <div class="shrink-0">${q.done?icon('check-circle','w-[22px] h-[22px] text-emerald-500'):(q.disabled?icon('minus-circle','w-[22px] h-[22px] text-[var(--c-text-ultradim)]'):icon('circle','w-[22px] h-[22px] text-[var(--c-border)]'))}</div>
         <div class="flex-1 min-w-0">
-          <div class="text-[13px] font-semibold text-[var(--c-text)] ${q.done?'line-through':''} ${q.disabled?'text-[var(--c-text-dim)]':''}">${q.text}</div>
-          <div class="text-[11px] text-[var(--c-text-dim)]">${q.sub||''}</div>
+          <div class="text-[0.875rem] font-semibold text-[var(--c-text)] ${q.done?'line-through':''} ${q.disabled?'text-[var(--c-text-dim)]':''}">${q.text}</div>
+          <div class="text-[0.6875rem] text-[var(--c-text-dim)]">${q.sub||''}</div>
         </div>
         ${q.action&&!q.done?icon('chevron-right','w-5 h-5 text-[var(--c-text-ultradim)] shrink-0'):''}
       </div>
@@ -1962,7 +1964,7 @@ function prependCtxDateBanner() {
   if (!_ctxDate) return;
   const container = document.getElementById('words-content');
   const banner = document.createElement('div');
-  banner.className = 'mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)] text-[13px] font-semibold text-[var(--c-primary)]';
+  banner.className = 'mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)] text-[0.875rem] font-semibold text-[var(--c-primary)]';
   banner.textContent = `📅 正在查看 ${_ctxDate} 的当日数据`;
   container.insertBefore(banner, container.firstChild);
 }
@@ -2012,13 +2014,13 @@ async function renderTopicLibrary() {
     <div class="topic-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
       <div class="flex justify-between items-start gap-2 mb-1.5">
         <span class="text-sm font-bold text-[var(--c-text)] leading-snug break-words">📖 ${h(t.title)}</span>
-        <span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] whitespace-nowrap">${t.keyTerms.length} 个关键术语</span>
+        <span class="shrink-0 text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] whitespace-nowrap">${t.keyTerms.length} 个关键术语</span>
       </div>
       ${t.description ? `<div class="text-xs text-[var(--c-text-dim)] mb-2 leading-relaxed">${h(t.description)}</div>` : ''}
       ${previewWords.length ? `
       <div class="flex items-center gap-1.5 mb-3 overflow-hidden whitespace-nowrap">
-        ${previewWords.map(w => `<span class="inline-flex shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-[var(--c-bg)] text-[var(--c-text-dim)] border border-[var(--c-border-light)]">${h(w)}</span>`).join('')}
-        ${(t.words.length > 5) ? `<span class="text-[10px] text-[var(--c-text-ultradim)] shrink-0">+${t.words.length - 5}</span>` : ''}
+        ${previewWords.map(w => `<span class="inline-flex shrink-0 text-[0.6875rem] px-2 py-0.5 rounded-full bg-[var(--c-bg)] text-[var(--c-text-dim)] border border-[var(--c-border-light)]">${h(w)}</span>`).join('')}
+        ${(t.words.length > 5) ? `<span class="text-[0.6875rem] text-[var(--c-text-ultradim)] shrink-0">+${t.words.length - 5}</span>` : ''}
       </div>` : ''}
       <button onclick="fireTopicRevivalPrompt(this, ${i})" class="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-0 cursor-pointer text-xs font-bold text-white transition-all duration-200 active:scale-[0.97]" style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 6px 14px -8px rgba(0,0,0,0.3)">
         ♻️ 生成话题复盘 Prompt
@@ -2063,7 +2065,7 @@ function toggleDefense(btn) {
   showToast(on ? '🛡️ 已加入对练防御，下次对话 Prompt 将重点盯防' : '已取消对练防御');
 }
 function paintDefenseToggle(btn, on) {
-  btn.className = `def-toggle inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0 ${on ? 'bg-[var(--c-primary-light)] border-[var(--c-primary)] text-[var(--c-primary)]' : 'bg-[var(--c-bg)] border-[var(--c-border)] text-[var(--c-text-dim)]'}`;
+  btn.className = `def-toggle inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0 ${on ? 'bg-[var(--c-primary-light)] border-[var(--c-primary)] text-[var(--c-primary)]' : 'bg-[var(--c-bg)] border-[var(--c-border)] text-[var(--c-text-dim)]'}`;
   btn.innerHTML = `${on ? '🛡️ 对练防御中' : '🛡️ 加入对练防御'}`;
 }
 
@@ -2092,9 +2094,9 @@ function renderErrorCards(items) {
     <div class="err-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)] transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
       <div class="flex items-start justify-between gap-3 mb-2.5">
         <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.cls}">${b.label}</span>
-        <button class="def-toggle inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0 ${defOn ? 'bg-[var(--c-primary-light)] border-[var(--c-primary)] text-[var(--c-primary)]' : 'bg-[var(--c-bg)] border-[var(--c-border)] text-[var(--c-text-dim)]'}" data-sig="${h(sig)}" onclick="toggleDefense(this)">${defOn ? '🛡️ 对练防御中' : '🛡️ 加入对练防御'}</button>
+        <button class="def-toggle inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0 ${defOn ? 'bg-[var(--c-primary-light)] border-[var(--c-primary)] text-[var(--c-primary)]' : 'bg-[var(--c-bg)] border-[var(--c-border)] text-[var(--c-text-dim)]'}" data-sig="${h(sig)}" onclick="toggleDefense(this)">${defOn ? '🛡️ 对练防御中' : '🛡️ 加入对练防御'}</button>
       </div>
-      ${main ? `<div class="text-[17px] font-bold mb-1.5 ${mainIsCorrect ? 'text-[var(--c-green)]' : 'text-[var(--c-text)]'}">${h(main)}</div>` : ''}
+      ${main ? `<div class="text-xl font-bold mb-1.5 ${mainIsCorrect ? 'text-[var(--c-green)]' : 'text-[var(--c-text)]'}">${h(main)}</div>` : ''}
       ${showOrigRef ? `<div class="text-xs text-[var(--c-text-ultradim)] mb-2">原句：${h(e.original)}</div>` : ''}
       ${e.rule ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg">📖 ${h(e.rule)}</div>` : ''}
     </div>
@@ -2266,12 +2268,12 @@ function showDueCard() {
   if (!item) return;
   _dueRevealed = false;
   const front = item.kind === 'word'
-    ? `<div class="text-[22px] font-bold text-[var(--c-text)]">${h(item.word)}</div>${item.phonetic ? `<div class="text-sm text-[var(--c-primary)] mt-1">${h(item.phonetic)}</div>` : ''}`
+    ? `<div class="text-xl font-bold text-[var(--c-text)]">${h(item.word)}</div>${item.phonetic ? `<div class="text-sm text-[var(--c-primary)] mt-1">${h(item.phonetic)}</div>` : ''}`
     : (() => {
         const b = errorBadge(item.error.type, item.error.type === 'pronunciation' ? '发音纠正' : '语法纠错');
         return `<span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.cls}">${b.label}</span>
           <div class="text-xs text-[var(--c-text-ultradim)] mt-2">原句：${h(item.error.original)}</div>
-          <div class="flex items-center justify-center gap-1.5 text-[13px] text-[var(--c-text-dim)] mt-4">${icon('lightbulb','w-4 h-4')} 回忆正确的英文表达</div>`;
+          <div class="flex items-center justify-center gap-1.5 text-xs text-[var(--c-text-dim)] mt-4">${icon('lightbulb','w-4 h-4')} 回忆正确的英文表达</div>`;
       })();
   document.getElementById('due-card').innerHTML = `
     <div id="due-card-body" class="bg-[var(--c-surface)] rounded-2xl p-6 border border-[var(--c-border-light)] text-center transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
@@ -2296,7 +2298,7 @@ function revealDueAnswer() {
   } else {
     // v79：错题背面按 CorrectionCard 正向规格 —— 绿色正确句居中为主视觉（去 → 箭头旧碎片），规则框无 emoji
     const e = item.error;
-    ansArea.innerHTML = `${e.correction ? `<div class="text-[17px] font-bold text-[var(--c-green)] text-center mt-4 pt-4 border-t border-[var(--c-border-light)]">${h(e.correction)}</div>` : ''}${e.rule ? `<div class="text-xs text-[var(--c-text-ultradim)] text-left mt-3 p-2.5 bg-[var(--c-bg)] rounded-lg">${h(e.rule)}</div>` : ''}`;
+    ansArea.innerHTML = `${e.correction ? `<div class="text-2xl font-bold text-[var(--c-green)] text-center mt-4 pt-4 border-t border-[var(--c-border-light)]">${h(e.correction)}</div>` : ''}${e.rule ? `<div class="text-xs text-[var(--c-text-ultradim)] text-left mt-3 p-2.5 bg-[var(--c-bg)] rounded-lg">${h(e.rule)}</div>` : ''}`;
   }
   const fb = document.getElementById('due-feedback');
   fb.className = 'mt-5 flex items-center justify-center gap-3';
@@ -2691,7 +2693,7 @@ function renderSentenceReview(sentences, startIndex) {
             <i data-lucide="book-open" class="w-5 h-5 text-[var(--c-primary)]"></i>
           </div>
           <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">${_ctxDate ? '该日暂无句型数据' : '暂无待复习句型'}</div>
-          <div class="text-[13px] text-[var(--c-text-dim)] mb-6 leading-relaxed">${_ctxDate ? `未找到 ${h(_ctxDate)} 的日报核心句型` : '导入今日日报获得新句型<br/>或等待历史句型复习到期'}</div>
+          <div class="text-[0.875rem] text-[var(--c-text-dim)] mb-6 leading-relaxed">${_ctxDate ? `未找到 ${h(_ctxDate)} 的日报核心句型` : '导入今日日报获得新句型<br/>或等待历史句型复习到期'}</div>
           <button onclick="showImportDialog()" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
             style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
             📥 导入今日日报 <i data-lucide="arrow-right" class="w-4 h-4"></i>
@@ -2714,15 +2716,15 @@ function renderSentenceReview(sentences, startIndex) {
       <div class="srs-flip-scene mb-4 cursor-pointer" onclick="flipSrsCard()">
         <div class="srs-flip-inner" id="srs-flip-inner">
           <div class="srs-flip-face srs-flip-front flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:var(--c-surface);box-shadow:var(--c-shadow)">
-            <div class="text-[11px] text-[var(--c-text-ultradim)] mb-4 tracking-widest">情境完形 · 回忆地道表达</div>
-            <div id="srs-card-clue" class="font-sans text-[13px] text-[var(--c-text-dim)] mb-5 leading-relaxed"></div>
-            <h2 id="srs-card-front" class="font-sans font-bold text-[22px] text-[var(--c-text)] leading-relaxed"></h2>
-            <div class="text-[11px] text-[var(--c-text-ultradim)] mt-4">点击卡片查看完整地道句</div>
+            <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-4 tracking-widest">情境完形 · 回忆地道表达</div>
+            <div id="srs-card-clue" class="font-sans text-[0.875rem] text-[var(--c-text-dim)] mb-5 leading-relaxed"></div>
+            <h2 id="srs-card-front" class="font-sans font-bold text-xl text-[var(--c-text)] leading-relaxed"></h2>
+            <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-4">点击卡片查看完整地道句</div>
           </div>
           <div class="srs-flip-face srs-flip-back flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 70%);box-shadow:var(--c-shadow)">
-            <div class="text-[11px] text-[var(--c-text-ultradim)] mb-4 tracking-widest">点击卡片返回情境</div>
-            <p id="srs-card-back-correct" class="font-sans font-bold text-[24px] text-[var(--c-green)] leading-snug"></p>
-            <div id="srs-card-back-explanation" class="font-sans text-[13px] text-[var(--c-text-dim)] mt-4 leading-relaxed"></div>
+            <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-4 tracking-widest">点击卡片返回情境</div>
+            <p id="srs-card-back-correct" class="font-sans font-bold text-[1.5rem] text-[var(--c-green)] leading-snug"></p>
+            <div id="srs-card-back-explanation" class="font-sans text-[0.875rem] text-[var(--c-text-dim)] mt-4 leading-relaxed"></div>
           </div>
         </div>
       </div>
@@ -2787,8 +2789,8 @@ function showSrsDone() {
           <i data-lucide="party-popper" class="w-5 h-5 text-[var(--c-green)]"></i>
         </div>
         <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">句型复习完成！</div>
-        <div class="text-[13px] text-[var(--c-text-dim)] mb-1">记住了 ${_srsResults.remembered} · 还没记住 ${_srsResults.forgot}</div>
-        <div class="text-[11px] text-[var(--c-text-ultradim)] mb-6">已点亮首页【句型复习打卡】</div>
+        <div class="text-xs text-[var(--c-text-dim)] mb-1">记住了 ${_srsResults.remembered} · 还没记住 ${_srsResults.forgot}</div>
+        <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-6">已点亮首页【句型复习打卡】</div>
         <button onclick="navigateToTab('home')" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
           style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
           🏠 回到首页 <i data-lucide="arrow-right" class="w-4 h-4"></i>
@@ -2960,7 +2962,7 @@ function renderAchievements(prog, vocab, errors, streak) {
   ];
   const container = document.getElementById('me-badges');
   container.innerHTML = badges.map(b =>
-    `<div class="flex flex-col items-center gap-1 px-3 py-3 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] min-w-[70px] ${b.unlocked?'':'opacity-40 grayscale-[0.8]'}">${icon(b.icon, 'w-8 h-8')}<small class="text-[10px] text-[var(--c-text-dim)]">${b.label}</small></div>`
+    `<div class="flex flex-col items-center gap-1 px-3 py-3 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] min-w-[70px] ${b.unlocked?'':'opacity-40 grayscale-[0.8]'}">${icon(b.icon, 'w-8 h-8')}<small class="text-[0.6875rem] text-[var(--c-text-dim)]">${b.label}</small></div>`
   ).join('');
   refreshIcons(container);
 }
@@ -3012,14 +3014,14 @@ function showErrorPatterns(errors) {
 
   epDiv.innerHTML = `
     <div class="flex gap-3 mb-4">${[
-      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-lg text-[var(--c-text)] mb-0.5">${errors.length}</strong>个错误</div>`,
-      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-lg text-[var(--c-text)] mb-0.5">${fixRate}%</strong>已纠正</div>`
+      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${errors.length}</strong>个错误</div>`,
+      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${fixRate}%</strong>已纠正</div>`
     ].join('')}</div>
     <div class="mb-3"><div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">高频错误模式</div>${sorted.map(([name, count]) =>
       `<div class="flex items-center gap-2.5 mb-2 cursor-pointer" onclick="showErrorDetail('${name}')">
         <span class="whitespace-nowrap min-w-[72px] text-xs text-[var(--c-text-dim)] text-right shrink-0">${name}</span>
         <div class="flex-1 h-2 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-500" style="width:${(count/max)*100}%;"></div></div>
-        <span class="w-[30px] text-[11px] text-[var(--c-text-ultradim)] shrink-0">${count}次</span>
+        <span class="w-[30px] text-[0.6875rem] text-[var(--c-text-ultradim)] shrink-0">${count}次</span>
       </div>`
     ).join('')}</div>
     <div class="text-xs text-[var(--c-primary)] px-3 py-2 bg-[var(--c-primary-light)] rounded-lg inline-flex items-center gap-1">${icon('lightbulb','w-3.5 h-3.5')} 建议优先练习 <strong>${topPick}</strong> 类型的错误</div>`;
