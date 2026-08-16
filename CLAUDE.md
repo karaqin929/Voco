@@ -47,28 +47,31 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v73）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v83）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v72 / voco-v82**（学习工作台：日报导入 + 折叠式灵感舱整合，Accordion 平滑展开 + 生成后自动收起）。
+- 当前线上：**v73 / voco-v83**（跟读页转型为句型记忆卡片模式：SM-2 全链路 + 翻转卡片 + 录音功能下线）。
+- **⚠️ 待用户手动执行：`⚙️ 后端/migration_v2.1.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——patterns 表 SM-2 列（status/mastered/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）+ 到期回填 + 索引。跑之前句型写回静默降级本地会话态（不报错）。
 
 ## Architecture Notes
-- Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
+- Tab 结构：首页 / **复习**（原「单词」）/ **句型复习**（原「口语/跟读」，data-tab 仍为 'speak'）/ 我的
 - 路由即状态（URL 单一数据源，P2 规范化路由中枢）：
-  - 规范路由：`/review?tab=all|grammar|due`（复习页）、`/review?filter=today`（首页「复习今日单词」过滤态，正交于三 Tab）、`/shadowing?id=xxx`（跟读页锚定）、`/shadowing?sentence=xxx`（教练卡点击句动态单句队列）、`/`（首页）
+  - 规范路由：`/review?tab=all|grammar|due`（复习页）、`/review?filter=today`（首页「复习今日单词」过滤态，正交于三 Tab）、`/shadowing?id=xxx`（句型复习页锚定）、`/shadowing?sentence=xxx`（教练卡点击句作为起始卡片）、`/`（首页）
   - 导航器：`navigateReview` / `navigateShadowing` / `navigateToTab`（兼容层）/ `normalizeLegacyUrl()` / `handleRoute()` / popstate
   - 旧参数兼容：`?tab=new→all`、`?tab=mistakes→grammar`、`?tab=review→due`（loadWords 归一）、`?tab=words→/review`、`?tab=speak→/shadowing`
   - server.py SPA catch-all 在全部 API 路由之后（最后一条路由）
-- 状态隔离：`_activeFilter`（跟读页专用）vs `_wordsFilter`（复习页专用）vs `_navigatingViaProgram` 守卫
+- 状态隔离：`_activeFilter`（句型复习页专用）vs `_wordsFilter`（复习页专用）vs `_navigatingViaProgram` 守卫
 - 复习页 = **混合记忆引擎**（P3）：
   - 严格三 Tab：全部词汇（仅词卡）/ 语法错题（仅错题卡，原句删除线+正确句高亮）/ 待复习（needsReview 词 + 错题统一混合卡组）
   - Active Recall 双阶段：正面仅英文+音标（错题仅错句），中央 [👁️ 点击显示答案]；背面释义+[🔴 没记住][🟢 记住了]
   - SM-2 驱动：🔴 quality=0 留队列 / 🟢 quality=3 星+1、计算下次复习时间、平滑收起；`_reviewedErrorIds` 会话去重
   - 卡片布局分离：熟练度星点左、操作按钮右、来源行独立截断
-- 跟读页 = **沉浸式单卡播放器 ShadowingPlayer**（P4 收尾；铁律：禁止 .map 瀑布流；DOM 结构不许擅自更改）：
-  - `#speak-player` 单卡视口（calc(100dvh - 92px)），主句衬线体居中，划线弱化 replacedSentence + 解释胶囊
-  - 底部固定流式交互台：[🔊 听原音] 次按钮 / [🎙️ 按住录音] 主按钮（按压缩放反馈）/ [🗣️ 听自己] 未录音 disabled / [下一句 →] 递增并重置录音态 / 末句 [🎉 训练完成] disabled
-  - `resolveAnchorIndex`：?id= 驱动首卡，找不到/越界钳制回 0
+- 句型复习页 = **句型记忆卡片模式（v73，单卡翻转视口；铁律：禁止 .map 瀑布流；DOM 结构不许擅自更改）**：
+  - `#speak-player` 单卡视口（calc(100dvh - 92px)），`renderSentenceReview(sentences, startIndex)` 状态驱动：`_srsQueue/_srsIdx/_srsReviewed/_srsTotal/_srsResults/_srsFlipped`
+  - 翻转卡片：正面英文原句（`#srs-card-front` 衬线体）→ 点击 `flipSrsCard()` 翻转背面（划线 replacedSentence + 🎬 解析）；3D 翻转 CSS（.srs-flip-scene perspective / .srs-flip-inner.flipped rotateY(180deg) / backface-visibility）在 style.css
+  - 反馈双键**完全克隆词汇复习图18**：`😅 还没记住` = bg-red-50/hover:bg-red-100/rounded-2xl/红字、`🚀 记住了` = 绿色同构——高度/圆角/内边距逐字一致，严禁第二套按钮
+  - **机械录音（听原音/按住录音/听自己）整体下线**：startPlayerRecording/stopPlayerRecording/releasePlayerAudio/updatePlayerView/wirePlayerHandlers/handlePlayerNext/renderShadowingPlayer 全部物理删除；`speakWord` TTS 保留（词汇列表发音按钮在用）
+  - `resolveAnchorIndex`：?id= 驱动起始卡（仅决定起点，绝不改变队列内容），找不到/越界钳制回 0；?sentence= 文本比对同源
   - 死代码物理清理铁律：删掉的 DOM/CSS/JS 必须三处同步物理删除，不留残影
 - **真实数据流铁律（v56 紧急整改后固化）**：
   - `resolveActiveReport(reports)`：日报解析一律经此网关（今天 → _viewDate 历史视图 → 最新有效日报 → null），播放器/生词/错题共用，禁止 `r.date === today` 直连
@@ -76,11 +79,11 @@
   - `standardizeErrorCards(rawItems)`：所有错题渲染前必经清洗——碎片合并（`→`/`➡️`/`-` 开头的延续行并入前一条）+ 结构归一 `{id, original, correction, rule, type}`；单卡单外层容器
   - `classifyErrorType(o, c, rule)`（parser.js 唯一分类源）：**4 标准分类**——发音与重音/语法与句式/地道表达/逻辑与衔接（未命中→其他）；`normalizeErrorCategory(type,o,c,r)` 归一化器：旧标签（发音纠偏/时态语态/冠词使用/逻辑衔接/时态/冠词/preposition…）强制映射为 4 标准，存量「其他」按内容重算；`aggregateErrorPatterns` 聚合前必经归一化器（输出键只可能是 4 标准+其他，零同义分桶）+ **排序铁律：明确分类按次数降序、「其他」固定沉底最后一行**；`showErrorPatterns` 建议优先练习**剔除「其他」**取真实最高具体弱点、左侧标签 `whitespace-nowrap min-w-[72px]` 禁折行；`showErrorDetail` 逐行归一化过滤
   - v60 词表：语法与句式增补 主谓/词性/搭配/in\/on\/at/plural（**搭配 从地道表达移入语法**）；地道表达增补 表达/换成/建议/更好的说法/better。**in/on/at 捕获限定**：仅字面 "in/on/at" 或规则文本中单独介词与介词语义词（用法/混淆/搭配/区别/用错/误用）共现才命中——防止误伤地道表达例句里的普通 in（如 breathtaking in IMAX）
-  - 学习建议分流 `classifySuggestion`：sentence → `navigateShadowing('core-N')` 锚定 / vocab → `navigateReview` / coach → 私教任务弹窗（指引 + 一键复制 ChatGPT Prompt），**禁止盲跳播放器**
-  - 教练卡跟读入口 `startImprovementSpeak(idx)`：携带用户点击句经 `navigateShadowing(undefined, sentence)` → `?sentence=` → loadSpeak 单句队列最高优先，**禁止无参 navigateShadowing 默认句开头**
+  - 学习建议分流 `classifySuggestion`：sentence → `navigateShadowing('core-N')` 锚定 / vocab → `navigateReview` / coach → 私教任务弹窗（指引 + 一键复制 ChatGPT Prompt），**禁止盲跳句型复习页**
+  - 教练卡句型入口 `startImprovementSpeak(idx)`：携带用户点击句经 `navigateShadowing(undefined, sentence)` → `?sentence=` → loadSpeak 以该句为起始卡片，**禁止无参 navigateShadowing 默认句开头**
   - 字段名唯一：`isNewToday`（打标/计数/过滤/兜底四处同源，历史教训 isTodayNew 分叉已修）
 - 首页打分（v61）：`metricsHTML` 四维度（流利度/语法/词汇/自然度）统一 `norm100()` 归一 0–100 后展示 `${score}/100`，进度条宽度 = 分数本身（%）；**严禁 /10 硬编码分母**；`norm100` 对 ≤10 的 0–10 刻度自动 ×10 对齐
-- 今日待办三闭环（v61）：`renderTodoList` 动态生成，mock todos 字段已物理删除——① 对练打卡·导入今日日报（hasTodayReport 自动完成）② 跟读打卡·完成核心句型跟读 (${coreCount}句)（点击 navigateShadowing 直达今日队列；播放器 `updatePlayerView` 在最后一句已录音时写 `voco-speak-done` 当日戳，加载层比对传入 speakDoneToday）③ 复习打卡·完成今日到期复习 (${dueCount}词)（countReviewWords 纯布尔计数，文案标明「到期复习」区别于「今日新词」；点击 navigateReview('due')）
+- 今日待办三闭环（v61，v73 更新任务 2 文案）：`renderTodoList` 动态生成，mock todos 字段已物理删除——① 对练打卡·导入今日日报（hasTodayReport 自动完成）② **句型复习打卡**·完成(今日)句型复习 (${patternTaskCount}句)（点击 navigateShadowing 直达今日到期队列；`showSrsDone` 队列清空时写 `voco-speak-done` 当日戳，加载层比对传入 speakDoneToday；任务数来自 `ms.totalPatternTaskCount`）③ 复习打卡·完成今日到期复习 (${dueCount}词)（countReviewWords 纯布尔计数，文案标明「到期复习」区别于「今日新词」；点击 navigateReview('due')）
 - 计数铁律（单一数据源，绝不分叉）：
   - 今日新词 `countTodayWords`：isNewToday 布尔优先，date_added 兜底
   - 错词 `countMistakeWords`：isMistake 优先，errors 交叉比对兜底
@@ -98,7 +101,7 @@
   - **全局任务状态中心**：`getTodayMissionState()` 单一事实源——`hasTodayReport` / `todayNewWordsCount`（今日日报 vocabulary）/ `todayCorePatternCount`（今日日报 sentence_patterns）/ `todayCorrectionsCount` / `totalDueVocabCount`（needsReview 全量，与 tab=due 同源）/ `reviewedVocabToday`（加载层 last_reviewed_at 比对上收进 `_reviewedVocabToday`）。首页四组件（renderMetricsOverview/renderInsightsSection/renderContentCards/renderTodoList）**全部只读任务状态中心，禁止自行 .length/parseSmartReport/Mock 兜底**；有真实数据时严禁回退 mockWords 3 词 / mockSentences 2 句
   - **业务概念分离**：顶部数据卡=今日增量（新学单词只算今日日报 vocabulary → `/review?filter=today`；核心句型只算今日日报解析数 → 今日句型队列）；底部待办=SM-2 记忆任务（复习打卡读 needsReview 全量含今日新词+历史到期词 → `/review?tab=due`）
   - **打卡严格条件**：复习打卡 `done = totalDueVocabCount > 0 && reviewedVocabToday >= totalDueVocabCount`——dueCount===0 保持未完成，严禁加载默认值误判
-  - **跟读页今日队列闸**：loadSpeak 默认队列严格今日（无 _viewDate 时只认 r.date===today 的日报，无日报 → 空队列走播放器空状态「没有要训练的内容」）；`coreDeck(parsed,…)` parsed 存在即唯一事实源（0 句就 0 句），回退链仅服务显式 `?filter=core_sentences` 视图
+  - **句型复习页今日队列闸**：loadSpeak 默认队列严格今日（无 _viewDate 时只认 r.date===today 的日报）；队列 = `getDueSentencesQueue(parsed, _speakAll)` 唯一事实源；`coreDeck(parsed,…)` parsed 存在即唯一事实源（0 句就 0 句），回退链仅服务显式 `?filter=core_sentences` 视图
   - **UI 清理**：Profile「预览登录页」整行 DOM 已物理删除；错误模式分析「其他」固定沉底（aggregateErrorPatterns rest.concat(others)）复核通过
 - **v64 时区安全（铁律：严禁 toISOString().slice(0,10) 定义 today）**：UTC 日期会让东八区用户 0:00–8:00 滞留在「昨天」，跨日复习任务不刷新、待办锁死。全局唯一「今天」来源 `getLocalToday()`（app.js 顶部，setMinutes 减时区偏移后截断）；辅助 `fmtLocalDate(d)`（任意 Date → 本地 YYYY-MM-DD，SM-2 next_review_date / streak 昨日回推用）、`localDateOf(isoTs)`（存储层 UTC 时间戳 → 本地日历日，**last_reviewed_at 比对必须换算后比今天**——存储写入保持 `new Date().toISOString()` 全量 UTC 不变，只在读取比对时换算）。替换位置：calcStreak、loadHome、loadWords、loadSpeak、isTodayParsedGate、parseSmartReport meta.date、SM-2 next_review_date、voco-speak-done 打卡戳、导入打点 date/date_added、导出文件名等全部 16 处 today 计算点 + 2 处 nextDate 格式化 + 1 处 last_reviewed_at 比对
 - **Voco 2.0 第一步（v65，用户骨架强制签名）**：
@@ -124,13 +127,13 @@
   - `renderTopicLibrary()`：topics 表 + vocabulary.source_topic 关联词一次取全（零 N+1），`_topicLibraryCache` 缓存 {id,title,description,keyTerms,words}；卡片墙：📖 标题 + 右上「N 个关键术语」徽章 + 描述 + 关联词横向截断预览（3-5 词 chip 行 overflow-hidden whitespace-nowrap，超 5 显示 +N）；空库 → EmptyState 引导文案；topics 模式下隐藏搜索框（renderWordsSubTabs 内 toggle .lib-search-wrap）
   - `fireTopicRevivalPrompt(btn, idx)`：话题复盘 Prompt 严格按产品模板（`我们之前探讨过【title】…引导我使用这些词汇：[words]…你先向我提问吧`）→ copyToClipboardWithFallback → 绿色 Toast（showToast 扩展 type='success'，绿底白字，默认深色向后兼容）
   - 数据链：importTopicCard 已写 topics + vocabulary.source_topic（v4.0 遗留资产直接盘活）
-- **Voco 2.0 句型间隔重复引擎（v71）Sentence SRS —— 根治「(0句)」Bug**：句型跟读接入 SM-2 记忆曲线，与单词同构
-  - 数据层：`stampPatternTags` 新增 needsReview 打标（isDueBySrs 同源：无 next_review_date → 到期；mastered → 永久出队）；patterns 表 SM-2 字段（status/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）与 vocabulary 完全同构
+- **Voco 2.0 句型间隔重复引擎（v71）Sentence SRS —— 根治「(0句)」Bug**：句型复习接入 SM-2 记忆曲线，与单词同构
+  - 数据层：`stampPatternTags` 新增 needsReview 打标（isDueBySrs 同源：无 next_review_date → 到期；mastered → 永久出队）；patterns 表 SM-2 字段（status/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）与 vocabulary 完全同构——**列由 migration_v2.1.sql 提供，需手动执行（见版本机制）**
   - 队列混合（SSOT 第 6 块）：`getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocabIds, patternLibrary = [])` 新增可选第 5 参；`totalPatternTaskCount = 今日新句型数 + totalDuePatternCount`；duePatternList 对今日已含句做文本去重（targetSentence 小写比对）绝无双计；7 处调用点全部传 `_patternLibrary`
-  - 输入管线：`buildGlobalMissionInputs(vocab, errors, reports, patterns)` 第 4 参 → `_patternLibrary = stampPatternTags(patterns)`（空表 [] 兜底，绝不回退 Mock）；loadWords 补拉 patterns 表（Promise.all 第四项）；loadSpeak 分离真实库与展示库：`_speakAll = taggedPatterns.length ? taggedPatterns : mockSentences`（Mock 仅播放器展示），`_patternLibrary = taggedPatterns`
-  - 跟读队列：`mergedPatternQueue(parsed, speakAll)` = coreDeck 今日句 + needsReview 到期句（toPlayerItem 映射、文本去重）；默认队列与 ?filter=core_sentences 均走混合队列；无日报有 5 句到期 → 队列 5 句「完成句型复习」
-  - SM-2 写回：`recordPatternReviews()` —— 录完最后一句由 `_playerReviewWritten` once-guard 触发（renderShadowingPlayer 每局重置），仅 `_UUID_RE` 正则匹配的真实库行按质量 3 推进（core-N/sentence-anchor/migrated-N/Mock 一律跳过），本地快照同步 + patterns 表 update 静默 catch
-  - UI 防御（0句态）：待办任务 2 三态 —— 总数为 0 → 置灰 disabled「跟读打卡 · 暂无跟读任务」（minus-circle 图标、无 chevron、action null、opacity-45，绝无空心圆圈+0句）；有日报 →「完成核心句型跟读 (N句)」；无日报有到期 →「完成句型复习 (N句)」；跟读页空状态主视觉与首页 #home-empty-hero 温润极简同构（160deg 渐变卡 + mic-off 内描边圆底块 + 📥 CTA）
+  - 输入管线：`buildGlobalMissionInputs(vocab, errors, reports, patterns)` 第 4 参 → `_patternLibrary = stampPatternTags(patterns)`（空表 [] 兜底，绝不回退 Mock）；loadWords 补拉 patterns 表（Promise.all 第四项）；loadSpeak 分离真实库与展示库：`_speakAll = taggedPatterns.length ? taggedPatterns : mockSentences`（Mock 仅兜底展示，绝不进 SRS 写回），`_patternLibrary = taggedPatterns`
+  - 句型复习队列：`getDueSentencesQueue(parsed, speakAll)`（v73 由 mergedPatternQueue 更名）= coreDeck 今日句 + needsReview 到期句（toPlayerItem 映射、文本去重）；无日报有 5 句到期 → 队列 5 句「完成句型复习」
+  - SM-2 写回（v73 重构为统一服务）：`handleReviewFeedback(id, status, itemRef)` —— 单词/句型共用同一出口；`reviewPatternItem` 数字主键（BIGSERIAL）→ patterns UPDATE、core-N/sentence-anchor → INSERT 入库（user_id 取 session，正式进入记忆曲线）、Mock 一律跳过；本地快照同步 + 静默 catch。**v71 教训：patterns.id 是 BIGSERIAL 数字主键，`_UUID_RE` 正则从未匹配，写回静默失败——已废弃该正则**
+  - UI 防御（0句态）：待办任务 2 三态 —— 总数为 0 → 置灰 disabled「句型复习打卡 · 暂无复习任务」（minus-circle 图标、无 chevron、action null、opacity-45，绝无空心圆圈+0句）；有日报 →「完成今日句型复习 (N句)」；无日报有到期 →「完成句型复习 (N句)」；句型复习页空状态主视觉与首页 #home-empty-hero 温润极简同构（160deg 渐变卡 + book-open 内描边圆底块 + 📥 CTA）
 - **Voco 2.0 终极交互重构（v72）学习工作台 Learning Workbench**：灵感舱信息架构升级——从【我的】平铺组迁移至首页，与日报导入上下收纳于同一视觉区块（PM 指令明确推翻 v67「严禁放首页」，折叠态已规避旧有的首屏臃肿问题）
   - 区块结构 `#home-workbench`（Tab-home，位于 #home-empty-hero 与 #home-insights 之间）：标题「学习工作台 · 昨天产出 → 今日输入」；上方 = 导入日报行动行（📥 圆底块 + 主/副文案 + arrow，onclick showImportDialog）；下方 = 灵感舱常驻极简行动条「开启今日私教对话灵感（输入 URL / 灵感 / 选话题）」+ chevron
   - 折叠交互：`#workbench-cabin-collapse` 用 `display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s`（内层 overflow:hidden;min-height:0）纯 CSS 平滑展开——严禁大输入框裸露首屏；`toggleWorkbenchCabin(force)` 切 0fr/1fr + chevron rotate180 + aria-expanded；`collapseWorkbenchCabin()` 强制收起；全局 `_workbenchCabinOpen` 状态
@@ -138,6 +141,13 @@
   - 自动收起：fireTopicGeneratorPrompt 复制成功 → ✅ 反馈 900ms 后 `collapseWorkbenchCabin()`（按钮 2000ms 恢复逻辑不变）
   - Pill 视觉瑕疵修复：#topic-pill-slot 由 `-mx-1 px-1` 改为 `-ml-1 pl-1 pr-4`——右缘不再切断最后一个标签
   - 输入框底色由 --c-bg 改为 --c-surface（置于渐变卡内更协调）；Tab-me 平铺灵感舱组已删除（成就徽章上移）
+- **Voco 2.0 跟读页转型（v73）句型记忆卡片模式 —— SM-2 全链路闭环**：
+  - 页面重构：`renderSentenceReview(sentences, startIndex)` 渲染单卡翻转视口（正面英文原句 → 点击翻转翻译解析）；**机械录音三键（听原音/按住录音/听自己）与录音函数族整体物理删除**（speakWord TTS 保留，词汇列表发音在用）；底部导航更名「句型复习」（icon repeat，data-tab 仍 'speak'，全部 ?tab=speak 兼容链不动）
+  - 反馈双键完全克隆词汇复习（图18）：😅 还没记住 = `bg-red-50 hover:bg-red-100 border-0 rounded-2xl text-sm font-bold text-[var(--c-red)]`、🚀 记住了 = 绿色同构——高度/圆角/内边距逐字一致，严禁第二套按钮样式
+  - 点击闭环：`rateSentenceCard(status)` → `handleReviewFeedback(String(item.id), status, item)`（fire-and-forget 不阻塞出队）→ `_srsQueue.splice(_srsIdx, 1)` 当前句自动出队 → 进度 `🎯 句型复习 (已复习 x / 总计 y)` 即时更新（顶部进度栏深灰 text-[var(--c-text)]，与词汇复习统一）
+  - 完成态：队列清空 → `showSrsDone()` 精致 Done 卡（party-popper 绿圆底 + 「记住了 N · 还没记住 M」+ 🏠 回到首页）+ `localStorage['voco-speak-done'] = getLocalToday()` 当日戳 → 首页【句型复习打卡】即时点亮（loadHome 只读比对）
+  - 单词复习共用：`rateDueCard` 单词分支改为 `handleReviewFeedback(String(item.ref.id), rating)`（deck item id 带 'w-' 前缀，必须传 ref.id）；`reviewWordItem` = 原 applyDueRating + 写回逻辑无损提取（🔴不清 needsReview / 🟢星+1 出队）
+  - 空状态：`_srsQueue.length === 0` → 「暂无待复习句型」温润极简卡（book-open 图标 + 📥 导入今日日报 CTA），严禁 0 句空心圆圈
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist
@@ -146,6 +156,5 @@ When deploying frontend changes:
 - [ ] `sw.js`: bump all `?v=XX` in FILES array (v55 → v56)
 - [ ] `index.html`: bump `style.css?v=XX` and script `?v=XX` params
 - [ ] `app.js`: bump `sw.js?v=XX` in service worker registration
-- [ ] `node --check app.js` passes
-- [ ] E2E 回归：`.voco-e2e-test.js`（grabDecl 声明抓取器）全绿后删除临时文件
-- [ ] Commit from repo root, push, wait ~2-3 min, curl verify `app.js?v=NN`
+- [ ] `node --check app.js` passes（唯一允许的校验；禁止编写/运行任何本地测试脚本）
+- [ ] Commit from repo root, push, wait ~85s, curl verify `app.js?v=NN` + `index.html`
