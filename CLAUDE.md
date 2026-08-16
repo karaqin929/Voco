@@ -47,10 +47,14 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v84）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v94）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v85）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v95）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v84 / voco-v94**（全 App 统一 7 级字号阶梯 + 全部 rem 化响应文字大小设置）。
+- 当前线上：**v85 / voco-v95**（统计卡数字与点击后列表口径统一修复）。
+- v85 要点：
+  - 核心句型卡今日场景携带 `date=today`（renderContentCards `shadowDate = historyMode ? _viewDate : getLocalToday()`）→ `/shadowing?date=today` → `_ctxDate=today` → 队列 = 当日日报核心句型（coreDeck），**不再**落入 SM-2 到期混合队列（15 句）。navigateShadowing / handleRoute(/shadowing 分支) / loadSpeak 三处放开「today 排除」。**无 date 的 navigateShadowing() 仍是待办打卡专属入口**（到期队列）。
+  - 新学单词数口径统一：`getTodayMissionState.todayNewWordsCount = reportParsed.vocabulary.length`（原 `realVocab.filter(isNewToday).length` 含 DB 残留曾致首页 8 / 列表 6 分裂）。
+  - `stampDailyTags` 无条件按 `date_added` 重算 isNewToday（防 DB 行残留穿透；mergeReportVocab 在打标后运行，日报词由它重新打 true 不受影响）。
 - v84 要点：
   - **7 级字号阶梯（唯一合法字号）**：L1 micro 11px（text-[0.6875rem]，徽章/按钮小字/日历日期）→ L2 caption 12px（text-xs，辅助/计数/提示）→ L3 body 14px（text-sm，正文/按钮/副行）→ L4 title 16px（text-base，区块标题/空态标题）→ L5 headline 20px（text-xl，统计数字/卡片主句/词卡正面/句型卡正面）→ L6 hero 24px（text-[1.5rem]，评分环中心/卡片背面正确答案）→ L7 brand 34px（仅登录页 h1）。数字类只有两级：L5 普通数字 / L6 评分环中心。
   - **全部 rem 化**：app.js 所有 `text-[NNpx]` 任意值（原 14 种碎字号 8/10/11/12/13/15/17/22/24/26px）与 style.css 所有 font-size 全部改为 rem/标准类——设置页「文字大小」（标准/中/大，applyFontSize 改 html font-size）从此**真正全局生效**（旧 px 值不响应缩放）。图标字符字号（lib-search-icon 14px / login-icon 72px / text-2xl ⏳）豁免不动。
