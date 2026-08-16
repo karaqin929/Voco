@@ -3543,5 +3543,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=69');
+  navigator.serviceWorker.register('/sw.js?v=70');
 }

@@ -50,7 +50,7 @@
 - **`?v=NN`**（当前 v62）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
 - **`voco-vNN`**（当前 voco-v72）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v68 / voco-v78**（Voco 2.0 空状态 UX 重构：Hero 引导卡 + 零数据组件折叠）。
+- 当前线上：**v69 / voco-v79**（Voco 2.0 话题库：复习页第 4 Tab + 话题复盘 Prompt 生成器，四维复习体系收官）。
 
 ## Architecture Notes
 - Tab 结构：首页 / **复习**（原「单词」）/ **跟读**（原「口语」）/ 我的
@@ -120,6 +120,10 @@
   - 共享工具重构：`copyToClipboardWithFallback(text)`（clipboard API → textarea+execCommand 降级），fireDailyMissionPrompt 与 fireTopicGeneratorPrompt 共用
   - CSS 新增：`.topic-pill` / `.topic-pill.active` / `.hide-scrollbar`（style.css 尾部）
 - **Voco 2.0 空状态 UX 重构（v68）**：未导入今日日报 → 首页今天视图折叠零数据组件（#home-metrics 打分面板 / #home-insights 洞察卡 / #home-summary-cards 三数据卡），打分面板位置顶替 `#home-empty-hero` Hero 引导卡（🐻 + 文案「今日尚未对练 / 导入 ChatGPT 日报…」+ 📥 导入今日日报 CTA → showImportDialog）；常驻：本周打卡卡 #home-quote 与今日待办 #home-quests（复习打卡任务独立于日报）；门控在 loadHome：`const showEmptyHero = !missionState.hasRealTodayReport && !_viewDate;`（历史视图 _viewDate 不受影响）；渲染函数照常执行，仅由 classList.toggle('hidden') 控显隐
+- **Voco 2.0 话题库（v69）四维复习体系收官**：复习页 Tab 三扩四（全部词汇/语法错题/待复习/**话题库**），路由 `/review?tab=topics`（白名单扩展三处：navigateReview / handleRoute / loadWords mode 解析；switchWordsView 天然兼容）
+  - `renderTopicLibrary()`：topics 表 + vocabulary.source_topic 关联词一次取全（零 N+1），`_topicLibraryCache` 缓存 {id,title,description,keyTerms,words}；卡片墙：📖 标题 + 右上「N 个关键术语」徽章 + 描述 + 关联词横向截断预览（3-5 词 chip 行 overflow-hidden whitespace-nowrap，超 5 显示 +N）；空库 → EmptyState 引导文案；topics 模式下隐藏搜索框（renderWordsSubTabs 内 toggle .lib-search-wrap）
+  - `fireTopicRevivalPrompt(btn, idx)`：话题复盘 Prompt 严格按产品模板（`我们之前探讨过【title】…引导我使用这些词汇：[words]…你先向我提问吧`）→ copyToClipboardWithFallback → 绿色 Toast（showToast 扩展 type='success'，绿底白字，默认深色向后兼容）
+  - 数据链：importTopicCard 已写 topics + vocabulary.source_topic（v4.0 遗留资产直接盘活）
 - 内置演示数据：`mockWords`（3 词，布尔标签齐全）、`mockSentences`（2 句，isTodayCore:true）——永久合并进词库，布尔打标优先驱动
 
 ## Version Bump Checklist

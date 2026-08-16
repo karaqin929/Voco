@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=69">
+  <link rel="stylesheet" href="/style.css?v=70">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -177,14 +177,18 @@
     <!-- Section 3: Metrics Overview -->
     <div id="home-metrics" class="bg-[var(--c-surface)] rounded-2xl p-5 mb-3 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)"></div>
 
-    <!-- Section 3b: Hero Empty State (Voco 2.0 空状态 UX) —— 未导入今日日报时顶替打分面板 -->
+    <!-- Section 3b: Hero Empty State (Voco 2.0 空状态 UX · 温润极简) —— 未导入今日日报时顶替打分面板 -->
     <div id="home-empty-hero" class="hidden mb-3">
-      <div class="relative overflow-hidden rounded-2xl px-6 py-8 text-center border border-[var(--c-border-light)]"
+      <div class="relative overflow-hidden rounded-3xl px-6 pt-9 pb-8 text-center border border-[var(--c-border-light)]"
            style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 65%);box-shadow:var(--c-shadow)">
-        <div class="text-5xl mb-3">🐻</div>
-        <div class="text-base font-bold text-[var(--c-text)] mb-1.5">今日尚未对练</div>
-        <div class="text-[13px] text-[var(--c-text-dim)] mb-5 leading-relaxed">导入 ChatGPT 日报，生成你的今日专属分析与增量知识库</div>
-        <button onclick="showImportDialog()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
+        <!-- 温润视觉锚点：浅色微圆底块 + 克制线性图标（内描边一圈，与同色渐变底自然分离） -->
+        <div class="w-12 h-12 rounded-full bg-[var(--c-primary-light)] mx-auto mb-4 flex items-center justify-center"
+             style="box-shadow:inset 0 0 0 1px var(--c-primary)">
+          <i data-lucide="sparkles" class="w-5 h-5 text-[var(--c-primary)]"></i>
+        </div>
+        <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">今日尚未对练</div>
+        <div class="text-[13px] text-[var(--c-text-dim)] mb-6 leading-relaxed">导入 ChatGPT 日报，生成你的今日专属分析与增量知识库</div>
+        <button onclick="showImportDialog()" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
           style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
           📥 导入今日日报 <i data-lucide="arrow-right" class="w-4 h-4"></i>
         </button>
@@ -423,8 +427,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=69"></script>
-<script src="/parser.js?v=69"></script>
-<script src="/app.js?v=69"></script>
+<script src="/supabase-client.js?v=70"></script>
+<script src="/parser.js?v=70"></script>
+<script src="/app.js?v=70"></script>
 </body>
 </html>
