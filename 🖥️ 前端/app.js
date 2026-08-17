@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v87 — Tailwind Dashboard + Grouped-List Settings
+// Voco v88 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
@@ -9,6 +9,10 @@
 //            currentContextDate 统一上下文日期；提升区/建议区全部入口携带 date（查看纠错/句型体验/核心句型锚定）；
 //            startImprovementSpeak 废除 pat_N 跨命名空间 id，统一 ?sentence= 文本锚定 + ?date=；loadSpeak 文本未命中
 //            时以点击句为首卡入队（sentence-anchor）。一条纠错知识 = 一张卡片 = {original, correction, rule} 完整对象。
+// v88 QA 自检补漏（跳转/计数四缺口）：① 学习建议 vocab 分支 navigateReview('all','today',ctxDate)（杜绝跳全量词库）；
+//            ② 学习建议 sentence 分支未命中兜底同样携带 date（该日核心句型队列，杜绝落今日混合队列）；
+//            ③ 待办任务 3 数字 = due tab 混合卡组真实长度（到期词+错题，allGrammarErrorsToday 今日口径，根治「外面
+//            N 词点进去 N+M 张」）；④ switchWordsView 切 Tab 清 _ctxDate（URL 与上下文脱钩修复，due 卡组不再混历史日错题）
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -969,19 +973,25 @@ function showNextStepDetail(idx) {
       const t = String(p.pattern || p.targetSentence || '');
       return t.length > 6 && stepLower.includes(t.slice(0, 24).toLowerCase());
     });
-    // v86：core-N 锚定必须携带当前浏览日期 —— 无 date 时 loadSpeak 落今日混合队列，历史日报下必然断链
+    // v86/v88：core-N 锚定必须携带当前浏览日期 —— 无 date 时 loadSpeak 落今日混合队列，历史日报下必然断链；
+    // v88 QA 补漏：未命中单句时兜底同样携带日期（该日核心句型队列，首卡开始），绝不允许无 date 落入今日到期混合队列
     const ctxDate = currentContextDate();
-    const anchor = hit >= 0 ? `navigateShadowing('core-${hit}', undefined, '${ctxDate}')` : `navigateShadowing()`;
+    const anchor = hit >= 0 ? `navigateShadowing('core-${hit}', undefined, '${ctxDate}')` : `navigateShadowing(undefined, undefined, '${ctxDate}')`;
     showSuggestionModal(idx, ns.step,
-      `${icon('mic','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为句型练习任务，已为你定位到对应核心句型。`,
+      hit >= 0
+        ? `${icon('mic','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为句型练习任务，已为你定位到对应核心句型。`
+        : `${icon('mic','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为句型练习任务，已为你定位到当日核心句型队列。`,
       `<button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="${anchor};this.closest('.fixed').remove()">去句型复习页定位练习 ${icon('arrow-right','w-3.5 h-3.5')}</button>`
     );
     return;
   }
   if (kind === 'vocab') {
+    // v88 QA 路由契约补漏：词汇任务同样携带上下文日期 + filter=today —— 历史日报下点击「浏览词汇」
+    // 绝不允许降级到全量词库（与统计卡「复习当日单词」同口径：该日日报词汇）
+    const ctxDate = currentContextDate();
     showSuggestionModal(idx, ns.step,
-      `${icon('book-open','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为词汇任务，建议回复习页过一遍相关单词。`,
-      `<button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateReview('all');this.closest('.fixed').remove()">去复习页浏览词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>`
+      `${icon('book-open','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为词汇任务，已为你定位到当日新学单词列表。`,
+      `<button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateReview('all', 'today', '${ctxDate}');this.closest('.fixed').remove()">去复习页浏览当日词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>`
     );
     return;
   }
@@ -1094,14 +1104,19 @@ function renderTodoList(speakDoneToday) {
         // 保证 /shadowing 无 date 参数时严格走「今日到期句型队列」的挖空卡片模式，绝不被历史日报劫持
         action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateShadowing(); }
       };
+  // 任务 3 数字口径（v88 QA 数量一致性）：due tab 卡组 buildDueDeck = 到期词 + 今日语境错题，
+  // 数字必须数整副卡组 —— 此前只数词 → 「外面 N 词，点进去 N+M 张卡」的数字分裂
+  const todayErrTaskCount = allGrammarErrorsToday().length;
+  const deckTotal = dueCount + todayErrTaskCount;
+  const deckReviewed = reviewedToday + _reviewedErrorIds.size;
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
     { text: '对练打卡 · 导入今日日报', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
     // 任务 2（句型复习打卡）：句型 SRS 卡片队列 —— 点击直达今日到期队列；复习完最后一张卡片自动打卡 + SM-2 写回
     patternTask,
-    // 任务 3（复习打卡）：完成今日到期复习 —— 打卡完成强制绑定 SSOT isReviewFinished
-    // （dueCount === 0 保持未完成，禁止加载默认值 0 误判完成；文案标明「到期复习」区别于「今日新词」）
-    { text: `复习打卡 · 完成今日到期复习 (${dueCount}词)`, sub: dueCount === 0 ? '今日无到期词' : (reviewedToday >= dueCount ? `已复习 ${reviewedToday} 个到期词` : `到期复习进度 ${reviewedToday}/${dueCount} · 到期词，非今日新词`), done: ms.isReviewFinished, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
+    // 任务 3（复习打卡）：完成今日到期复习 —— v88 数字 = due tab 混合卡组真实长度（到期词 + 错题），
+    // 完成判定 = 词与错题两个会话集合分别达标（deckTotal === 0 保持未完成，禁止加载默认值 0 误判完成）
+    { text: `复习打卡 · 完成今日到期复习 (${deckTotal}张)`, sub: deckTotal === 0 ? '今日无到期词' : (deckReviewed >= deckTotal ? `已复习 ${deckReviewed} 张` : `到期复习进度 ${deckReviewed}/${deckTotal} · 词+错题混合卡组`), done: deckTotal > 0 && reviewedToday >= dueCount && _reviewedErrorIds.size >= todayErrTaskCount, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -2020,6 +2035,17 @@ function allGrammarErrors() {
   })));
 }
 
+// v88 QA 口径辅助：今日语境错题集（无视 _ctxDate）—— due 卡组与 due 标签的错题计数绝对同源。
+// switchWordsView 切 Tab 即清 _ctxDate，故 buildDueDeck 恒为「无日期」口径；
+// 历史日期上下文下 due 标签若沿用当日错题数，会与点击后的卡组口径分裂
+function allGrammarErrorsToday() {
+  if (!_ctxDate) return allGrammarErrors();
+  const bak = _ctxDate; _ctxDate = null;
+  const r = allGrammarErrors();
+  _ctxDate = bak;
+  return r;
+}
+
 // ── 错题标准化清洗层：任何数据源在进入渲染前收敛为 {id, issue, original, correction, rule, type} ──
 // ① 碎片合并：以 →/-/（ 开头且无独立正句的条目 = 上一条记录的前后文延续，并入上一条 —— 一条记录绝不拆成两张卡
 // ② 形状归一：字符串/元组/残缺对象 → 标准六字段；original/correction 为数组时合并为单字符串
@@ -2095,9 +2121,11 @@ function renderWordsSubTabs(activeMode) {
   // 话题库是语境资产库（非任务卡组），隐藏搜索框；其余 Tab 恢复默认显示
   const searchWrap = document.querySelector('.lib-search-wrap');
   if (searchWrap) searchWrap.style.display = activeMode === 'topics' ? 'none' : '';
-  const grammarCount = allGrammarErrors().length;
+  const grammarCount = allGrammarErrors().length; // 当前上下文错题数（历史日期下 = 该日错题，与 grammar tab 卡组同源）
   // Voco 2.0：复习页 Tab 数字强绑定任务状态中心（Mock 已隔离），严禁 UI 层自行 .filter
-  const dueCount = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary).totalDueVocabCount + grammarCount;
+  // v88：due 标签的错题部分必须用「今日语境」错题数 —— 点击 due tab 后 switchWordsView 清 _ctxDate，
+  // 卡组 buildDueDeck = 今日到期词 + 今日错题；沿用历史日错题数会与卡组口径分裂
+  const dueCount = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary).totalDueVocabCount + allGrammarErrorsToday().length;
   const tabs = [
     { key: 'all', label: '全部词汇', count: _wordsAll.length },
     { key: 'grammar', label: '语法错题', count: grammarCount },
@@ -2113,6 +2141,10 @@ function renderWordsSubTabs(activeMode) {
 
 function switchWordsView(mode) {
   _wordsFilter = mode;
+  // v88：Tab 内切换一律回归今日语境 —— 历史日期上下文（?date=）只属于「从统计卡/提升区进入的当前视图」；
+  // 切 Tab = 换视图语义（due/all/topics 均为今日口径），_ctxDate 必须同步清空，
+  // 否则 buildDueDeck 混入历史日错题、且 URL 与全局上下文脱钩（刷新后行为漂移）
+  _ctxDate = null;
   // 模块二：单词页内部视图写入规范路由 /review?tab=…（绝不写入 _activeFilter）
   window.history.replaceState({}, '', mode === 'all' ? '/review' : `/review?tab=${mode}`);
   renderWordsSubTabs(mode);
