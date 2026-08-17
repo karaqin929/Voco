@@ -475,9 +475,22 @@ function renderHeaderBears(vocab, reports, viewDate) {
   const dateScore = {};
   (vocab||[]).forEach(v => { if(v.date_added) dateScore[v.date_added] = (dateScore[v.date_added]||0)+2; });
   (reports||[]).forEach(r => { if(r.date && isDailyReport(r)) dateScore[r.date] = (dateScore[r.date]||0)+5; });
-  const today = new Date();
+  // v89 废除顶部熊条 7 天硬编码：与打卡日历同一动态范围（最早数据日 → 今天），
+  // 容器 index.html 已带 overflow-x-auto，cell shrink-0 → 横向无限回溯滑动
+  const today = getLocalToday();
+  const knownDates = Object.keys(dateScore);
+  let firstDate = today;
+  knownDates.forEach(d => { if (d < firstDate) firstDate = d; });
+  const cutoffD = parseLocalDate(today); cutoffD.setDate(cutoffD.getDate() - 1095);
+  const cutoff = fmtLocalDate(cutoffD);
+  if (firstDate < cutoff) firstDate = cutoff;
   const days = [];
-  for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); const ds=fmtLocalDate(d); days.push({date:ds, day:d.getDate(), month:d.getMonth()+1, active:!!dateScore[ds]}); }
+  const cursor = parseLocalDate(firstDate);
+  while (fmtLocalDate(cursor) <= today) {
+    const ds = fmtLocalDate(cursor);
+    days.push({ date: ds, day: cursor.getDate(), month: cursor.getMonth()+1, active: !!dateScore[ds] });
+    cursor.setDate(cursor.getDate() + 1);
+  }
   container.innerHTML = days.map(d => `
     <div class="flex flex-col items-center gap-px shrink-0 cursor-pointer w-8" onclick="showBearDay('${d.date}',${d.active})">
       <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===viewDate?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active?'/bear-active.png':'/bear-default.png'}" alt="${d.active?'🐻':'🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active?'🐻':'🌱'}</span>')" />
