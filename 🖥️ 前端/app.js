@@ -1,8 +1,14 @@
 // ═══════════════════════════════════════════════════════
-// Voco v85 — Tailwind Dashboard + Grouped-List Settings
+// Voco v86 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
+// v86 全局重构：① 数据解析层——normalizeDailyData 新增碎片合并（parseItems 逐标签行切块 → 一条错题裂成
+//            {original}/{correction}/{rule} 三碎片）+ rescueMarkdownErrorSections 标签宽容救援（冒号式/箭头式旧日报
+//            补解析）；standardizeErrorCards 扩展占位碎片合并（DB 存量「历史错题」行）；② 路由传参层——
+//            currentContextDate 统一上下文日期；提升区/建议区全部入口携带 date（查看纠错/句型体验/核心句型锚定）；
+//            startImprovementSpeak 废除 pat_N 跨命名空间 id，统一 ?sentence= 文本锚定 + ?date=；loadSpeak 文本未命中
+//            时以点击句为首卡入队（sentence-anchor）。一条纠错知识 = 一张卡片 = {original, correction, rule} 完整对象。
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -785,8 +791,7 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
       type: 'expression', issue: '地道表达',
       wrong: e.original || '', correct: e.better || '', explanation: e.scene || '',
       detail: (e.original||'') + ' → ' + (e.better||''),
-      action: '专项句型复习', tab: 'speak', filter: '', filterLabel: '地道表达',
-      itemId: e.id || null // 模块二：句型唯一 id，供 /shadowing?id= 精准锚定
+      action: '专项句型复习', tab: 'speak', filter: '', filterLabel: '地道表达'
     }))
   ];
   if (merged.length) d.improvements = merged;
@@ -889,9 +894,12 @@ function showImprovementDetail(idx) {
     expression: '你这样说语法完全没错，只是不够地道。下次尝试替换成母语者的自然说法，并朗读 3 遍形成语感。',
     structure:  '长段表达时留意句子之间的逻辑衔接。练习用 however / therefore 等连接词，让层次更分明。'
   }[im.type] || '在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。';
-  // 模块二：教练卡按钮精准锚定 — 语法纠错 → /review?tab=grammar；地道表达/逻辑结构 → startImprovementSpeak 携带用户点击的句文本
+  // 模块二：教练卡按钮精准锚定 — 语法纠错 → /review?tab=grammar&date=当前浏览日；
+  // 地道表达/逻辑结构 → startImprovementSpeak 携带用户点击的句文本 + 当前浏览日
+  // v86 路由铁律：所有入口必须携带上下文日期，否则目标页 _ctxDate=null → 降级渲染今日/全量数据
+  const ctxDate = currentContextDate();
   const navArgs = im.type === 'grammar'
-    ? `navigateReview('grammar')`
+    ? `navigateReview('grammar', null, '${ctxDate}')`
     : `startImprovementSpeak(${idx})`;
   const btnLabel = im.type === 'grammar' ? '去复习页查看语法错题' : '去句型复习页专项练习';
   const modal = document.createElement('div');
@@ -914,14 +922,22 @@ function showImprovementDetail(idx) {
   refreshIcons(modal);
 }
 
+// ── v86 路由上下文日期：卡片点击时的浏览日期 —— 历史视图 = _viewDate，今日 = 本地今日 ──
+// 提升区/建议区全部入口必须携带该日期，否则目标页丢失上下文降级渲染全集
+function currentContextDate() {
+  return (_viewDate && _historyParsed) ? _viewDate : getLocalToday();
+}
+
 // 教练卡句型入口：携带用户点击的这一句（correct 优先）经 ?sentence= 路由参数动态加载卡片队列
 // 禁止 navigateShadowing() 无参调用 —— 那会从写死的默认句（核心句型第 0 句）开始播放，与点击内容完全错位
+// v86 统一锚定契约：只走「?sentence= 文本锚定 + ?date= 日期上下文」——
+// 旧 'pat_N'（patterns 数组序号）与跟读页 'core-N'（核心句型序号）是两套命名空间，
+// 传 id 必然错位触发「未找到句子，已从头开始」；文本 + 日期双参数在 loadSpeak 内精确命中该日核心句型
 function startImprovementSpeak(idx) {
   const d = _currentInsights || mockDashboardData.insights;
   const im = d.improvements && d.improvements[idx];
   if (!im) { navigateShadowing(); return; }
-  if (im.itemId) { navigateShadowing(String(im.itemId)); return; }
-  navigateShadowing(undefined, im.correct || im.wrong || '');
+  navigateShadowing(undefined, im.correct || im.wrong || '', currentContextDate());
 }
 
 // ── 学习建议类型分流：sentence=句型练习(锚定句型复习) / vocab=词汇(复习页) / coach=私教任务弹窗 ──
@@ -953,7 +969,9 @@ function showNextStepDetail(idx) {
       const t = String(p.pattern || p.targetSentence || '');
       return t.length > 6 && stepLower.includes(t.slice(0, 24).toLowerCase());
     });
-    const anchor = hit >= 0 ? `navigateShadowing('core-${hit}')` : `navigateShadowing()`;
+    // v86：core-N 锚定必须携带当前浏览日期 —— 无 date 时 loadSpeak 落今日混合队列，历史日报下必然断链
+    const ctxDate = currentContextDate();
+    const anchor = hit >= 0 ? `navigateShadowing('core-${hit}', undefined, '${ctxDate}')` : `navigateShadowing()`;
     showSuggestionModal(idx, ns.step,
       `${icon('mic','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为句型练习任务，已为你定位到对应核心句型。`,
       `<button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="${anchor};this.closest('.fixed').remove()">去句型复习页定位练习 ${icon('arrow-right','w-3.5 h-3.5')}</button>`
@@ -1183,6 +1201,15 @@ function normalizeDailyData(rawDailyData) {
     });
   }
 
+  // 2.5) 标签碎片合并（旧 Markdown 逐标签行解析的碎片修复）：
+  //      parser.js parseItems 按「每个 - [标签] 行」切块 —— 一条错题的「我说/应为/规则」三行
+  //      被拆成 {original} / {correction} / {rule} 三个碎片对象（一条知识裂成三张卡片的根源）。
+  //      合并规则：出现原句的碎片开启新条目；无原句的碎片（正句/规则/场景）并入上一条 ——
+  //      一条纠错知识 = 一个对象，任何下游（首页提升区/复习页/入库）不再裂卡。
+  if (Array.isArray(d.grammar)) d.grammar = mergeLabelFragments(d.grammar);
+  if (Array.isArray(d.pronunciation)) d.pronunciation = mergeLabelFragments(d.pronunciation);
+  if (Array.isArray(d.patterns)) d.patterns = mergeLabelFragments(d.patterns);
+
   // 3) 内部管道兜底：grammar / patterns 结构校验 + 唯一 id + 标准嵌套字段（碎片数组合并映射）
   //    老 Markdown 解析产物同样无损适配；每一条数据生成唯一 id（路由锚定 / 卡片状态键）
   if (Array.isArray(d.grammar)) {
@@ -1212,6 +1239,112 @@ function normalizeDailyData(rawDailyData) {
     });
   }
   return d;
+}
+
+// ── 标签碎片合并：旧 Markdown 解析产物中，一条错题的多个标签行被拆成多个碎片对象 ──
+// 碎片形状：{original} / {correction|correctSentence} / {rule|explanation} / {better} / {scene}
+// 规则：「原句」碎片开启新条目；无原句的碎片（正句/规则/场景）并入上一条 —— 一条知识 = 一个对象
+function mergeLabelFragments(arr) {
+  if (!Array.isArray(arr)) return arr;
+  const out = [];
+  for (const raw of arr) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { out.push(raw); continue; }
+    const hasOriginal = !!(String(raw.original || raw.wrongSentence || '').trim());
+    if (!hasOriginal) {
+      const prev = out.length ? out[out.length - 1] : null;
+      if (prev && typeof prev === 'object' && !Array.isArray(prev)) {
+        if (!String(prev.original || '').trim()) prev.original = raw.original || raw.wrongSentence || '';
+        if (!String(prev.correction || '').trim() && String(raw.correction || raw.correctSentence || '').trim()) prev.correction = raw.correction || raw.correctSentence;
+        if (!String(prev.better || '').trim() && String(raw.better || '').trim()) prev.better = raw.better;
+        if (!String(prev.rule || '').trim() && String(raw.rule || raw.explanation || '').trim()) prev.rule = raw.rule || raw.explanation;
+        if (!String(prev.scene || '').trim() && String(raw.scene || '').trim()) prev.scene = raw.scene;
+        if (raw.type && !prev.type) prev.type = raw.type;
+      } else {
+        out.push({ ...raw });
+      }
+    } else {
+      out.push({ ...raw });
+    }
+  }
+  return out;
+}
+
+// ── v86 标签宽容救援：旧 Markdown 日报纠错节的补解析（parser.js 未改动，本层兜底）──
+// 仅当 parser.js 对某节解析为空时补位（不重复解析、绝不覆盖 parser 已产出的数据）；
+// 识别旧日报的三种写法：
+//   ① "- [我说] xxx" 逐行方括号式（parseItems 会产出碎片 → 由 normalizeDailyData 合并，无需救援）
+//   ② "- 我说：xxx" / "- **我说**：xxx" 冒号式（parseItems 正则无法识别 → 数组为空 → 卡片全空）
+//   ③ "- xxx → yyy（规则）" 箭头式（一行 = 一条完整纠错）
+// 输出直接写入 result.grammar / pronunciation / patterns（与 parser 输出同形状）
+function rescueMarkdownErrorSections(text, result) {
+  if (!result || !text) return;
+  const sections = String(text).split(/^##\s+/m).filter(Boolean);
+  const LABELS = {
+    '我说': 'original', '问题': 'original', '原句': 'original', '错误': 'original',
+    '应为': 'correction', '纠正': 'correction', '正确': 'correction',
+    '更自然': 'better', 'better': 'better',
+    '规则': 'rule', '说明': 'rule', '解析': 'rule', '解释': 'rule',
+    '场景': 'scene', 'scene': 'scene'
+  };
+  for (const section of sections) {
+    const lines = section.split('\n');
+    const header = lines[0].trim();
+    const content = lines.slice(1).join('\n').trim();
+    if (!content) continue;
+    let target = null, isExpression = false;
+    if (header.includes('语法纠正')) target = 'grammar';
+    else if (header.includes('发音纠正')) target = 'pronunciation';
+    else if (header.includes('地道表达')) { target = 'patterns'; isExpression = true; }
+    if (!target || (Array.isArray(result[target]) && result[target].length)) continue; // parser 已产出 → 不重复解析
+    const items = [];
+    let cur = null;
+    for (const rawLine of content.split('\n')) {
+      const line = rawLine.replace(/^[-*•]\s*/, '').trim();
+      if (!line) continue;
+      // ② 冒号式：标签：内容（含方括号 + 冒号写法）
+      const labelM = line.match(/^(?:\[([^\]]+)\]|\*{0,2}([^：:]{1,8})\*{0,2})\s*[：:]\s*(.+)$/);
+      if (labelM) {
+        const label = String(labelM[1] || labelM[2] || '').trim();
+        const val = labelM[3].trim();
+        const key = LABELS[label];
+        if (!key || !val) {
+          // 非已知标签（如英文句子里的冒号）→ 按纯文本兜底，绝不丢行
+          if (cur) cur.rule = cur.rule ? cur.rule + ' ' + line : line;
+          else { const it = isExpression ? { original: line, type: 'expression' } : { original: line }; items.push(it); cur = it; }
+          continue;
+        }
+        if (key === 'original' || !cur) {
+          cur = isExpression ? { original: val, type: 'expression' } : { original: val };
+          items.push(cur);
+        } else if (isExpression) {
+          if (key === 'better') cur.better = val;            // 地道表达节误用「应为」也归一为 better
+          else if (key === 'scene') cur.scene = val;
+          else if (key === 'correction') cur.better = val;
+        } else {
+          if (key === 'correction') cur.correction = val;
+          else if (key === 'rule') cur.rule = val;
+        }
+        continue;
+      }
+      // ③ 箭头式：原句 → 正句（规则）—— 一行即一条完整纠错
+      const arrowM = line.match(/^(.+?)\s*[-=→➡️]{1,3}>\s*(.+)$/);
+      if (arrowM) {
+        const wrong = arrowM[1].trim();
+        const rest = arrowM[2].trim();
+        const ruleM = rest.match(/^(.+?)\s*[（(]\s*(.+?)\s*[)）]\s*$/);
+        const item = isExpression
+          ? { original: wrong, better: ruleM ? ruleM[1].trim() : rest, scene: ruleM ? ruleM[2].trim() : '', type: 'expression' }
+          : { original: wrong, correction: ruleM ? ruleM[1].trim() : rest, rule: ruleM ? ruleM[2].trim() : '' };
+        items.push(item);
+        cur = null;
+        continue;
+      }
+      // 兜底：无标签纯文本行 —— 有当前条目则并入解析，无则视为独立原句
+      if (cur) cur.rule = cur.rule ? cur.rule + ' ' + line : line;
+      else { const it = isExpression ? { original: line, type: 'expression' } : { original: line }; items.push(it); cur = it; }
+    }
+    if (items.length) result[target] = items;
+  }
 }
 
 // ── 应用初始化清洗：本地缓存中的遗留日报数据（若有）统一过清洗层 ──
@@ -1269,7 +1402,11 @@ function parseSmartReport(content) {
     } catch (e) { /* 非法 JSON → 回退 Markdown 解析器 */ }
   }
   // ③ 传统 Markdown 解析产物同样过清洗层（原解析引擎 parser.js 不修改）
-  const markdownParsed = normalizeDailyData(parseReport(t));
+  // v86 标签宽容救援：旧日报纠错节若使用 parser.js 正则之外的写法（「标签：」/「→（说明）」等）
+  // 对应数组为空 → 首页提升区内容全空。此处先按宽容模式补解析，再统一过清洗层。
+  const rawParsed = parseReport(t);
+  rescueMarkdownErrorSections(t, rawParsed);
+  const markdownParsed = normalizeDailyData(rawParsed);
   // 对话占比兜底：Markdown 未含「对话记录」节时，全文扫角色标注行（User:/AI: 等）
   if (!markdownParsed.summary.speakingRatio) {
     const ratio = parseSpeakingRatio(t);
@@ -1930,6 +2067,17 @@ function standardizeErrorCards(rawItems) {
       prev.original = item.original;
       continue;
     }
+    // v86 占位碎片合并：旧入库行可能以「历史错题」占位 original 存下 {correction}/{rule} 碎片
+    // （parseItems 三行切块 + 清洗层占位符共同造成）—— 正句碎片与规则碎片必须并入上一条完整知识
+    if (prev && item.correction && (!item.original || item.original === '历史错题') && !item.rule) {
+      if (!prev.correction) prev.correction = item.correction;
+      if (item.original && item.original !== '历史错题') prev.original = item.original;
+      continue;
+    }
+    if (prev && !item.correction && item.rule && (!item.original || item.original === '历史错题')) {
+      if (!prev.rule) prev.rule = item.rule;
+      continue;
+    }
     merged.push(item);
   }
   return merged.map((m, i) => ({ ...m, id: m.id || `err_${i}` }));
@@ -2580,6 +2728,12 @@ async function loadSpeak() {
   else if (anchorText) {
     const hit = sentences.findIndex(s => String(s.targetSentence || '').toLowerCase().trim() === String(anchorText).toLowerCase().trim());
     if (hit >= 0) startIndex = hit;
+    else {
+      // v86 文本锚定未命中（地道表达句不在该日核心句型队列）：以点击句为首卡入队（sentence-anchor 契约，
+      // 复习反馈时自动 INSERT 进入记忆曲线），队列其余部分保持该日核心句型 —— 用户练的永远是点击的那一句
+      sentences = [{ id: 'sentence-anchor', targetSentence: anchorText, replacedSentence: '', explanation: '', isTodayCore: false }].concat(sentences || []);
+      startIndex = 0;
+    }
   }
   const anchoredAt = (anchorId || anchorText) ? sentences[startIndex] : null;
   if ((anchorId || anchorText) && (!anchoredAt || (String(anchoredAt.id) !== String(anchorId) && String(anchoredAt.targetSentence || '').toLowerCase().trim() !== String(anchorText || '').toLowerCase().trim()))) {
