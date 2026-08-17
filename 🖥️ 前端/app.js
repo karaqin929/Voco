@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v88 — Tailwind Dashboard + Grouped-List Settings
+// Voco v89 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
@@ -13,6 +13,9 @@
 //            ② 学习建议 sentence 分支未命中兜底同样携带 date（该日核心句型队列，杜绝落今日混合队列）；
 //            ③ 待办任务 3 数字 = due tab 混合卡组真实长度（到期词+错题，allGrammarErrorsToday 今日口径，根治「外面
 //            N 词点进去 N+M 张」）；④ switchWordsView 切 Tab 清 _ctxDate（URL 与上下文脱钩修复，due 卡组不再混历史日错题）
+// v89 打卡日历升维：废除「最近 7 天」硬编码 → 横向无限回溯滑条（flex overflow-x-auto hide-scrollbar，首日→今天连续
+//            日期序列，小熊点亮与 DB 词/日报日期并集精准匹配）+ 全局月历弹窗（showMonthPicker 跨月跨年一键跳转，
+//            数据源 _dateScoreCache 与滑条同源）；reports 拉取 limit 90 → 1000 放开回溯软上限。
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -68,6 +71,11 @@ const fmtLocalDate = (d) => {
   dd.setMinutes(dd.getMinutes() - dd.getTimezoneOffset());
   return dd.toISOString().slice(0, 10);
 };
+// 'YYYY-MM-DD' → 本地 Date（严禁 new Date(str) —— UTC 午夜解析在 0-8 点时区会偏移一天；v89 日历序列专用）
+function parseLocalDate(s) {
+  const p = String(s).split('-');
+  return new Date(+p[0], +p[1] - 1, +p[2]);
+}
 // 存储层 UTC ISO 时间戳 → 本地日历日期（last_reviewed_at 比对专用：存储为 UTC，必须换算后比「今天」）
 const localDateOf = (isoTs) => fmtLocalDate(new Date(isoTs));
 
@@ -392,7 +400,8 @@ async function loadHome() {
     sb.from('vocabulary').select('*'),
     sb.from('errors').select('*'),
     sb.from('progress').select('*').eq('user_id', session.user.id).maybeSingle(),
-    sb.from('reports').select('*').order('date', { ascending: false }).limit(90),
+    // v89 日历无限回溯：放开 90 条软上限（Supabase 单次上限 1000，一天一条日报 ≈ 3 年历史范围）
+    sb.from('reports').select('*').order('date', { ascending: false }).limit(1000),
     sb.from('patterns').select('*')
   ]);
 
@@ -489,50 +498,148 @@ function renderHistoryBanner(report, viewDate) {
   refreshIcons(banner);
 }
 
+// v89：历史日入口三合一（顶部小熊条 / 横滑打卡日历 / 全局月历面板）；active = 该日有词或日报
 function showBearDay(date, active) {
   if(!active){ showToast(date+' · 未打卡，无日报数据'); return; }
   _viewDate = date; loadHome();
 }
 
 // ── Section 2: Streak / Check-in Card ───────────────────
+// v89 日历升维重构：① 废除「最近 7 天」硬编码（6 天前→今天的静态数组已删除）；
+// ② 动态日期生成 = 最早数据日（首词/首份日报）→ 今天的连续序列（3 年截断仅为脏数据防护，正常数据触不到）；
+// ③ 横向无限滚动滑条（flex overflow-x-auto hide-scrollbar，shrink-0 防压缩）；
+// ④ 标题「打卡日历」可点击 → 全局月历弹窗（showMonthPicker，跨月跨年一键跳转）
 function renderStreakCard(streak, todayReport, vocab, reports) {
   const el = document.getElementById('home-quote');
   const hasToday = !!todayReport;
 
-  // Same dateScore as header bears
+  // Same dateScore as header bears（v89：模块级缓存 _dateScoreCache，横滑条与月历面板共用同一数据源）
   const dateScore = {};
   (vocab||[]).forEach(v => { if(v.date_added) dateScore[v.date_added] = (dateScore[v.date_added]||0)+2; });
   (reports||[]).forEach(r => { if(r.date && isDailyReport(r)) dateScore[r.date] = (dateScore[r.date]||0)+5; });
+  _dateScoreCache = dateScore;
 
-  // 7 days: 6 days ago → today
-  const now = new Date();
+  // v89 动态日期序列：起点 = 全部活跃日的最早一天（词 date_added + 日报 date 并集），终点 = 今天
+  const today = getLocalToday();
+  const knownDates = Object.keys(dateScore);
+  let firstDate = today;
+  knownDates.forEach(d => { if (d < firstDate) firstDate = d; });   // YYYY-MM-DD 字典序 = 时间序
+  // 脏数据防护：异常 date_added（1970 等）不允许生成数万格 DOM；3 年 = 1095 格，正常数据永远触碰不到
+  const cutoffD = parseLocalDate(today); cutoffD.setDate(cutoffD.getDate() - 1095);
+  const cutoff = fmtLocalDate(cutoffD);
+  if (firstDate < cutoff) firstDate = cutoff;
   const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(now); d.setDate(d.getDate() - i);
-    const ds = fmtLocalDate(d); // v64 补漏：本地日历日（UTC 截断会在 0-8 点偏移一天）
-    days.push({ date: ds, month: d.getMonth()+1, day: d.getDate(), active: !!dateScore[ds] });
+  const cursor = parseLocalDate(firstDate);
+  while (fmtLocalDate(cursor) <= today) {
+    const ds = fmtLocalDate(cursor);
+    days.push({ date: ds, month: cursor.getMonth()+1, day: cursor.getDate(), active: !!dateScore[ds], isToday: ds === today });
+    cursor.setDate(cursor.getDate() + 1);
   }
 
   el.innerHTML = `
     <div class="flex justify-between items-center mb-3">
-      <span class="inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-[var(--c-text-dim)]">
-        ${icon('calendar','w-3.5 h-3.5')} 本周打卡
+      <span class="inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-[var(--c-text-dim)] cursor-pointer transition-colors active:text-[var(--c-primary)]" onclick="showMonthPicker()">
+        ${icon('calendar','w-3.5 h-3.5')} 打卡日历
         ${streak > 0 ? `<span class="inline-flex items-center gap-0.5 text-emerald-500">· ${icon('flame','w-3.5 h-3.5')}${streak}天</span>` : ''}
+        ${icon('chevron-right','w-3.5 h-3.5 text-[var(--c-text-ultradim)]')}
       </span>
       ${hasToday
         ? `<span class="inline-flex items-center gap-1 text-[0.6875rem] text-emerald-500 font-semibold">${icon('check-circle-2','w-3.5 h-3.5')}已打卡</span>`
         : `<span onclick="showImportDialog()" class="inline-flex items-center gap-1 text-[0.6875rem] font-semibold text-[var(--c-primary)] cursor-pointer">${icon('upload','w-3.5 h-3.5')}去打卡</span>`
       }
     </div>
-    <div class="flex justify-between items-end">
+    <!-- v89 横向无限回溯滑条：向右滑 = 回看更早历史；小熊点亮 = 该日有词/日报（与数据库状态精准匹配） -->
+    <div class="flex overflow-x-auto hide-scrollbar gap-1 pb-1" id="streak-strip">
       ${days.map(d => `
-        <div class="flex flex-col items-center gap-px cursor-pointer w-8" onclick="showBearDay('${d.date}',${d.active})">
+        <div class="flex flex-col items-center gap-px cursor-pointer shrink-0 w-8" onclick="showBearDay('${d.date}',${d.active})">
           <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
-          <span class="text-[0.6875rem] text-[var(--c-text-ultradim)] whitespace-nowrap text-center">${d.month}/${d.day}</span>
+          <span class="text-[0.6875rem] whitespace-nowrap text-center ${d.isToday ? 'text-[var(--c-primary)] font-semibold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
         </div>
       `).join('')}
     </div>`;
   refreshIcons(el);
+}
+
+// ── v89 全局月历（Month Picker）──
+// 点「打卡日历」标题 → 底部模态月历：跨月/跨年导航 + 任意一天一键跳转
+// 数据源 = _dateScoreCache（首页 renderStreakCard 写入的词+日报日期并集），未来日期禁用，有数据日主题色高亮
+function showMonthPicker() {
+  const todayD = parseLocalDate(getLocalToday());
+  _pickerYear = todayD.getFullYear();
+  _pickerMonth = todayD.getMonth() + 1;
+  const modal = document.createElement('div');
+  modal.id = 'vococal-picker';
+  modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+  modal.innerHTML = `
+    <div class="bg-[var(--c-surface)] rounded-t-[20px] w-full max-w-[480px] flex flex-col overflow-hidden animate-[slideUp_0.25s_ease-out]">
+      <div class="flex justify-between items-center px-5 py-4 border-b border-[var(--c-border-light)]">
+        <span class="inline-flex items-center gap-1.5 text-sm font-bold text-[var(--c-text)]">${icon('calendar','w-4 h-4 text-[var(--c-primary)]')} 打卡日历</span>
+        <button class="w-7 h-7 rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-sm cursor-pointer flex items-center justify-center" onclick="document.getElementById('vococal-picker').remove()">✕</button>
+      </div>
+      <div id="vococal-picker-body" class="px-5 py-4"></div>
+    </div>`;
+  document.body.appendChild(modal);
+  refreshIcons(modal);
+  renderMonthPickerBody(_pickerYear, _pickerMonth);
+}
+
+function renderMonthPickerBody(y, m) {
+  const body = document.getElementById('vococal-picker-body');
+  if (!body) return;
+  const today = getLocalToday();
+  const todayD = parseLocalDate(today);
+  const atLatest = (y === todayD.getFullYear() && m === todayD.getMonth() + 1);
+  const prevY = m === 1 ? y - 1 : y;
+  const prevM = m === 1 ? 12 : m - 1;
+  const nextY = m === 12 ? y + 1 : y;
+  const nextM = m === 12 ? 1 : m + 1;
+  const firstWk = new Date(y, m - 1, 1).getDay();   // 0=周日
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const WEEKS = ['日','一','二','三','四','五','六'];
+  const cells = [];
+  for (let i = 0; i < firstWk; i++) cells.push(`<div></div>`);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = fmtLocalDate(new Date(y, m - 1, d));
+    const active = !!_dateScoreCache[ds];
+    const isToday = ds === today;
+    if (ds > today) {
+      cells.push(`<div class="flex items-center justify-center h-9 rounded-xl text-xs opacity-30 text-[var(--c-text-ultradim)] cursor-default">${d}</div>`);
+    } else if (active) {
+      cells.push(`<div class="flex items-center justify-center h-9 rounded-xl text-xs font-bold text-white bg-[var(--c-primary)] cursor-pointer active:scale-95 transition-transform" onclick="pickCalendarDay('${ds}')">${d}</div>`);
+    } else {
+      cells.push(`<div class="flex items-center justify-center h-9 rounded-xl text-xs cursor-pointer transition-colors ${isToday ? 'text-[var(--c-primary)] font-semibold border border-[var(--c-primary)]' : 'text-[var(--c-text-dim)] hover:bg-[var(--c-border-light)]'}" onclick="pickCalendarDay('${ds}')">${d}</div>`);
+    }
+  }
+  body.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <button class="w-9 h-9 rounded-xl border-0 bg-[var(--c-bg)] text-[var(--c-text)] text-base cursor-pointer flex items-center justify-center active:scale-95 transition-transform" onclick="renderMonthPickerBody(${prevY},${prevM})">${icon('chevron-left','w-4 h-4')}</button>
+      <span class="text-sm font-bold text-[var(--c-text)]">${y}年${m}月</span>
+      ${atLatest
+        ? `<button class="w-9 h-9 rounded-xl border-0 bg-[var(--c-bg)] text-[var(--c-text-ultradim)] text-base cursor-default flex items-center justify-center" disabled>${icon('chevron-right','w-4 h-4')}</button>`
+        : `<button class="w-9 h-9 rounded-xl border-0 bg-[var(--c-bg)] text-[var(--c-text)] text-base cursor-pointer flex items-center justify-center active:scale-95 transition-transform" onclick="renderMonthPickerBody(${nextY},${nextM})">${icon('chevron-right','w-4 h-4')}</button>`
+      }
+    </div>
+    <div class="grid grid-cols-7 gap-1 mb-1">
+      ${WEEKS.map(w => `<div class="text-center text-[0.6875rem] text-[var(--c-text-ultradim)] py-1">${w}</div>`).join('')}
+    </div>
+    <div class="grid grid-cols-7 gap-1">
+      ${cells.join('')}
+    </div>
+    <div class="flex items-center gap-3 mt-3 pt-3 border-t border-[var(--c-border-light)] text-[0.6875rem] text-[var(--c-text-dim)]">
+      <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[var(--c-primary)]"></span> 有日报/生词</span>
+      <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[var(--c-border)]"></span> 未打卡</span>
+      <button class="ml-auto px-3 py-1.5 rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] font-semibold border-0 cursor-pointer" onclick="pickCalendarDay('${today}')">回今天</button>
+    </div>`;
+  refreshIcons(body);
+}
+
+// 月历选日：今天 → 直接回归今日视图；历史日 → 有数据进历史日报视图 / 无数据 toast 提示
+function pickCalendarDay(ds) {
+  const el = document.getElementById('vococal-picker');
+  if (el) el.remove();
+  if (ds === getLocalToday()) { _viewDate = null; loadHome(); return; }
+  showBearDay(ds, !!(_dateScoreCache[ds] || {}));
 }
 
 // ── Section 3: Metrics Overview ─────────────────────────
@@ -1765,7 +1872,7 @@ async function loadWords() {
   const [{ data: vocab }, { data: errors }, { data: reports }, { data: patterns }] = await Promise.all([
     sb.from('vocabulary').select('*').order('created_at', { ascending: false }),
     sb.from('errors').select('*'),
-    sb.from('reports').select('*').order('date', { ascending: false }).limit(90),
+    sb.from('reports').select('*').order('date', { ascending: false }).limit(1000),
     sb.from('patterns').select('*')
   ]);
   // Voco 2.0：SSOT 输入构建（时间网关 + 词库合并 + 今日已复习 id 集合 + 句型库打标）—— 与 loadHome 共用同一构建器
@@ -1804,6 +1911,9 @@ let _historyParsed = null;      // v75 历史视图：所选日期（_viewDate�
 let _reportsCache = [];         // v82 日期路由：最近 90 条 reports 行缓存（parsedReportFor 按日期检索解析源）
 let _ctxDate = null;            // v82 日期路由：URL ?date= 非今日日期上下文；目标页列表按该日日报过滤（null = 默认今日链路）
 let _dailyPatterns = [];        // 今日日报 sentence_patterns（SSOT todayCorePatternCount 输入）
+let _dateScoreCache = {};       // v89 打卡日历数据源：词 date_added + 日报 date → 分值（横滑条与月历面板共用）
+let _pickerYear = null;         // v89 月历当前年份
+let _pickerMonth = null;        // v89 月历当前月份
 let _patternLibrary = [];       // patterns 表历史句型库（打标后，SSOT duePatternList / totalPatternTaskCount 输入）
 let _reviewedVocabTodayIds = new Set(); // 加载层上收：今日实际完成 SM-2 反馈（🟢/🔴）的词 id 集合（SSOT reviewedVocabToday 输入）
 
@@ -2726,7 +2836,7 @@ async function loadSpeak() {
   container.innerHTML = LoadingState();
   const [{ data: patterns }, { data: reports }] = await Promise.all([
     sb.from('patterns').select('*').order('created_at', { ascending: false }),
-    sb.from('reports').select('*').order('date', { ascending: false }).limit(90)
+    sb.from('reports').select('*').order('date', { ascending: false }).limit(1000)
   ]);
   // 句型 SRS：真实库与展示库分离 —— _speakAll 空库时回退 Mock 仅用于兜底展示；
   // _patternLibrary 只收真实 patterns 行（打标后），Mock 严禁混入 SRS 到期判定与 SM-2 写回
@@ -3063,7 +3173,7 @@ async function renderTrendChart() {
   if (!canvas || typeof Chart === 'undefined') return; // CDN 未加载 → 静默降级，不阻塞 Profile
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
-  const { data: reports } = await sb.from('reports').select('date, content').order('date', { ascending: false }).limit(90);
+  const { data: reports } = await sb.from('reports').select('date, content').order('date', { ascending: false }).limit(1000);
   // 最近 7 个本地日历日（含今天），getLocalToday 时区安全
   const days = [];
   for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(fmtLocalDate(d)); }
