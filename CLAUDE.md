@@ -47,10 +47,11 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v92）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v102）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v93）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v103）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v92 / voco-v102**（专业私教评审逻辑：四维逐项评分与点评）。
+- 当前线上：**v93 / voco-v103**（日报僵尸行修复：JSON 判定三处放宽 + 徽章/熊条/Hero 判定对齐）。
+- **v93 僵尸行修复**：GPT 省略空数组键（今日无错题 → mistakes 整键不输出）时，JSON 日报被判非日报 → Markdown 空壳入库（reports 有行但 vocabulary/errors/patterns 全空）→ 「徽章亮 / 熊白 / Hero 未对练」三分裂。修复：isDailyReport + importReport + parseSmartReport 三处判定放宽（`summary`/`duration` 任一存在即认 JSON 日报，模板必有键）；L428 todayReport 补 isDailyReport 过滤，徽章与熊条/Hero 绝对同源。
 - **v90 日报模板要点**：
   - TEMPLATES.report（App 内复制模板）与 `📋 日报模板/ChatGPT日报Prompt.md` **完全同步**（此前两份不同步：内嵌版缺 fluency/accuracy/naturalness）。
   - duration 反编造指令：ChatGPT 未被告知实际时长时必须先询问用户，禁止照抄示例值 25。
