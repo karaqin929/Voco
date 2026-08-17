@@ -47,10 +47,17 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v87）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v97）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v88）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v98）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v87 / voco-v97**（数据解析 + 路由传参全局重构：一条纠错=一张卡；入口必带日期；v87 补漏全链路 raw 消费点）。
+- 当前线上：**v88 / voco-v98**（QA 自检补漏：学习建议双分支带日期 + 待办任务3=due卡组真实长度 + 切Tab清日期上下文）。
+- **v88 QA 自检要点（全入口跳转/计数审计结论）**：
+  - 审计口径：12 个核心跳转入口逐一核对「专属路由传参」+「数量绝对一致性」，发现 4 缺口并修复。
+  - ① `showNextStepDetail` vocab 分支：`navigateReview('all')` → `navigateReview('all','today',ctxDate)`（历史日报下点「浏览词汇」不再跳全量词库）。
+  - ② `showNextStepDetail` sentence 分支：未命中单句兜底 `navigateShadowing()` → 携带 ctxDate（该日核心句型队列，不再落今日到期混合队列）。
+  - ③ 待办任务 3：数字 = `totalDueVocabCount + allGrammarErrorsToday()`（= due tab 卡组 buildDueDeck 真实长度：到期词+今日错题），根治「外面 N 词，点进去 N+M 张」；完成判定 = 词与错题两个会话集合分别达标。
+  - ④ `switchWordsView` 切 Tab 清 `_ctxDate`（历史日期残留不再混入 due 卡组；URL 与全局上下文不再脱钩）；新增 `allGrammarErrorsToday()`（无视 _ctxDate 的今日错题集，due 标签与卡组绝对同源）。
+  - 已确认无误的 8 入口（审计证据）：统计三卡（新学单词 `vocabulary.length`=getFilteredVocab today 同源；核心句型 `sentence_patterns.length`=coreDeck 无截断；重点纠错 `grammar+pronunciation`=allGrammarErrors _ctxDate 分支，占位符打标保证 filter 全过、碎片已预合并保证 standardize 不丢卡）；提升区双按钮（v86 已带日期）；待办任务 2（数字直接 = `getDueSentencesQueue().length`，含 15 截断同源）；日历熊（无计数声明）；navigateToTab 仅剩空状态回首页。
 - v86 要点（三大灾难 bug 根治，parser.js 未改动）：
   - **现象 3 根因**：parser.js `parseItems` 用 `split(/\n(?=-\s*\[)/)` 切块 → 旧 Markdown 日报「- [我说] / - [应为] / - [规则]」三行 = 三个 block = 一条错题裂成 `{original}/{correction}/{rule}` 三个碎片对象；清洗层再给缺 original 的碎片打「历史错题」占位符 → 渲染成 A 错句卡 / B 正句卡(副文「历史错题」) / C「历史错题」+解析卡。
   - **数据层修复**：`normalizeDailyData` 新增 2.5 节 `mergeLabelFragments`（无原句碎片并入上一条，新原句开启新条）——所有链路（首页/历史/复习/导入）必经；`rescueMarkdownErrorSections` 标签宽容救援（冒号式 `- 我说：`/箭头式 `- x → y（规则）`，仅当 parser 该节解析为空时补位）→ 根治 8.12「语法/选词卡片内容全空」；`standardizeErrorCards` 扩展「历史错题」占位碎片合并（DB 存量行渲染前最后防线）。
