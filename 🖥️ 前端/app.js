@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v92 — Tailwind Dashboard + Grouped-List Settings
+// Voco v93 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
@@ -26,6 +26,10 @@
 // v92 专业私教评审逻辑：评分与点评升级为四维逐项评审（fluency 停顿迟疑语速 / accuracy 语法错误频率 /
 //            naturalness 地道程度 / weak_areas 1-3 个真实弱项标签），每项必须基于今天对话的具体证据，
 //            禁止照抄示例值 7/6.5/6 与「时态, 单复数」；dailyThought.zh 须结合评分点出最值得改进的一点。
+// v93 日报僵尸行修复：GPT 省略空数组键（无错题 → mistakes 整键不输出）时，JSON 日报被判非日报 →
+//            走 Markdown 空壳入库（reports 有行、vocabulary/errors/patterns 全空）→ 徽章亮/熊白/Hero 未对练三分裂。
+//            修复：isDailyReport + importReport + parseSmartReport 三处判定放宽（summary/duration 任一存在即认
+//            JSON 日报）；L428 todayReport 补 isDailyReport 过滤——徽章与熊条/Hero 判定绝对同源对齐。
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -425,7 +429,8 @@ async function loadHome() {
 
   const activeDate = _viewDate || today;
   const activeReport = rList.find(r => r.date === activeDate);
-  const todayReport = rList.find(r => r.date === today);
+  // v93：今日日报判定加 isDailyReport 过滤——与熊条/Hero 判定绝对对齐（僵尸行不再亮「已打卡」徽章）
+  const todayReport = rList.find(r => r.date === today && isDailyReport(r));
   // ── 时间轴拦截（UI 渲染保护，Voco 2.0）：渲染任何「今日」概念组件前先解构任务状态中心 ──
   const missionState = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
   // v75 历史视图：洞察卡展示值直取所选日期日报（_historyParsed）；今日视图仍走任务状态中心时间网关
@@ -1278,7 +1283,9 @@ function isDailyReport(report) {
   const c=report.content;
   // 兼容两种上游格式：传统 Markdown 日报 + 新版 JSON 日报
   return c.includes('type: daily-report')||c.includes('## 语法纠正')||c.includes('## 发音纠正')||c.includes('## 今日生词')||c.includes('## 表现总结')||c.includes('## 地道表达')
-    || c.includes('"mistakes"')||c.includes('"coreSentences"')||c.includes('"newWords"');
+    || c.includes('"mistakes"')||c.includes('"coreSentences"')||c.includes('"newWords"')
+    // v93：GPT 可能省略空数组键（今日无错题 → 整键不输出）→ 以模板必有键兜底识别（summary/duration）
+    || c.includes('"summary"')||c.includes('"duration"');
 }
 
 // ── 无损数据迁移与清洗层 (Data Migration & Normalization) ──
@@ -1516,7 +1523,8 @@ function parseSmartReport(content) {
   if (t.startsWith('{')) {
     try {
       const j = JSON.parse(t);
-      if (j && typeof j === 'object' && (j.mistakes || j.coreSentences || j.newWords)) {
+      // v93：放宽 JSON 日报判定——summary/duration 任一存在即认（GPT 可能省略空数组键）
+      if (j && typeof j === 'object' && (j.mistakes || j.coreSentences || j.newWords || j.summary || j.duration)) {
         // ① 原始数据清洗：老格式字符串/残缺字段 → 结构补齐（无损，绝不丢行）
         const cleanedRaw = normalizeDailyData(j);
         // ② 归一化产物兜底清洗：UI 契约字段必有值
@@ -3480,8 +3488,9 @@ async function importReport(text) {
   if (trimmed.startsWith('{')) {
     try { jsonReport = JSON.parse(trimmed); } catch (e) { jsonReport = null; }
   }
+  // v93：GPT 可能省略空 mistakes/coreSentences/newWords 键 → 放宽为 summary/duration 任一存在即认 JSON 日报
   const isJsonDaily = jsonReport && typeof jsonReport === 'object' &&
-    (jsonReport.mistakes || jsonReport.coreSentences || jsonReport.newWords);
+    (jsonReport.mistakes || jsonReport.coreSentences || jsonReport.newWords || jsonReport.summary || jsonReport.duration);
 
   if (isJsonDaily) {
     await importJsonDailyReport(jsonReport, trimmed);
