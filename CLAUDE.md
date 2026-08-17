@@ -47,10 +47,17 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v89）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v99）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v90）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v100）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v89 / voco-v99**（打卡日历升维：横向无限回溯滑条 + 全局月历跳板，7 天硬编码废除）。
+- 当前线上：**v90 / voco-v100**（日报模板修复：duration 反编造 + 评分/发音/弱项三模块补全）。
+- **v90 日报模板要点**：
+  - TEMPLATES.report（App 内复制模板）与 `📋 日报模板/ChatGPT日报Prompt.md` **完全同步**（此前两份不同步：内嵌版缺 fluency/accuracy/naturalness）。
+  - duration 反编造指令：ChatGPT 未被告知实际时长时必须先询问用户，禁止照抄示例值 25。
+  - mistakes 三类：grammar（红色纠错卡）/ pronunciation（发音纠正卡）/ expression（地道表达 → patterns）。
+  - **JSON 链路 pronunciation 分流修复**：normalizeJsonReport 新增 pronunciation 分支（此前 else 兜底降级为 grammar，pronunciation 数组恒空）；importJsonDailyReport 写 errors 表 `type='pronunciation'` 独立入库。
+  - summary 新增：dailyThought {en,zh}（想法卡首选契约，替代 thought 字符串兜底提取）、weak_areas（Profile 弱项云，此前 JSON 链路 updateProgress 写死 ''）。
+  - 兼容：normalizeDailyData 清洗层未动，老格式日报照常导入。
 - **v89 日历升维要点**：
   - **废除 7 天硬编码（两处）**：`renderStreakCard`（打卡日历）与 `renderHeaderBears`（顶部问候熊条）的「6 天前→今天」静态数组全部删除。
   - **动态日期生成**：起点 = 词 `date_added` 与日报 `date` 并集的最早一天（`YYYY-MM-DD` 字典序 = 时间序），终点 = 今天，逐日连续序列；3 年截断仅为脏数据（1970 等）防护，正常数据触碰不到。
