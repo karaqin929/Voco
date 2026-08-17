@@ -1,6 +1,8 @@
-# 📝 日报模板（新版 JSON 格式 · 2026-08-13 起 · v83 增补 duration 时长字段）
+# 📝 日报模板（新版 JSON 格式 · 2026-08-13 起 · v83 增补 duration · v90 三模块补全）
 
 把下面这段指令发给 ChatGPT（或直接让 Claudian 生成），再把生成的 JSON **原样粘贴进 Voco「导入日报」对话框**即可解析入库。
+
+> ⚠️ v90 起 App 内「复制模板」按钮与本文档完全同步，直接复制即可。
 
 ---
 
@@ -11,15 +13,17 @@
   "duration": 25,
   "summary": {
     "topic": "练习话题（英文）",
-    "thought": "对话后的反思（中文，第一人称）",
+    "dailyThought": { "en": "英文一句反思金句", "zh": "对话后的反思（中文，第一人称，一段话）" },
     "strengths": ["做得好的地方 1", "做得好的地方 2", "..."],
     "nextSteps": ["下次要练的重点 1", "重点 2", "..."],
     "fluency": 7,
     "accuracy": 6.5,
-    "naturalness": 6
+    "naturalness": 6,
+    "weak_areas": "时态, 单复数"
   },
   "mistakes": [
     { "type": "grammar", "original": "我说的原话（英文）", "improved": "正确说法", "explanation": "涉及的语法规则" },
+    { "type": "pronunciation", "original": "发音错误的词或句子", "improved": "正确发音写法", "explanation": "音标或发音要点" },
     { "type": "expression", "original": "我的表达", "improved": "更地道的说法", "explanation": "什么场景下用" }
   ],
   "coreSentences": [
@@ -35,11 +39,12 @@
 
 | 字段 | 约定 |
 |------|------|
-| `duration` | **必填**。本次对话练习的总时长（分钟，数字）——首页「开口时长 / 总时长」直接消费（开口时长按 60% 折算） |
-| `mistakes[].type` | 只能是 `"grammar"`（硬伤 → 首页红色纠错卡）或 `"expression"`（地道表达 → 无删除线卡） |
-| `summary.fluency/accuracy/naturalness` | 0-10 数字，驱动首页 4 维指标 |
-| `summary.thought` | 对话后的反思（中文，第一人称，一段话）——首页「当日对话想法」卡片 |
-| `coreSentences` | 成为跟读页沉浸式播放器队列（1/N）；建议 5~8 句 |
+| `duration` | **必填**。本次对话练习的**真实**总时长（分钟，数字）——首页「开口时长 / 总时长」直接消费（开口时长按 60% 折算）。**若用户未告知实际时长，必须先询问用户再生成，绝不允许照抄示例值 25 或编造** |
+| `summary.dailyThought` | **必填双语**：`en` 英文一句总结，`zh` 中文第一人称反思（一段话）——首页「当日对话想法」卡片 |
+| `summary.fluency/accuracy/naturalness` | **必填**，0-10 数字（可含一位小数），驱动首页 4 维指标与 Profile 趋势图 |
+| `summary.weak_areas` | 弱项标签（逗号分隔）——Profile 页弱项云 |
+| `mistakes[].type` | 严格三类，绝不混用：`"grammar"`（语法硬伤 → 红色纠错卡）、`"pronunciation"`（发音错误 → 发音纠正卡）、`"expression"`（地道表达升级 → 句型库）。今天没有某类错误的条目直接省略 |
+| `coreSentences` | 成为跟读页沉浸式播放器队列（1/N）；建议 5~8 句；`targetSentence` 与 `replacedSentence` 必须同时存在 |
 | `newWords` | 自动打标「今日新词」；建议 5~12 个当天实际出现的生词 |
 
 ## 兼容说明

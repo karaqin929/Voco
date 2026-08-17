@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v89 — Tailwind Dashboard + Grouped-List Settings
+// Voco v90 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
@@ -16,6 +16,11 @@
 // v89 打卡日历升维：废除「最近 7 天」硬编码 → 横向无限回溯滑条（flex overflow-x-auto hide-scrollbar，首日→今天连续
 //            日期序列，小熊点亮与 DB 词/日报日期并集精准匹配）+ 全局月历弹窗（showMonthPicker 跨月跨年一键跳转，
 //            数据源 _dateScoreCache 与滑条同源）；reports 拉取 limit 90 → 1000 放开回溯软上限。
+// v90 日报模板修复（三模块补全）：① TEMPLATES.report 内嵌模板——duration 反编造指令（未告知时长先询问，禁照抄 25）、
+//            summary 补 dailyThought{en,zh} + fluency/accuracy/naturalness + weak_areas、mistakes 三类（grammar/
+//            pronunciation/expression）；② normalizeJsonReport 三分类分流（发音纠正不再被 else 兜底降级 grammar，
+//            pronunciation 数组与 Markdown 链路同形状）+ summary 透传 weak_areas；③ importJsonDailyReport 写库
+//            type='pronunciation' 独立入库 + updateProgress 传真实 weak_areas（此前写死 ''）。
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -1560,12 +1565,16 @@ function normalizeJsonReport(j, raw) {
   const mistakes = Array.isArray(j.mistakes) ? j.mistakes : [];
   const core = Array.isArray(j.coreSentences) ? j.coreSentences : [];
   const words = Array.isArray(j.newWords) ? j.newWords : [];
-  const grammar = [], patterns = [];
+  // v90 三分类分流：grammar / pronunciation / expression（发音纠正此前被 else 兜底降级为 grammar）
+  const grammar = [], pronunciation = [], patterns = [];
   for (const m of mistakes) {
     if (!m || !m.original) continue;
     if (m.type === 'expression') {
       // 软性升级 → patterns（地道表达），无删除线语义
       patterns.push({ original: m.original, better: m.improved || '', scene: m.explanation || '', type: 'expression' });
+    } else if (m.type === 'pronunciation') {
+      // 发音纠正 → pronunciation 数组（与 Markdown 链路同形状：original/correction/rule）
+      pronunciation.push({ original: m.original, correction: m.improved || '', rule: m.explanation || '', type: 'pronunciation' });
     } else {
       // 硬伤 → grammar
       grammar.push({ original: m.original, correction: m.improved || '', rule: m.explanation || '', type: 'grammar' });
@@ -1577,7 +1586,7 @@ function normalizeJsonReport(j, raw) {
   return {
     meta: { type: 'daily-report', topic: s.topic || '', date: getLocalToday(), duration: (dur > 0 ? dur : 0) },
     grammar,
-    pronunciation: [],
+    pronunciation,
     patterns,
     sentence_patterns: core.filter(c => c && c.targetSentence).map(c => ({
       pattern: c.targetSentence,
@@ -1596,7 +1605,9 @@ function normalizeJsonReport(j, raw) {
         ? { en: String(s.dailyThought.en || ''), zh: String(s.dailyThought.zh || '') }
         : parseDailyThought(String(s.thought || '')),
       strengths: Array.isArray(s.strengths) ? s.strengths.join('\n') : '',
-      next_suggestions: Array.isArray(s.nextSteps) ? s.nextSteps.join('\n') : ''
+      next_suggestions: Array.isArray(s.nextSteps) ? s.nextSteps.join('\n') : '',
+      // v90 弱项标签透传（Profile 弱项云；Markdown 链路有、JSON 链路此前丢失）
+      weak_areas: s.weak_areas || ''
     },
     raw
   };
@@ -3375,12 +3386,17 @@ const TEMPLATES = {
   "duration": 25,
   "summary": {
     "topic": "今天对话的核心主题标签",
-    "thought": "对话后的反思（中文，第一人称）",
+    "dailyThought": { "en": "英文一句反思金句", "zh": "对话后的反思（中文，第一人称，一段话）" },
     "strengths": ["优点1", "优点2", "优点3"],
-    "nextSteps": ["下一次练习建议1", "建议2"]
+    "nextSteps": ["下一次练习建议1", "建议2"],
+    "fluency": 7,
+    "accuracy": 6.5,
+    "naturalness": 6,
+    "weak_areas": "时态, 单复数"
   },
   "mistakes": [
     { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释" },
+    { "type": "pronunciation", "original": "发音错误的词或句子", "improved": "正确发音写法", "explanation": "音标或发音要点" },
     { "type": "expression", "original": "中式或普通的句子", "improved": "更地道高阶的表达", "explanation": "为什么这样说更好" }
   ],
   "coreSentences": [
@@ -3392,10 +3408,12 @@ const TEMPLATES = {
 }
 
 硬性要求：
-1. duration 必须输出：本次对话练习的总时长分钟数（数字，用于首页「开口时长 / 总时长」）。
-2. mistakes 数组必须严格区分两类：type 为 "grammar" 的条目是语法硬伤（时态、单复数、冠词等）；type 为 "expression" 的条目是语法正确但不够地道的表达升级，两者绝不能混用。
-3. coreSentences 必须同时包含高阶金句 targetSentence 和被替换的平庸句 replacedSentence；建议 5 到 8 句。
-4. newWords 给出 5 到 12 个今天实际出现过的生词。`,
+1. duration 必须输出：本次对话练习的真实总时长分钟数（数字，用于首页「开口时长 / 总时长」）。如果你不知道用户实际练习了多少分钟，必须先询问用户，得到回答后再生成日报；绝不允许编造或直接照抄示例值 25。
+2. mistakes 数组必须严格区分三类：type 为 "grammar" 是语法硬伤（时态、单复数、冠词等）；type 为 "pronunciation" 是发音错误（读错的词、重音、元音等）；type 为 "expression" 是语法正确但不够地道的表达升级。三者绝不能混用；今天没有某一类错误时，该类条目直接省略。
+3. summary.fluency / accuracy / naturalness 是 0-10 的评分（可含一位小数），必须输出——它们驱动首页 4 维指标。
+4. summary.dailyThought 必须双语输出：en 为英文一句总结，zh 为中文第一人称反思（一段话）。
+5. coreSentences 必须同时包含高阶金句 targetSentence 和被替换的平庸句 replacedSentence；建议 5 到 8 句。
+6. newWords 给出 5 到 12 个今天实际出现过的生词。`,
   topic: `请为以下内容生成 Voco 话题卡：
 
 [在此粘贴视频描述、文章内容或链接]
@@ -3501,12 +3519,12 @@ async function importJsonDailyReport(jsonReport, rawText) {
     })));
   }
 
-  // 2) 语法硬伤（type:'grammar'）→ errors 表
+  // 2) 语法硬伤 + 发音纠正（type:'grammar'/'pronunciation'）→ errors 表（v90 发音不再降级为语法）
   const allErrors = [];
   for (const m of (Array.isArray(jsonReport.mistakes) ? jsonReport.mistakes : [])) {
     if (!m || !m.original || m.type === 'expression') continue;
     allErrors.push({
-      user_id: uid, type: 'grammar', original: m.original || '',
+      user_id: uid, type: m.type === 'pronunciation' ? 'pronunciation' : 'grammar', original: m.original || '',
       correction: m.improved || '', rule: m.explanation || '',
       date_added: date, source_topic: topic,
       error_pattern: classifyErrorType(m.original, m.improved, m.explanation)
@@ -3537,7 +3555,7 @@ async function importJsonDailyReport(jsonReport, rawText) {
   // v83 时长/评分落 progress 表：与 Markdown 路径 importDailyReport 对齐（此前硬编码 0，时长与趋势数据双丢）
   const s2 = (jsonReport.summary && typeof jsonReport.summary === 'object') ? jsonReport.summary : {};
   const dur = parseInt(String((jsonReport.duration || s2.duration || s2.durationMinutes) || ''), 10) || 0;
-  await updateProgress(uid, Number(s2.fluency) || 0, Number(s2.accuracy) || 0, '', topic, dur);
+  await updateProgress(uid, Number(s2.fluency) || 0, Number(s2.accuracy) || 0, s2.weak_areas || '', topic, dur);
 
   if (topic) {
     const { data: existingTopic } = await sb.from('topics').select('id').eq('title', topic).maybeSingle();
