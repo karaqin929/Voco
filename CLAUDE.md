@@ -47,10 +47,18 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v88）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v98）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v89）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v99）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v88 / voco-v98**（QA 自检补漏：学习建议双分支带日期 + 待办任务3=due卡组真实长度 + 切Tab清日期上下文）。
+- 当前线上：**v89 / voco-v99**（打卡日历升维：横向无限回溯滑条 + 全局月历跳板，7 天硬编码废除）。
+- **v89 日历升维要点**：
+  - **废除 7 天硬编码（两处）**：`renderStreakCard`（打卡日历）与 `renderHeaderBears`（顶部问候熊条）的「6 天前→今天」静态数组全部删除。
+  - **动态日期生成**：起点 = 词 `date_added` 与日报 `date` 并集的最早一天（`YYYY-MM-DD` 字典序 = 时间序），终点 = 今天，逐日连续序列；3 年截断仅为脏数据（1970 等）防护，正常数据触碰不到。
+  - **横向无限滚动**：`flex overflow-x-auto hide-scrollbar` + cell `shrink-0`（style.css 已有 .hide-scrollbar；index.html header-bears 容器补类）。
+  - **全局月历弹窗**：`showMonthPicker()`（点「打卡日历」标题触发）→ 跨月跨年导航（‹›，未来月禁用）+ 任意日一键跳转（有数据 → 历史日报视图；无数据 → toast；「回今天」快捷）；数据源 `_dateScoreCache`（模块级缓存，横滑条与月历同源）。
+  - **回溯数据放开**：reports 拉取 `limit(90) → limit(1000)`（4 处：loadHome/loadWords/loadSpeak/loadProfile；Supabase 单次上限，一天一条 ≈ 3 年）。
+  - **parseLocalDate**：`'YYYY-MM-DD' → 本地 Date`（严禁 `new Date(str)`，UTC 午夜解析在 0-8 点时区偏移一天）。
+  - 保留：Profile 页「近 7 天综合得分」趋势图为语义组件（近 7 天 = 图表设计语义，非历史路由入口）。
 - **v88 QA 自检要点（全入口跳转/计数审计结论）**：
   - 审计口径：12 个核心跳转入口逐一核对「专属路由传参」+「数量绝对一致性」，发现 4 缺口并修复。
   - ① `showNextStepDetail` vocab 分支：`navigateReview('all')` → `navigateReview('all','today',ctxDate)`（历史日报下点「浏览词汇」不再跳全量词库）。
