@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v93 — Tailwind Dashboard + Grouped-List Settings
+// Voco v94 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
@@ -30,6 +30,10 @@
 //            走 Markdown 空壳入库（reports 有行、vocabulary/errors/patterns 全空）→ 徽章亮/熊白/Hero 未对练三分裂。
 //            修复：isDailyReport + importReport + parseSmartReport 三处判定放宽（summary/duration 任一存在即认
 //            JSON 日报）；L428 todayReport 补 isDailyReport 过滤——徽章与熊条/Hero 判定绝对同源对齐。
+// v94 弯引号根治（源头+防御双修）：① 模板源头——TEMPLATES.report 硬性要求新增第 7 条「引号铁律」（整份 JSON 只许
+//            英文直引号，严禁弯引号 “ ” ‘ ’，GPT 生成后自查）→ 用户按新 prompt 重新生成今日日报；② 解析防御——
+//            normalizeSmartQuotes 弯引号归一化（“”‘’全角 → 直引号），isDailyReport/importReport/parseSmartReport
+//            三入口 parse 前统一归一化——GPT 再犯也能成功解析，杜绝僵尸行（徽章亮/熊白/Hero 未对练三分裂）。
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -1278,9 +1282,18 @@ function renderTodoList(speakDoneToday) {
   });
 }
 
+// v94 弯引号归一化：GPT 输出/复制链路可能把直引号「美化」成弯引号（“ ” ‘ ’ 及全角）
+// → JSON.parse 失败 → 日报被判非日报 → 僵尸行（reports 有行、三表全空、徽章亮/熊白/Hero 未对练）。
+// 所有 JSON 文本入口先过本函数再 parse；isDailyReport 判定同样归一化后再匹配。
+function normalizeSmartQuotes(s) {
+  return String(s || '')
+    .replace(/[“”＂]/g, '"')   // “ ” 全角"
+    .replace(/[‘’＇]/g, "'");  // ‘ ’ 全角'
+}
+
 function isDailyReport(report) {
   if(!report||!report.content) return false;
-  const c=report.content;
+  const c = normalizeSmartQuotes(report.content);   // v94：弯引号内容先归一化再判定
   // 兼容两种上游格式：传统 Markdown 日报 + 新版 JSON 日报
   return c.includes('type: daily-report')||c.includes('## 语法纠正')||c.includes('## 发音纠正')||c.includes('## 今日生词')||c.includes('## 表现总结')||c.includes('## 地道表达')
     || c.includes('"mistakes"')||c.includes('"coreSentences"')||c.includes('"newWords"')
@@ -1522,7 +1535,7 @@ function parseSmartReport(content) {
   const t = String(content || '').trim();
   if (t.startsWith('{')) {
     try {
-      const j = JSON.parse(t);
+      const j = JSON.parse(normalizeSmartQuotes(t));   // v94：弯引号归一化后再 parse
       // v93：放宽 JSON 日报判定——summary/duration 任一存在即认（GPT 可能省略空数组键）
       if (j && typeof j === 'object' && (j.mistakes || j.coreSentences || j.newWords || j.summary || j.duration)) {
         // ① 原始数据清洗：老格式字符串/残缺字段 → 结构补齐（无损，绝不丢行）
@@ -3431,7 +3444,8 @@ const TEMPLATES = {
    每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / "时态, 单复数"。
 4. summary.dailyThought 必须双语输出：en 为英文一句总结；zh 为中文第一人称反思（一段话，结合上面的评分表现，点出今天最值得改进的一点）。
 5. coreSentences 必须同时包含高阶金句 targetSentence 和被替换的平庸句 replacedSentence；建议 5 到 8 句。
-6. newWords 给出 5 到 12 个今天实际出现过的生词。`,
+6. newWords 给出 5 到 12 个今天实际出现过的生词。
+7. 引号铁律：整份 JSON 只允许英文直引号 "（半角），严禁使用弯引号 “ ” ‘ ’（智能引号会让 JSON 解析直接失败、整份日报报废）。所有键名、字符串值一律用直引号；生成完成后自查一遍，发现任何弯引号立即改回直引号。`,
   topic: `请为以下内容生成 Voco 话题卡：
 
 [在此粘贴视频描述、文章内容或链接]
@@ -3484,9 +3498,10 @@ async function importReport(text) {
   const trimmed = text.trim();
 
   // 新版 JSON 日报：JSON.parse 成功后走专用入库器（自动打标）
+  // v94：parse 前弯引号归一化（GPT/复制链路 “ ” 变体不再导致 parse 失败 → 僵尸行）
   let jsonReport = null;
   if (trimmed.startsWith('{')) {
-    try { jsonReport = JSON.parse(trimmed); } catch (e) { jsonReport = null; }
+    try { jsonReport = JSON.parse(normalizeSmartQuotes(trimmed)); } catch (e) { jsonReport = null; }
   }
   // v93：GPT 可能省略空 mistakes/coreSentences/newWords 键 → 放宽为 summary/duration 任一存在即认 JSON 日报
   const isJsonDaily = jsonReport && typeof jsonReport === 'object' &&
