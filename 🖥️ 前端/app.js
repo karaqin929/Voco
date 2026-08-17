@@ -3412,10 +3412,11 @@ const TEMPLATES = {
 硬性要求：
 1. duration 必须输出：本次对话练习的真实总时长分钟数（数字，用于首页「开口时长 / 总时长」）。开头【】里已写明本次练习时长，直接使用该数字；若【】里仍为空，必须先询问用户，得到回答后再生成日报；绝不允许编造或直接照抄示例值 25。
 2. mistakes 数组必须严格区分三类：type 为 "grammar" 是语法硬伤（时态、单复数、冠词等）；type 为 "pronunciation" 是发音错误（读错的词、重音、元音等）；type 为 "expression" 是语法正确但不够地道的表达升级。三者绝不能混用；今天没有某一类错误时，该类条目直接省略。
-3. summary.fluency / accuracy / naturalness 是 0-10 的评分（可含一位小数），必须输出——它们驱动首页 4 维指标。
+3. summary.fluency / accuracy / naturalness 是 0-10 的评分（可含一位小数），必须输出——它们驱动首页 4 维指标。请根据本次对话的实际表现打分（fluency 看停顿迟疑、accuracy 看语法错误率、naturalness 看表达是否地道），禁止照抄示例值 7 / 6.5 / 6。
 4. summary.dailyThought 必须双语输出：en 为英文一句总结，zh 为中文第一人称反思（一段话）。
-5. coreSentences 必须同时包含高阶金句 targetSentence 和被替换的平庸句 replacedSentence；建议 5 到 8 句。
-6. newWords 给出 5 到 12 个今天实际出现过的生词。`,
+5. summary.weak_areas 列出本次对话中实际暴露的弱点（逗号分隔的中文标签，如 "时态, 冠词"），根据你观察到的真实错误归纳，禁止照抄示例值 "时态, 单复数"。
+6. coreSentences 必须同时包含高阶金句 targetSentence 和被替换的平庸句 replacedSentence；建议 5 到 8 句。
+7. newWords 给出 5 到 12 个今天实际出现过的生词。`,
   topic: `请为以下内容生成 Voco 话题卡：
 
 [在此粘贴视频描述、文章内容或链接]
