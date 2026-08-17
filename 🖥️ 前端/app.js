@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v94 — Tailwind Dashboard + Grouped-List Settings
+// Voco v95 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
@@ -34,6 +34,13 @@
 //            英文直引号，严禁弯引号 “ ” ‘ ’，GPT 生成后自查）→ 用户按新 prompt 重新生成今日日报；② 解析防御——
 //            normalizeSmartQuotes 弯引号归一化（“”‘’全角 → 直引号），isDailyReport/importReport/parseSmartReport
 //            三入口 parse 前统一归一化——GPT 再犯也能成功解析，杜绝僵尸行（徽章亮/熊白/Hero 未对练三分裂）。
+// v95 数据幽灵根治（杀 Mock + 输入洗理 + 静默失败显式化）：① mockDashboardData/mockWords/mockSentences/
+//            mockMistakeErrors 全部物理删除 → EMPTY_INSIGHTS 空态常量；洞察区主题/优点/提升三卡无数据渲染
+//            「当日无数据」；mergeDemoVocab 纯透传、_errorsAll/_speakAll/coreDeck 空库=空状态，绝不注入假数据。
+//            ② sanitizeJsonInput 输入洗理（BOM/代码块围栏/最外层 {…} 跨度提取/引号归一化）→ importReport 与
+//            parseSmartReport 双入口；旧僵尸行（带包装文本）读取时也能现场解析。③ JSON 意图但解析失败 →
+//            toast-error 显式报错并中断（禁止静默空壳行）；JSON 入库完成 toast 不再被「导入成功」覆盖。
+//            ④ 导入成功 _viewDate=null 强制回今日视图再 loadHome。⑤ 评分小数制 ×10 映射（L809 norm100）核查无误。
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -310,102 +317,21 @@ const ICO_REPEAT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" 
 // ═══════════════════════════════════════════════════════
 let _viewDate = null; // null=today, else 'YYYY-MM-DD' for history view
 
-// ── Mock Dashboard Data (powers all cards when no real report) ──
-const mockDashboardData = {
-  user: { name: 'kk' },
-  status: { hasReport: true, lastSync: getLocalToday() + ' 18:30' }, // v79：去硬编码日期，mock 同步时间跟随本地今天
-  quote: {
-    en: "The limits of my language mean the limits of my world.",
-    zh: "语言的边界，就是世界的边界。",
-    author: "Ludwig Wittgenstein",
-    category: "PHILOSOPHY"
-  },
-  metrics: {
-    overall: 78, fluency: 75, grammar: 72, vocab: 80, natural: 82,
-    speakMin: 18, totalMin: 30,
-    topics: 3, newWords: 4, expressions: 10, corrections: 2
-  },
-  insights: {
-    topics: ['personal growth', 'daily routines', 'future plans'],
-    // 零硬编码：今日对话想法由日报 summary.dailyThought 动态驱动（v62），空值走引导卡
-    thoughts: { en: '', zh: '' },
-    strengths: [
-      '能够表达抽象观点，如"个人成长需要时间沉淀"',
-      '遇到表达困难时，能主动替换近义词汇绕过障碍',
-      '语音语调自然，停顿位置合理，语速适中'
-    ],
-    improvements: [
-      // 🔴 Hard Mistake — 硬性语法错误：非黑即白，必须纠正
-      { type:'grammar', issue:'语法纠错', wrong:'I have went to three interviews last month.', correct:'I have gone to three interviews last month.', explanation:'注意时态的一致性：现在完成时需用 have + 过去分词（gone），不能用过去式 went', detail:"'I have went' → 应为 'I have gone'", action:'专项攻克', tab:'speak', filter:'tense', filterLabel:'时态句型', errorCategory:'tense' },
-      { type:'grammar', issue:'语法纠错', wrong:'I went to store.', correct:'I went to the store.', explanation:'冠词遗漏：单数可数名词 store 前需要冠词 the', detail:"'I went to store' → 应为 'I went to the store'", action:'查看纠错', tab:'words', filter:'mistakes', filterLabel:'高频错词', errorCategory:'article' },
-      // 💡 Soft Upgrade — 语法没错，但不够地道：不做删除线，只做升级替换
-      { type:'expression', issue:'地道表达', wrong:'I think I can do this job.', correct:"I believe I'm a strong fit for this role.", explanation:'使用更具商务感的词汇：面试场景下 believe / strong fit 比口语化的 I think 更专业自信', detail:"'I think I can do this job' → 'I believe I'm a strong fit for this role'", action:'专项句型复习', tab:'speak', filter:'connective', filterLabel:'地道表达', errorCategory:'collocation' },
-      // 🎯 Structure — 逻辑断层：连接词让层次更分明
-      { type:'structure', issue:'逻辑与结构', wrong:'I wanted to go out. It was raining.', correct:'I wanted to go out. However, it was raining.', explanation:'表达转折时使用 however / therefore 等连接词，让层次更分明', detail:'多处句子之间缺乏 however/therefore 等过渡词', action:'专项句型复习', tab:'speak', filter:'connective', filterLabel:'连接词句型', errorCategory:'connective' }
-    ],
-    nextSteps: [
-      { step: '练习使用更复杂的连接词（however, therefore, moreover）', action: '专项句型复习', tab: 'speak', filter: 'connective', filterLabel: '连接词句型' },
-      { step: '刻意练习过去时态与现在完成时的区分', action: '专项句型复习', tab: 'speak', filter: 'tense', filterLabel: '时态句型' },
-      { step: '尝试在下次对话中使用至少 3 个本周新学单词', action: '去练习', tab: 'words', filter: 'new', filterLabel: '今日新词' }
-    ],
-    // ── v6.0 高管摘要（Card F 重构） ──
-    executiveSummary: '整体流利度明显提升，但在时态一致性和逻辑连接词的使用上仍有结构化提升空间。',
-    highlights: [
-      { text: '能够流畅表达抽象观点，语言组织能力较好' },
-      { text: '遇到表达困难时能主动替换近义词，沟通策略成熟' },
-      { text: '语音语调自然，停顿位置合理，语速适中' }
-    ],
-    targetAreas: [
-      { category:'tense', label:'时态混淆', keyword:'过去时 vs 完成时', count:3, filterKey:'tense', filterLabel:'时态句型', actionLabel:'专项句型复习' },
-      { category:'connective', label:'连接词缺失', keyword:'however / therefore', count:2, filterKey:'connective', filterLabel:'连接词句型', actionLabel:'专项句型复习' },
-      { category:'article', label:'冠词遗漏', keyword:'a / an / the', count:2, filterKey:'mistakes', filterLabel:'高频错词', actionLabel:'去纠错' }
-    ],
-    overallReview: "本次练习围绕个人成长展开，用户能够表达较复杂的观点，在描述抽象概念时展现了较好的语言组织能力。整体流利度有明显提升，但在语法细节和连接词使用上仍有优化空间。建议在下次练习中刻意关注时态一致性和逻辑连接词的运用。"
-  },
-  contentCards: [
-    // num 不再硬编码 — renderContentCards 从 mockWords / mockSentences 动态计算
-    { icon: 'pen-line', label: '新学单词', tab: 'words', btn: '复习今日单词', filter: 'new', filterLabel: '今日新词' },
-    { icon: 'ruler', label: '核心句型', tab: 'speak', btn: '练习句型', filter: 'core_sentences', filterLabel: '核心句型' },
-    { icon: 'wrench', label: '重点纠错', tab: 'words', btn: '查看纠错', filter: 'mistakes', filterLabel: '高频错词' }
-  ],
-  // todos 字段已删除：今日待办由 renderTodoList 三闭环动态生成（v61），不留硬编码残存
+// ── v95 空态数据（演示假数据已物理删除）：无数据/解析异常一律渲染空状态，绝不回退 Mock ──
+const EMPTY_INSIGHTS = {
+  topics: [],
+  thoughts: null,
+  strengths: [],
+  improvements: [],
+  nextSteps: [],
+  executiveSummary: null,
+  highlights: [],
+  targetAreas: [],
+  overallReview: null
 };
 
-// 2. 句型复习/口语数据 (绝对不允许拆分，必须是嵌套对象)
-const mockSentences = [
-  {
-    id: 1,
-    targetSentence: "I want to take my English to the next level.",
-    replacedSentence: "I want to make my English better.",
-    explanation: "表达能力进阶，比 'make better' 更地道、更有目标感。",
-    isTodayCore: true
-  },
-  {
-    id: 2,
-    targetSentence: "I believe I'm a strong fit for this role.",
-    replacedSentence: "I think I can do this job.",
-    explanation: "面试/职场语境，show confidence without arrogance。",
-    isTodayCore: true
-  }
-];
+// v95 演示词库/句型库/错词库已物理删除：云端数据为空 = 空库 = 空状态，严禁注入假数据
 
-// 1. 单词/复习数据 (必须包含布尔值标签)
-// Voco 2.0：id 统一 mock-N 前缀 —— 任务状态中心按 String(v.id).startsWith('mock-') 隔离演示假数据
-const mockWords = [
-  { id: 'mock-1', word: 'competitive', phonetic: "/kəm'petətɪv/", meaning: '有竞争力的', example: 'The industry is highly competitive right now.', isNewToday: true, isMistake: false, needsReview: true },
-  { id: 'mock-2', word: 'standout', phonetic: "/'stændaʊt/", meaning: '突出的', example: 'Her presentation was the standout.', isNewToday: true, isMistake: false, needsReview: true },
-  { id: 'mock-3', word: 'went', meaning: 'go 的过去式（易错）', example: 'I have gone to the store.', isNewToday: false, isMistake: true, needsReview: false, correct: 'gone' }
-];
-// 错词数据（供 _errorsAll 交叉比对 fallback）
-const mockMistakeErrors = mockWords.filter(w => w.isMistake).map(w => ({
-  id: 'me_' + w.id,
-  type: 'grammar',
-  original: w.example,
-  correction: w.correct || w.example,
-  rule: w.meaning || '搭配 / 词性易错',
-  date_added: w.date_added || getLocalToday(),
-  source_topic: w.source_topic || '易错词'
-}));
 
 let _homeLoading = false;
 async function loadHome() {
@@ -701,29 +627,9 @@ function stampDailyTags(vocabList, errorsList) {
     return t;
   });
 }
-// 内置演示词库与云端词库合并：同名行继承布尔标签，缺词补入（永久合并，绝不允许 0 数据空状态）
+// v95 演示词库已物理删除：云端词库为空 = 空状态（绝不注入假词）；合并逻辑保留为纯透传
 function mergeDemoVocab(vocabList) {
-  const source = (vocabList && vocabList.length) ? [...vocabList] : [...mockWords];
-  const seenWords = new Set((vocabList || []).map(v => (v.word || '').toLowerCase().trim()));
-  mockWords.forEach(d => { if (!seenWords.has(d.word.toLowerCase())) source.push({ ...d }); });
-  const demoByWord = new Map(mockWords.map(w => [(w.word || '').toLowerCase(), w]));
-  const seen = new Map();
-  const merged = [];
-  source.forEach(v => {
-    const key = (v.word || '').toLowerCase().trim();
-    if (!key || seen.has(key)) return;
-    seen.set(key, true);
-    const d = demoByWord.get(key);
-    if (d) {
-      const item = { ...v };
-      if (item.isNewToday === undefined) item.isNewToday = d.isNewToday;
-      if (item.isMistake === undefined) item.isMistake = d.isMistake;
-      if (item.needsReview === undefined) item.needsReview = d.needsReview;
-      if (item.correct === undefined && d.correct) item.correct = d.correct;
-      merged.push(item);
-    } else merged.push(v);
-  });
-  return merged;
+  return (vocabList && vocabList.length) ? [...vocabList] : [];
 }
 // 词库快照网关：合并内置词库 → 统一打标 → 输出纯布尔驱动的词库
 function buildWordSnapshot(vocabList, errorsList) {
@@ -913,15 +819,15 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
     return;
   }
   // 单一事实源：今日=_reportParsed；历史视图=_historyParsed（v75），禁止在此重新解析
-  let d = JSON.parse(JSON.stringify(mockDashboardData.insights));
+  let d = JSON.parse(JSON.stringify(EMPTY_INSIGHTS));
   const p = historyMode ? _historyParsed : _reportParsed;
   _insightsParsed = p;
-  if(p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
-  if(p.summary.review||p.summary.thoughts) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
+  if(p && p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
+  if(p && (p.summary.review||p.summary.thoughts)) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
   // 今日对话想法 / 做得好的地方：时间轴拦截后的展示值直传（loadHome 已按 missionState 强制清空历史数据）
   if (displayThoughts && (displayThoughts.en || displayThoughts.zh)) d.thoughts = displayThoughts;
   if (displayGoodPoints) { const arr = Array.isArray(displayGoodPoints) ? displayGoodPoints : String(displayGoodPoints).split('\n'); const lines = arr.filter(Boolean).map(l => String(l).replace(/^[-•*]\s*/, '')); if (lines.length) d.strengths = lines; }
-  const allErr = [...(p.grammar||[]),...(p.pronunciation||[])];
+  const allErr = p ? [...(p.grammar||[]),...(p.pronunciation||[])] : [];   // v95 空防护：该日无报告 → 空数组 → 空状态
   // 双维度打标：grammar = 硬性错误（红线纠正）；expression = 地道升级（语法没错，只替换不判错）
   const merged = [
     ...allErr.slice(0, 2).map(e => ({
@@ -938,7 +844,7 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
     }))
   ];
   if (merged.length) d.improvements = merged;
-  if(p.summary.next_suggestions){ const steps = p.summary.next_suggestions.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*\d]+[\.\、]\s*/,'')); if(steps.length) d.nextSteps = steps.slice(0,3).map(s=>({step:s,action:'去练习',tab:'speak'})); }
+  if(p && p.summary.next_suggestions){ const steps = p.summary.next_suggestions.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*\d]+[\.\、]\s*/,'')); if(steps.length) d.nextSteps = steps.slice(0,3).map(s=>({step:s,action:'去练习',tab:'speak'})); }
   // v6.0: derive executive summary fields from real report data
   if(allErr.length) {
     d.targetAreas = allErr.slice(0,3).map(e => ({
@@ -954,7 +860,7 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   if (d.strengths.length) {
     d.highlights = d.strengths.slice(0, 3).map(s => ({ text: s }));
   }
-  if (p.summary.review) {
+  if (p && p.summary.review) {
     d.executiveSummary = p.summary.review.slice(0, 100) + (p.summary.review.length > 100 ? '…' : '');
   }
   const card = (delay,html) => `<div class="bg-[var(--c-surface)] rounded-2xl p-4 mb-2.5 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s;box-shadow:var(--c-shadow-sm)">${html}</div>`;
@@ -966,7 +872,7 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // v75 历史视图标签语境：今日 → 当日（顶部横幅已标明「正在查看 {date} 数据」，卡片标题同步去「今日」歧义）
   const dayLabel = historyMode ? '当日' : '今日';
   // Card A: Topics
-  html += card(0.03, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('message-circle','w-3.5 h-3.5')} ${dayLabel}对话主题</div><div class="flex gap-2 flex-wrap">${d.topics.map(t=>`<span class="px-3 py-1 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-xs font-medium">#${h(t)}</span>`).join('')}</div>`);
+  html += card(0.03, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('message-circle','w-3.5 h-3.5')} ${dayLabel}对话主题</div>${d.topics.length ? `<div class="flex gap-2 flex-wrap">${d.topics.map(t=>`<span class="px-3 py-1 bg-[var(--c-green-light)] text-[var(--c-green)] rounded-full text-xs font-medium">#${h(t)}</span>`).join('')}</div>` : '<div class="text-sm text-[var(--c-text-ultradim)]">当日无数据</div>'}`);
   // Card B: 今日对话想法 —— 动态渲染：优先 _reportParsed.summary.dailyThought，次取本函数解析的日报 dailyThought；零硬编码金句
   // v76 修复：① 值净化（trim + 「无/暂无/没有/未记录」判空 → 优雅空状态，绝不渲染生硬「无」字）
   //         ② 字体规范（font-sans not-italic 全局无衬线，删除 Georgia 衬线斜体引语样式）
@@ -992,10 +898,10 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
     html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div><div class="text-sm text-[var(--c-text-ultradim)] not-italic">${historyMode ? '当日未记录想法' : '💡 导入今日日报后，在此提炼你的核心表达观点'}</div>`);
   }
   // Card C: Strengths
-  html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} ${dayLabel}做得好的地方</div>${d.strengths.map(s=>`<div class="flex items-start gap-2 text-[0.875rem] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('')}`);
+  html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} ${dayLabel}做得好的地方</div>${d.strengths.length ? d.strengths.map(s=>`<div class="flex items-start gap-2 text-[0.875rem] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('') : '<div class="text-sm text-[var(--c-text-ultradim)]">当日无数据</div>'}`);
   // Card D: 进阶引导 — 一条 = 一卡，按 type 分流教练视角（硬伤红线 / 软性升级 / 逻辑结构）
   html += `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2 px-1">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} ${dayLabel}需要提升</div>`;
-  html += d.improvements.map((im, i) => {
+  html += d.improvements.length ? d.improvements.map((im, i) => {
     // Legacy fallback: derive structured fields from detail string if new fields absent
     const parts = (im.detail || '').split(' → ');
     const wrong = im.wrong || parts[0] || '';
@@ -1015,7 +921,7 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
         </button>
       </div>
     `);
-  }).join('');
+  }).join('') : '<div class="text-sm text-[var(--c-text-ultradim)] px-1">当日无数据</div>';
   // v82：Card E「今日私教对战 Prompt」胶囊模块已彻底移除 —— 首页洞察区终止于 Card D（需要提升），
   // 私教 Prompt 生成统一收敛至【我的】页灵感配置舱（fireTopicGeneratorPrompt，含对练防御注入闭环）
   container.innerHTML = html;
@@ -1028,7 +934,7 @@ let _insightsParsed = null; // 当前日报 parseSmartReport 产物（学习建�
 
 // ── Improvement detail: coach advice by type, not a blind error dump ──
 function showImprovementDetail(idx) {
-  const d = _currentInsights || mockDashboardData.insights;
+  const d = _currentInsights || EMPTY_INSIGHTS;
   const im = d.improvements[idx];
   if (!im) return;
   // 教练视角：硬伤给纠错建议，软性升级给语感建议，绝不把地道表达当错误训斥
@@ -1077,7 +983,7 @@ function currentContextDate() {
 // 旧 'pat_N'（patterns 数组序号）与跟读页 'core-N'（核心句型序号）是两套命名空间，
 // 传 id 必然错位触发「未找到句子，已从头开始」；文本 + 日期双参数在 loadSpeak 内精确命中该日核心句型
 function startImprovementSpeak(idx) {
-  const d = _currentInsights || mockDashboardData.insights;
+  const d = _currentInsights || EMPTY_INSIGHTS;
   const im = d.improvements && d.improvements[idx];
   if (!im) { navigateShadowing(); return; }
   navigateShadowing(undefined, im.correct || im.wrong || '', currentContextDate());
@@ -1100,7 +1006,7 @@ function classifySuggestion(step) {
 
 // ── Next-step detail: contextual action, not blind tab switch ──
 function showNextStepDetail(idx) {
-  const d = _currentInsights || mockDashboardData.insights;
+  const d = _currentInsights || EMPTY_INSIGHTS;
   const ns = d.nextSteps[idx];
   if (!ns) return;
   const kind = classifySuggestion(ns.step);
@@ -1289,6 +1195,24 @@ function normalizeSmartQuotes(s) {
   return String(s || '')
     .replace(/[“”＂]/g, '"')   // “ ” 全角"
     .replace(/[‘’＇]/g, "'");  // ‘ ’ 全角'
+}
+
+// v95 输入洗理：剥 BOM → 剥 Markdown 代码块围栏（```json 等）→ 提取最外层 {…} JSON 跨度
+// → 弯引号归一化。防御 GPT 输出带前言/后缀、围栏包装、复制链路智能引号污染。
+// 跨度提取仅在跨度内出现 JSON 键时才生效——Markdown 老日报里的杂散 { } 不受影响。
+function sanitizeJsonInput(s) {
+  let t = String(s || '').trim();
+  t = t.replace(/^﻿/, '');                 // BOM
+  t = t.replace(/```[a-zA-Z]*\s*/g, '');        // 代码块围栏
+  const start = t.indexOf('{');
+  if (start >= 0) {
+    const end = t.lastIndexOf('}');
+    if (end > start) {
+      const span = t.slice(start, end + 1);
+      if (/"(duration|summary|mistakes|coreSentences|newWords|topic)"|“/.test(span)) t = span;
+    }
+  }
+  return normalizeSmartQuotes(t);
 }
 
 function isDailyReport(report) {
@@ -1532,7 +1456,7 @@ function cleanLegacyLocalStorage() {
 // 所有链路（首页 / 历史日期切换 / 单词页 / 句型复习页 / 导入预览）读到的数据
 // 都先经 normalizeDailyData 无损清洗，再进入 UI 渲染。
 function parseSmartReport(content) {
-  const t = String(content || '').trim();
+  const t = sanitizeJsonInput(String(content || ''));   // v95：读取路径同样洗理（旧僵尸行存有围栏/包装文本也能现场解析）
   if (t.startsWith('{')) {
     try {
       const j = JSON.parse(normalizeSmartQuotes(t));   // v94：弯引号归一化后再 parse
@@ -1886,7 +1810,7 @@ function buildGlobalMissionInputs(vocab, errors, reports, patterns) {
   // 断流修复：日报生词在此合并进全局词库 —— 首页/复习页数据源绝对一致
   // v86 全局加固：错题表行在进入全局状态前统一碎片合并 —— 所有下游消费方
   // （错词交叉打标 / errRows 兜底 / 对练防御池 / 混合卡组）拿到的都是一条知识 = 一行
-  _errorsAll = mergeLabelFragments((errors && errors.length) ? errors : mockMistakeErrors);
+  _errorsAll = mergeLabelFragments(errors || []);   // v95：mockMistakeErrors 已物理删除，空表=空数组
   _wordsAll = mergeReportVocab(buildWordSnapshot(vocab, _errorsAll), _reportParsed);
   // 今日实际完成复习的词 id 集合（存储层 UTC 时间戳 → 本地日历日比对；SSOT reviewedVocabToday 输入）
   _reviewedVocabTodayIds = new Set(
@@ -2888,10 +2812,9 @@ async function loadSpeak() {
     sb.from('patterns').select('*').order('created_at', { ascending: false }),
     sb.from('reports').select('*').order('date', { ascending: false }).limit(1000)
   ]);
-  // 句型 SRS：真实库与展示库分离 —— _speakAll 空库时回退 Mock 仅用于兜底展示；
-  // _patternLibrary 只收真实 patterns 行（打标后），Mock 严禁混入 SRS 到期判定与 SM-2 写回
+  // v95：mockSentences 已物理删除 —— 真实库打标即全量展示库，空表 = 空状态
   const taggedPatterns = (patterns && patterns.length) ? stampPatternTags(patterns) : [];
-  _speakAll = taggedPatterns.length ? taggedPatterns : mockSentences; // 打标网关：唯一 id + isTodayCore + needsReview + 标准嵌套字段
+  _speakAll = taggedPatterns; // 打标网关：唯一 id + isTodayCore + needsReview + 标准嵌套字段
   _patternLibrary = taggedPatterns;
   _reportsCache = (reports && reports.length) ? reports : _reportsCache; // v82：日期路由解析源缓存刷新
 
@@ -2959,9 +2882,7 @@ function coreDeck(parsed, speakAll) {
     }));
   }
   const tagged = (speakAll || []).filter(p => p.isTodayCore === true || p.is_core === true).map(toPlayerItem);
-  if (tagged.length) return tagged;
-  const demo = mockSentences.filter(s => s.isTodayCore === true).map(toPlayerItem);
-  return demo.length ? demo : (speakAll || []).map(toPlayerItem);
+  return tagged.length ? tagged : [];   // v95：mockSentences 已物理删除，无核心句型 = 空队列 = 空状态
 }
 
 // getDueSentencesQueue —— 今日到期句型队列唯一事实源（句型复习打卡总任务数同源）：
@@ -3495,23 +3416,30 @@ async function importReport(text) {
   const resultEl = document.getElementById('dialog-import-result');
   if (btn) { btn.disabled = true; btn.textContent = '解析中...'; }
 
-  const trimmed = text.trim();
+  // v95 输入洗理：剥 BOM/代码块围栏 → 提取最外层 {…} → 弯引号归一化（复制链路全污染防御）
+  const cleaned = sanitizeJsonInput(text);
 
   // 新版 JSON 日报：JSON.parse 成功后走专用入库器（自动打标）
-  // v94：parse 前弯引号归一化（GPT/复制链路 “ ” 变体不再导致 parse 失败 → 僵尸行）
   let jsonReport = null;
-  if (trimmed.startsWith('{')) {
-    try { jsonReport = JSON.parse(normalizeSmartQuotes(trimmed)); } catch (e) { jsonReport = null; }
+  const jsonIntent = cleaned.startsWith('{');
+  if (jsonIntent) {
+    try { jsonReport = JSON.parse(cleaned); } catch (e) { jsonReport = null; }
   }
   // v93：GPT 可能省略空 mistakes/coreSentences/newWords 键 → 放宽为 summary/duration 任一存在即认 JSON 日报
   const isJsonDaily = jsonReport && typeof jsonReport === 'object' &&
     (jsonReport.mistakes || jsonReport.coreSentences || jsonReport.newWords || jsonReport.summary || jsonReport.duration);
 
   if (isJsonDaily) {
-    await importJsonDailyReport(jsonReport, trimmed);
+    // 入库完成 toast 由 importJsonDailyReport 输出（含词/错/句数量），此处严禁覆盖
+    await importJsonDailyReport(jsonReport, cleaned);
+  } else if (jsonIntent) {
+    // v95 静默失败显式化：文本明显是 JSON 但解析失败 → 明确报错并中断，绝不写空壳行
+    if (resultEl) resultEl.innerHTML = '<span class="toast-error">❌ JSON 格式解析失败，请检查文本：只粘贴从 { 到 } 的纯 JSON，不要附带说明文字</span>';
+    if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
+    return;
   } else {
     // 传统 Markdown 日报 / 话题卡 / 洞察报告：原链路保持不变
-    const parsed = parseSmartReport(trimmed);
+    const parsed = parseSmartReport(cleaned);
     const type = parsed.meta.type || 'daily-report';
     if (type === 'daily-report' || (!parsed.meta.type && Object.keys(parsed.meta).length > 0)) {
       await importDailyReport(parsed);
@@ -3524,11 +3452,13 @@ async function importReport(text) {
       if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
       return;
     }
+    if (resultEl) resultEl.innerHTML = '<span class="toast-success">✅ 导入成功！</span>';
   }
 
   document.getElementById('dialog-report-input').value = '';
   if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
-  if (resultEl) resultEl.innerHTML = '<span class="toast-success">✅ 导入成功！</span>';
+  // v95 视图同步：导入即回今日视图（历史 _viewDate 残留不再遮挡刚导入的数据），再全量重载
+  _viewDate = null;
   setTimeout(() => { hideImportDialog(); loadHome(); }, 1200);
 }
 
