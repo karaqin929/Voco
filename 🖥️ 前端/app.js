@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v86 — Tailwind Dashboard + Grouped-List Settings
+// Voco v87 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
@@ -1249,7 +1249,9 @@ function mergeLabelFragments(arr) {
   const out = [];
   for (const raw of arr) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { out.push(raw); continue; }
-    const hasOriginal = !!(String(raw.original || raw.wrongSentence || '').trim());
+    // 「历史错题」占位符 = 原句缺失（旧入库行的占位 original 同样视为碎片而非新条目起点）
+    const rawO = String(raw.original || raw.wrongSentence || '').trim();
+    const hasOriginal = !!rawO && rawO !== '历史错题';
     if (!hasOriginal) {
       const prev = out.length ? out[out.length - 1] : null;
       if (prev && typeof prev === 'object' && !Array.isArray(prev)) {
@@ -1710,7 +1712,9 @@ function buildGlobalMissionInputs(vocab, errors, reports, patterns) {
   _patternLibrary = stampPatternTags((patterns && patterns.length) ? patterns : []);
   // 打标网关：内置词库合并 + 布尔标签一次性注入（渲染层只读布尔值，零时间判断）
   // 断流修复：日报生词在此合并进全局词库 —— 首页/复习页数据源绝对一致
-  _errorsAll = (errors && errors.length) ? errors : mockMistakeErrors;
+  // v86 全局加固：错题表行在进入全局状态前统一碎片合并 —— 所有下游消费方
+  // （错词交叉打标 / errRows 兜底 / 对练防御池 / 混合卡组）拿到的都是一条知识 = 一行
+  _errorsAll = mergeLabelFragments((errors && errors.length) ? errors : mockMistakeErrors);
   _wordsAll = mergeReportVocab(buildWordSnapshot(vocab, _errorsAll), _reportParsed);
   // 今日实际完成复习的词 id 集合（存储层 UTC 时间戳 → 本地日历日比对；SSOT reviewedVocabToday 输入）
   _reviewedVocabTodayIds = new Set(
@@ -2996,7 +3000,8 @@ async function loadMe() {
   ]);
 
   const vList = vocab || [];
-  const eList = errors || [];
+  // v86 全局加固：成就/错误模式聚合前的碎片合并 —— 一条知识 = 一行，聚合计数不再虚高
+  const eList = mergeLabelFragments(errors || []);
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
   const level = calcLevel(prog?.total_sessions || 0, streak, vList.length);
@@ -3613,12 +3618,13 @@ async function importJSON() {
         imported += items.length;
       }
       if (data.errors?.length) {
-        const items = data.errors.map(e => ({ ...e, id: undefined, user_id: session.user.id }));
+        // v86 全局加固：文件导入同样先碎片合并再入库 —— 碎片行从此绝无可能再次进入 errors 表
+        const items = mergeLabelFragments(data.errors).map(e => ({ ...e, id: undefined, user_id: session.user.id }));
         await sb.from('errors').insert(items);
         imported += items.length;
       }
       if (data.patterns?.length) {
-        const items = data.patterns.map(p => ({ ...p, id: undefined, user_id: session.user.id }));
+        const items = mergeLabelFragments(data.patterns).map(p => ({ ...p, id: undefined, user_id: session.user.id }));
         await sb.from('patterns').insert(items);
         imported += items.length;
       }
