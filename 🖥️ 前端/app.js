@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// Voco v90 — Tailwind Dashboard + Grouped-List Settings
+// Voco v91 — Tailwind Dashboard + Grouped-List Settings
 // v84 排版系统：全 App 统一 7 级字号阶梯（L1 11px / L2 12px / L3 14px / L4 16px / L5 20px / L6 24px / L7 34px 仅登录页）
 //            全部字号 rem 化，响应设置页「文字大小」（标准/中/大）全局缩放
 // v85 口径统一：核心句型卡今日携带 date=today（队列=当日日报句型）；新学单词数=日报 vocabulary 数（与列表绝对同源）
@@ -21,6 +21,8 @@
 //            pronunciation/expression）；② normalizeJsonReport 三分类分流（发音纠正不再被 else 兜底降级 grammar，
 //            pronunciation 数组与 Markdown 链路同形状）+ summary 透传 weak_areas；③ importJsonDailyReport 写库
 //            type='pronunciation' 独立入库 + updateProgress 传真实 weak_areas（此前写死 ''）。
+// v91 时长槽位式模板：TEMPLATES.report 开头【本次口语练习时长：__分钟】由用户复制后填写，GPT 无歧义照用
+//            （模型无真实时钟感知，纯对话量估计会偏短；槽位为空才允许询问，仍禁照抄示例值 25）。
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -3378,7 +3380,7 @@ async function showErrorDetail(pattern) {
 // Template & Import
 // ═══════════════════════════════════════════════════════
 const TEMPLATES = {
-  report: `你现在是我的资深英语口语教练。请根据我们今天的对话，生成一份结构化的复盘日报。
+  report: `你现在是我的资深英语口语教练。【本次口语练习时长：__分钟（请先填上实际分钟数再发送）】请根据我们今天的对话，生成一份结构化的复盘日报。
 
 请务必仅返回合法的 JSON 格式数据，不要包含任何额外的解释文本，不要使用 Markdown 代码块标记。JSON 结构必须严格如下：
 
@@ -3408,7 +3410,7 @@ const TEMPLATES = {
 }
 
 硬性要求：
-1. duration 必须输出：本次对话练习的真实总时长分钟数（数字，用于首页「开口时长 / 总时长」）。如果你不知道用户实际练习了多少分钟，必须先询问用户，得到回答后再生成日报；绝不允许编造或直接照抄示例值 25。
+1. duration 必须输出：本次对话练习的真实总时长分钟数（数字，用于首页「开口时长 / 总时长」）。开头【】里已写明本次练习时长，直接使用该数字；若【】里仍为空，必须先询问用户，得到回答后再生成日报；绝不允许编造或直接照抄示例值 25。
 2. mistakes 数组必须严格区分三类：type 为 "grammar" 是语法硬伤（时态、单复数、冠词等）；type 为 "pronunciation" 是发音错误（读错的词、重音、元音等）；type 为 "expression" 是语法正确但不够地道的表达升级。三者绝不能混用；今天没有某一类错误时，该类条目直接省略。
 3. summary.fluency / accuracy / naturalness 是 0-10 的评分（可含一位小数），必须输出——它们驱动首页 4 维指标。
 4. summary.dailyThought 必须双语输出：en 为英文一句总结，zh 为中文第一人称反思（一段话）。
