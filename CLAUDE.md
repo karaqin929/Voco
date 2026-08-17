@@ -47,10 +47,11 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v93）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v103）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v94）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v104）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v93 / voco-v103**（日报僵尸行修复：JSON 判定三处放宽 + 徽章/熊条/Hero 判定对齐）。
+- 当前线上：**v94 / voco-v104**（弯引号根治：模板源头引号铁律 + 解析层归一化兜底）。
+- **v94 弯引号根治**（8.17 僵尸行真根因）：GPT 输出/复制链路把直引号「美化」成弯引号 “ ”（U+201C/201D）→ 整份 JSON parse 失败 → Markdown 空壳入库（reports 有行、三表全空）→ 徽章亮/熊白/Hero 未对练三分裂。**双修**：① 模板源头——TEMPLATES.report 硬性要求新增第 7 条「引号铁律」（只许英文直引号，严禁 “ ” ‘ ’，生成后自查），`📋 日报模板/ChatGPT日报Prompt.md` 同步；② 解析防御——`normalizeSmartQuotes` 弯引号归一化（“”‘’全角 → 直引号），isDailyReport/importReport/parseSmartReport 三入口 parse 前统一调用。v93 缺键放宽保留（仍防 mistakes 整键省略场景）。
 - **v93 僵尸行修复**：GPT 省略空数组键（今日无错题 → mistakes 整键不输出）时，JSON 日报被判非日报 → Markdown 空壳入库（reports 有行但 vocabulary/errors/patterns 全空）→ 「徽章亮 / 熊白 / Hero 未对练」三分裂。修复：isDailyReport + importReport + parseSmartReport 三处判定放宽（`summary`/`duration` 任一存在即认 JSON 日报，模板必有键）；L428 todayReport 补 isDailyReport 过滤，徽章与熊条/Hero 绝对同源。
 - **v90 日报模板要点**：
   - TEMPLATES.report（App 内复制模板）与 `📋 日报模板/ChatGPT日报Prompt.md` **完全同步**（此前两份不同步：内嵌版缺 fluency/accuracy/naturalness）。
