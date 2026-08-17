@@ -47,10 +47,15 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v85）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v95）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v86）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v96）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
-- 当前线上：**v85 / voco-v95**（统计卡数字与点击后列表口径统一修复）。
+- 当前线上：**v86 / voco-v96**（数据解析 + 路由传参全局重构：一条纠错=一张卡；入口必带日期）。
+- v86 要点（三大灾难 bug 根治，parser.js 未改动）：
+  - **现象 3 根因**：parser.js `parseItems` 用 `split(/\n(?=-\s*\[)/)` 切块 → 旧 Markdown 日报「- [我说] / - [应为] / - [规则]」三行 = 三个 block = 一条错题裂成 `{original}/{correction}/{rule}` 三个碎片对象；清洗层再给缺 original 的碎片打「历史错题」占位符 → 渲染成 A 错句卡 / B 正句卡(副文「历史错题」) / C「历史错题」+解析卡。
+  - **数据层修复**：`normalizeDailyData` 新增 2.5 节 `mergeLabelFragments`（无原句碎片并入上一条，新原句开启新条）——所有链路（首页/历史/复习/导入）必经；`rescueMarkdownErrorSections` 标签宽容救援（冒号式 `- 我说：`/箭头式 `- x → y（规则）`，仅当 parser 该节解析为空时补位）→ 根治 8.12「语法/选词卡片内容全空」；`standardizeErrorCards` 扩展「历史错题」占位碎片合并（DB 存量行渲染前最后防线）。
+  - **路由层修复**：`currentContextDate()`（历史视图 `_viewDate` / 今日 `getLocalToday()`）统一上下文日期；`showImprovementDetail`「查看纠错」→ `navigateReview('grammar', null, ctxDate)`（根治丢失 Date 降级渲染 DB 全量错题）；`startImprovementSpeak` 废除 `pat_N` 跨命名空间 id（patterns 数组序号 ≠ coreDeck 的 `core-N`），统一 `?sentence=` 文本锚定 + `?date=`（根治「未找到句子，已从头开始」）；`showNextStepDetail` 的 `core-N` 锚定补 date；`loadSpeak` 文本未命中时以点击句为首卡入队（`sentence-anchor` 契约，反馈时自动 INSERT 入记忆曲线）。
+  - 铁律升级：提升区/建议区**一切入口必须携带上下文日期**；锚定**只允许**「`core-N` + date」或「句文本 + date」两种契约，禁止传 patterns 数组序号 id。
 - v85 要点：
   - 核心句型卡今日场景携带 `date=today`（renderContentCards `shadowDate = historyMode ? _viewDate : getLocalToday()`）→ `/shadowing?date=today` → `_ctxDate=today` → 队列 = 当日日报核心句型（coreDeck），**不再**落入 SM-2 到期混合队列（15 句）。navigateShadowing / handleRoute(/shadowing 分支) / loadSpeak 三处放开「today 排除」。**无 date 的 navigateShadowing() 仍是待办打卡专属入口**（到期队列）。
   - 新学单词数口径统一：`getTodayMissionState.todayNewWordsCount = reportParsed.vocabulary.length`（原 `realVocab.filter(isNewToday).length` 含 DB 残留曾致首页 8 / 列表 6 分裂）。
