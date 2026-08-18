@@ -494,6 +494,9 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
     cursor.setDate(cursor.getDate() + 1);
   }
 
+  // v97：选中日期 = _viewDate（历史视图）或今天——日期加粗与熊圈严格跟随选中项，不再死锁今天
+  const selected = _viewDate || today;
+
   el.innerHTML = `
     <div class="flex justify-between items-center mb-3">
       <span class="inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-[var(--c-text-dim)] cursor-pointer transition-colors active:text-[var(--c-primary)]" onclick="showMonthPicker()">
@@ -506,12 +509,13 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
         : `<span onclick="showImportDialog()" class="inline-flex items-center gap-1 text-[0.6875rem] font-semibold text-[var(--c-primary)] cursor-pointer">${icon('upload','w-3.5 h-3.5')}去打卡</span>`
       }
     </div>
-    <!-- v89 横向无限回溯滑条：向右滑 = 回看更早历史；小熊点亮 = 该日有词/日报（与数据库状态精准匹配） -->
-    <div class="flex overflow-x-auto hide-scrollbar gap-1 pb-1" id="streak-strip">
+    <!-- v89 横向无限回溯滑条：向右滑 = 回看更早历史；小熊点亮 = 该日有词/日报（与数据库状态精准匹配）
+         v97：单屏最多 7 格（grid auto-cols 14.28%，左右拖动查看更多）；选中日期加粗 + 熊圈 -->
+    <div class="grid overflow-x-auto hide-scrollbar gap-1 pb-1" id="streak-strip" style="grid-auto-flow:column;grid-auto-columns:14.28%">
       ${days.map(d => `
-        <div class="flex flex-col items-center gap-px cursor-pointer shrink-0 w-8" onclick="showBearDay('${d.date}',${d.active})">
-          <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
-          <span class="text-[0.6875rem] whitespace-nowrap text-center ${d.isToday ? 'text-[var(--c-primary)] font-semibold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
+        <div class="flex flex-col items-center gap-px cursor-pointer" onclick="showBearDay('${d.date}',${d.active})">
+          <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===selected?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
+          <span class="text-[0.6875rem] whitespace-nowrap text-center ${d.date===selected ? 'text-[var(--c-primary)] font-bold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
         </div>
       `).join('')}
     </div>`;
@@ -737,27 +741,33 @@ function norm100(v) {
 }
 
 function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natural, topics, newWords, expressions, corrections, ratio) {
-  // Voco 2.0 对话占比：你 X% | AI Y%（双色条，数据来自 parser.js parseSpeakingRatio 角色词数）
-  const ratioHTML = (ratio && (ratio.user + ratio.ai) > 0)
-    ? (() => {
-        const userPct = Math.max(0, Math.min(100, Math.round(ratio.user / (ratio.user + ratio.ai) * 100)));
-        const aiPct = 100 - userPct;
-        return `<div class="mt-2">
-          <div class="flex justify-between text-[0.6875rem] font-semibold mb-1"><span class="text-[var(--c-primary)]">你 ${userPct}%</span><span class="text-[var(--c-text-dim)]">AI ${aiPct}%</span></div>
-          <div class="w-full h-2 rounded-full overflow-hidden flex bg-[var(--c-border-light)]">
-            <div class="h-full transition-all duration-700" style="width:${userPct}%;background:var(--c-primary)"></div>
-            <div class="h-full transition-all duration-700" style="width:${aiPct}%;background:var(--c-blue)"></div>
-          </div>
-          <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-1">对话占比 · 你 ${ratio.user} 词 / AI ${ratio.ai} 词</div>
-        </div>`;
-      })()
-    : `<div class="mt-2 text-[0.6875rem] text-[var(--c-text-ultradim)]">对话占比 · 导入含对话记录的日报后展示</div>`;
+  // v97 对话占比双形态：{user,ai} 词数（parser.js parseSpeakingRatio，旧 Markdown 链路）
+  // 或 {user,ai,pct:true} 百分比估算（新版 JSON speakingRatio 链路，normalizeJsonReport 产出）
+  const hasRatio = !!(ratio && (ratio.user + ratio.ai) > 0);
+  const userPct = hasRatio ? Math.max(0, Math.min(100, Math.round(ratio.user / (ratio.user + ratio.ai) * 100))) : 0;
+  const aiPct = 100 - userPct;
+  const hasDur = !!(speakMin || totalMin);
+  // v97：新版日报无 duration——时长行仅历史数据展示；无时长但有占比时，头部行直接显示对话占比
+  const durationLine = `<div class="text-xl font-bold text-[var(--c-text)] flex items-center gap-1">${icon('mic','w-[18px] h-[18px] text-[var(--c-primary)]')} ${speakMin||'--'}m / 共 ${totalMin||'--'}m</div>
+        <div class="text-xs text-[var(--c-text-dim)]">开口时长 / 总时长</div>`;
+  const ratioLine = `<div class="text-xl font-bold text-[var(--c-text)] flex items-center gap-1">${icon('mic','w-[18px] h-[18px] text-[var(--c-primary)]')} 你 ${userPct}% · AI ${aiPct}%</div>
+        <div class="text-xs text-[var(--c-text-dim)]">对话占比 · 你说话占总对话的比例</div>`;
+  const headHTML = (hasDur || !hasRatio) ? durationLine : ratioLine;
+  const ratioHTML = (hasRatio && hasDur)
+    ? `<div class="mt-2">
+        <div class="flex justify-between text-[0.6875rem] font-semibold mb-1"><span class="text-[var(--c-primary)]">你 ${userPct}%</span><span class="text-[var(--c-text-dim)]">AI ${aiPct}%</span></div>
+        <div class="w-full h-2 rounded-full overflow-hidden flex bg-[var(--c-border-light)]">
+          <div class="h-full transition-all duration-700" style="width:${userPct}%;background:var(--c-primary)"></div>
+          <div class="h-full transition-all duration-700" style="width:${aiPct}%;background:var(--c-blue)"></div>
+        </div>
+        <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-1">${ratio.pct ? '对话占比 · 由今日对话内容估算' : '对话占比 · 你 ' + ratio.user + ' 词 / AI ' + ratio.ai + ' 词'}</div>
+      </div>`
+    : (!hasRatio ? `<div class="mt-2 text-[0.6875rem] text-[var(--c-text-ultradim)]">对话占比 · 导入含对话记录的日报后展示</div>` : '');
   return `
     <div class="flex items-center gap-5 mb-4">
       <div class="relative shrink-0 w-[88px] h-[88px]">${metricsDonut(overall)}</div>
       <div class="flex flex-col gap-0.5 flex-1">
-        <div class="text-xl font-bold text-[var(--c-text)] flex items-center gap-1">${icon('mic','w-[18px] h-[18px] text-[var(--c-primary)]')} ${speakMin||'--'}m / 共 ${totalMin||'--'}m</div>
-        <div class="text-xs text-[var(--c-text-dim)]">开口时长 / 总时长</div>
+        ${headHTML}
         ${ratioHTML}
       </div>
     </div>
@@ -923,7 +933,7 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
     `);
   }).join('') : '<div class="text-sm text-[var(--c-text-ultradim)] px-1">当日无数据</div>';
   // v82：Card E「今日私教对战 Prompt」胶囊模块已彻底移除 —— 首页洞察区终止于 Card D（需要提升），
-  // 私教 Prompt 生成统一收敛至【我的】页灵感配置舱（fireTopicGeneratorPrompt，含对练防御注入闭环）
+  // 私教 Prompt 生成统一收敛至【我的】页灵感配置舱（fireTopicGeneratorPrompt；v97 起对练防御功能已全面下线）
   container.innerHTML = html;
   refreshIcons(container);
 }
@@ -1149,9 +1159,10 @@ function renderTodoList(speakDoneToday) {
         // 保证 /shadowing 无 date 参数时严格走「今日到期句型队列」的挖空卡片模式，绝不被历史日报劫持
         action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateShadowing(); }
       };
-  // 任务 3 数字口径（v88 QA 数量一致性）：due tab 卡组 buildDueDeck = 到期词 + 今日语境错题，
-  // 数字必须数整副卡组 —— 此前只数词 → 「外面 N 词，点进去 N+M 张卡」的数字分裂
-  const todayErrTaskCount = allGrammarErrorsToday().length;
+  // 任务 3 数字口径（v88 QA 数量一致性 + v97 错题诚实口径）：due tab 卡组 buildDueDeck = 到期词 + 未纠正错题，
+  // 数字必须数整副卡组 —— 此前只数词 → 「外面 N 词，点进去 N+M 张卡」的数字分裂；
+  // v97：错题无 SM-2 记忆曲线（errors 表无 SRS 字段），改为「未纠正=到期」——已纠正（correct_in_review）不再历史全量回炉
+  const todayErrTaskCount = dueErrorCards().length;
   const deckTotal = dueCount + todayErrTaskCount;
   const deckReviewed = reviewedToday + _reviewedErrorIds.size;
   const todos = [
@@ -1567,9 +1578,15 @@ function normalizeJsonReport(j, raw) {
       grammar.push({ original: m.original, correction: m.improved || '', rule: m.explanation || '', type: 'grammar' });
     }
   }
-  // v83 时长透传：顶层 duration / summary.duration / summary.durationMinutes（分钟数）
+  // v83 时长透传：顶层 duration / summary.duration / summary.durationMinutes（分钟数，旧版兼容）
   // 首页开口时长 = duration×0.6（renderMetricsOverview），JSON 日报此前丢该字段导致 8.13/8.15 时长缺失
   const dur = Number(j.duration || (s.duration) || (s.durationMinutes) || 0);
+  // v97 会话占比：顶层 speakingRatio（百分比数字 0-100）→ summary.speakingRatio {user,ai,pct:true}
+  // 与 Markdown 链路 parseSpeakingRatio 的 {user,ai} 词数形状对齐；pct 标记区分「百分比估算」与「词数统计」两种数据源
+  const ratioNum = Number(j.speakingRatio);
+  const speakingRatio = (isFinite(ratioNum) && ratioNum > 0 && ratioNum <= 100)
+    ? { user: Math.round(ratioNum), ai: 100 - Math.round(ratioNum), pct: true }
+    : null;
   return {
     meta: { type: 'daily-report', topic: s.topic || '', date: getLocalToday(), duration: (dur > 0 ? dur : 0) },
     grammar,
@@ -1594,7 +1611,9 @@ function normalizeJsonReport(j, raw) {
       strengths: Array.isArray(s.strengths) ? s.strengths.join('\n') : '',
       next_suggestions: Array.isArray(s.nextSteps) ? s.nextSteps.join('\n') : '',
       // v90 弱项标签透传（Profile 弱项云；Markdown 链路有、JSON 链路此前丢失）
-      weak_areas: s.weak_areas || ''
+      weak_areas: s.weak_areas || '',
+      // v97 对话占比（新版 JSON：百分比形态 {user,ai,pct:true}；旧版/无该字段 → null，首页优雅降级）
+      speakingRatio
     },
     raw
   };
@@ -1629,8 +1648,9 @@ function validateImportInput(text) {
     if (!j || typeof j !== 'object' || Array.isArray(j)) {
       return { status: 'error', error: '格式错误：解析结果不是有效的 JSON 对象', preview: null, payload: null };
     }
-    // 关键字段完整性校验（完美日报指令契约：顶层 5 键 + summary 8 键，一个不能少）
-    const requiredTop = ['duration', 'summary', 'mistakes', 'coreSentences', 'newWords'];
+    // 关键字段完整性校验（完美日报指令契约：内容 4 键 + summary 8 键必查；
+    // 会话维度 duration（旧版分钟数）/ speakingRatio（新版对话占比）均可选，新旧模板兼容）
+    const requiredTop = ['summary', 'mistakes', 'coreSentences', 'newWords'];
     const missingTop = requiredTop.filter(k => j[k] === undefined || j[k] === null);
     if (missingTop.length) {
       return { status: 'error', error: `缺少关键字段：${missingTop.join('、')}。请用「复制日报模板」重新生成`, preview: null, payload: null };
@@ -1652,6 +1672,7 @@ function validateImportInput(text) {
       status: 'valid', error: '',
       preview: {
         type: 'json', date: getLocalToday(), topic: s.topic || '', duration: dur,
+        speakingRatio: num(j.speakingRatio),
         fluency: num(s.fluency), accuracy: num(s.accuracy), naturalness: num(s.naturalness),
         wordCount: normalized.vocabulary.length, errorCount: errCount, patternCount
       },
@@ -1713,7 +1734,7 @@ function renderImportPreview() {
           <span class="ml-auto text-[11px] text-[var(--c-text-ultradim)]">${p.type === 'json' ? 'JSON 日报' : 'Markdown 日报'}</span>
         </div>
         <div class="grid grid-cols-4 gap-1.5 mb-1.5">
-          ${scoreCell('时长(分)', p.duration)}${scoreCell('新词', p.wordCount)}${scoreCell('纠错', p.errorCount)}${scoreCell('句型', p.patternCount)}
+          ${(p.speakingRatio !== null && p.speakingRatio !== undefined) ? scoreCell('开口占比', p.speakingRatio + '%') : scoreCell('时长(分)', p.duration)}${scoreCell('新词', p.wordCount)}${scoreCell('纠错', p.errorCount)}${scoreCell('句型', p.patternCount)}
         </div>
         <div class="grid grid-cols-3 gap-1.5">
           ${scoreCell('流利度', p.fluency)}${scoreCell('准确度', p.accuracy)}${scoreCell('自然度', p.naturalness)}
@@ -2236,15 +2257,7 @@ async function fireTopicGeneratorPrompt(btn) {
 
   prompt += "\n\n请用自然、引导式的语言回复我，一次不要说太多。并在交流中注意纠正我可能出现的发音和语法错误。";
 
-  // v82：v77 实战防御闭环自「今日对战胶囊」迁入 —— 错题本 🛡️ 开关选中的错题静默注入 Prompt，
-  // 错误表 + 日报解析双源签名检索，AI 全程重点盯防（最多 3 条），Prompt 出口收敛后闭环不丢
-  const defenseSigs = getDefenseSigs();
-  const defensePool = [...(_errorsAll || []), ...allGrammarErrors()];
-  const defenseItems = defenseSigs.map(sig => defensePool.find(x => errorSignature(x) === sig)).filter(Boolean);
-  if (defenseItems.length) {
-    prompt += `\n\n另外，请在整个对话中重点盯防并即时纠正我容易犯的以下毛病：[${defenseItems.slice(0, 3).map(d => d.rule || d.original || d.correction).join('；')}]。`;
-  }
-
+  // v97：「加入对练防御」功能已全面下线（用户指令：冗余功能彻底去除）——Prompt 不再注入任何防御内容
   const copied = await copyToClipboardWithFallback(prompt);
   if (!copied) { showToast('复制失败，请长按文本手动复制'); return; }
 
@@ -2319,6 +2332,24 @@ function allGrammarErrorsToday() {
   const r = allGrammarErrors();
   _ctxDate = bak;
   return r;
+}
+
+// v97 错题诚实口径（SM-2 审计结论）：errors 表无 SM-2 字段，错题本没有记忆曲线——
+// 改为「未纠正 = 到期」：correct_in_review=true 的错题不再回炉，due 数字 = 词(SM-2) + 未纠正错题
+// 签名以「原句|正句」为准（跨会话稳定，行 id 不稳定）；规范化与 standardizeErrorCards 同构（换行→空格、trim、小写）
+function errSig(e) { return [String((e && e.original) || ''), String((e && e.correction) || '')].map(s => s.replace(/\s*\n\s*/g, ' ').trim().toLowerCase()).join('|'); }
+function _fixedErrorSigs() { const out = new Set(); (_errorsAll || []).forEach(e => { if (e && e.correct_in_review) out.add(errSig(e)); }); return out; }
+function dueErrorCards() { const fixed = _fixedErrorSigs(); return allGrammarErrorsToday().filter(e => !fixed.has(errSig(e))); }
+// 错题🟢记住 → 落库 correct_in_review=true（不再每会话全量回炉）；查不到库行（今日新错题/演示态）静默跳过
+async function persistErrorFixed(e) {
+  if (!e || !String(e.original || '').trim()) return;
+  try {
+    const { data: rows, error } = await sb.from('errors').select('id').eq('original', e.original).eq('correction', e.correction || '').limit(1);
+    if (error || !rows || !rows.length) return;
+    await sb.from('errors').update({ correct_in_review: true }).eq('id', rows[0].id);
+    const local = (_errorsAll || []).find(x => String(x.id) === String(rows[0].id));
+    if (local) local.correct_in_review = true; // 本地快照同步：同会话内 due 标签/卡组即时收敛
+  } catch (err) { /* 演示数据：仅本地会话态 */ }
 }
 
 // ── 错题标准化清洗层：任何数据源在进入渲染前收敛为 {id, issue, original, correction, rule, type} ──
@@ -2400,7 +2431,8 @@ function renderWordsSubTabs(activeMode) {
   // Voco 2.0：复习页 Tab 数字强绑定任务状态中心（Mock 已隔离），严禁 UI 层自行 .filter
   // v88：due 标签的错题部分必须用「今日语境」错题数 —— 点击 due tab 后 switchWordsView 清 _ctxDate，
   // 卡组 buildDueDeck = 今日到期词 + 今日错题；沿用历史日错题数会与卡组口径分裂
-  const dueCount = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary).totalDueVocabCount + allGrammarErrorsToday().length;
+  // v97：错题部分 = dueErrorCards()（未纠正口径，与卡组完全同源）
+  const dueCount = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary).totalDueVocabCount + dueErrorCards().length;
   const tabs = [
     { key: 'all', label: '全部词汇', count: _wordsAll.length },
     { key: 'grammar', label: '语法错题', count: grammarCount },
@@ -2518,41 +2550,21 @@ function errorBadge(type, issue) {
   if (t === '地道表达' || iss.includes('地道') || iss.includes('选词')) return { label: '🎯 选词', cls: 'bg-green-50 text-[var(--c-green)]' };
   return { label: '📖 语法', cls: 'bg-blue-50 text-[var(--c-blue)]' };
 }
-// 对练防御开关：以「原句|正确句」签名为键持久化（err_N 顺序 id 不稳定，签名跨会话稳定）
-function getDefenseSigs() { try { return JSON.parse(localStorage.getItem('voco-defense-sigs') || '[]'); } catch (e) { return []; } }
-function setDefenseSigs(sigs) { try { localStorage.setItem('voco-defense-sigs', JSON.stringify(sigs)); } catch (e) {} }
-function errorSignature(item) { return [String((item && item.original) || '').trim(), String((item && item.correction) || '').trim()].join('|'); }
-function toggleDefense(btn) {
-  const sig = btn.getAttribute('data-sig') || '';
-  if (!sig) return;
-  const sigs = getDefenseSigs();
-  const idx = sigs.indexOf(sig);
-  const on = idx < 0;
-  if (on) sigs.push(sig); else sigs.splice(idx, 1);
-  setDefenseSigs(sigs);
-  paintDefenseToggle(btn, on);
-  showToast(on ? '🛡️ 已加入对练防御，下次对话 Prompt 将重点盯防' : '已取消对练防御');
-}
-function paintDefenseToggle(btn, on) {
-  btn.className = `def-toggle inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0 ${on ? 'bg-[var(--c-primary-light)] border-[var(--c-primary)] text-[var(--c-primary)]' : 'bg-[var(--c-bg)] border-[var(--c-border)] text-[var(--c-text-dim)]'}`;
-  btn.innerHTML = `${on ? '🛡️ 对练防御中' : '🛡️ 加入对练防御'}`;
-}
+// v97：「加入对练防御」功能已全面下线（用户指令：冗余功能彻底去除）——
+// getDefenseSigs / setDefenseSigs / errorSignature / toggleDefense / paintDefenseToggle 已物理删除
 
 // v77 CorrectionCard 组件化：复用首页「今日需要提升」正向输入卡结构（绿色加粗正确句为主视觉，
-// 原句仅小字灰显对照，零红色删除线、零 👁️ 揭示按钮）+ 右上角 🛡️ 对练防御开关
+// 原句仅小字灰显对照，零红色删除线、零 👁️ 揭示按钮）
 // v81：① 主视觉降级链 correct_text → original_text → 隐藏，绝不渲染 '-'/'—' 占位
-//      ② 错题库总览列表 = 错题图鉴/仪表盘（非 SM-2 复习模式），删除 [没记住]/[记住了] 复习按钮，仅保留 🛡️ 防御开关
+//      ② 错题库总览列表 = 错题图鉴/仪表盘（非 SM-2 复习模式），无复习按钮、无防御开关（v97 起）
 function renderErrorCards(items) {
   const container = document.getElementById('words-content');
   if (!items.length) {
     container.innerHTML = EmptyState({ message: '没有语法错题，继续保持！', size: 80 });
     return;
   }
-  const defSigs = new Set(getDefenseSigs());
   container.innerHTML = items.map((e) => {
     const b = errorBadge(e.type, e.issue);
-    const sig = errorSignature(e);
-    const defOn = defSigs.has(sig);
     // 主视觉（大字/深色）：直接渲染正确表达 correct_text；为空降级显示原句（主色，非绿）；
     // 两者皆空 → 整行隐藏，绝无 '-' 占位
     const main = String(e.correction || '').trim() || String(e.original || '').trim();
@@ -2561,9 +2573,8 @@ function renderErrorCards(items) {
     const showOrigRef = mainIsCorrect && String(e.original || '').trim();
     return `
     <div class="err-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)] transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
-      <div class="flex items-start justify-between gap-3 mb-2.5">
+      <div class="mb-2.5">
         <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.cls}">${b.label}</span>
-        <button class="def-toggle inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2.5 py-1 rounded-full border transition-all shrink-0 ${defOn ? 'bg-[var(--c-primary-light)] border-[var(--c-primary)] text-[var(--c-primary)]' : 'bg-[var(--c-bg)] border-[var(--c-border)] text-[var(--c-text-dim)]'}" data-sig="${h(sig)}" onclick="toggleDefense(this)">${defOn ? '🛡️ 对练防御中' : '🛡️ 加入对练防御'}</button>
       </div>
       ${main ? `<div class="text-xl font-bold mb-1.5 ${mainIsCorrect ? 'text-[var(--c-green)]' : 'text-[var(--c-text)]'}">${h(main)}</div>` : ''}
       ${showOrigRef ? `<div class="text-xs text-[var(--c-text-ultradim)] mb-2">原句：${h(e.original)}</div>` : ''}
@@ -2580,7 +2591,8 @@ function buildDueDeck() {
   const words = _wordsAll.filter(v => v.needsReview === true)
     .sort((a, b) => (a.next_review_date || '0000') < (b.next_review_date || '0000') ? -1 : 1)
     .map(v => ({ kind: 'word', id: 'w-' + v.id, word: v.word, phonetic: v.phonetic || '', meaning: v.meaning || '', example: v.example || '', ref: v }));
-  const errs = allGrammarErrors()
+  // v97 错题诚实口径：dueErrorCards() = 今日语境错题 − 已纠正（correct_in_review 落库，不再历史全量回炉）
+  const errs = dueErrorCards()
     .filter(e => e && e.id && !_reviewedErrorIds.has(String(e.id)))
     .map(e => ({ kind: 'error', id: e.id, error: e }));
   return [...words, ...errs];
@@ -2691,7 +2703,7 @@ async function reviewPatternItem(p, quality) {
 // ═══ v76 ReviewButton 全局模板（SSOT · 消灭样式碎片化）═══
 // 样式规范：浅粉/浅绿底 + 红/绿纯色圆点（CSS 绘制，零 emoji）+ 红/绿文字
 // 调用点：句型复习卡（srs-forgot/srs-remembered）、单词卡组（due-forgot/due-remembered）
-// v81：错题库总览列表 = 错题图鉴（非 SM-2 复习模式），已移除 btn-again/btn-good，仅保留 🛡️ 防御开关
+// v81：错题库总览列表 = 错题图鉴（非 SM-2 复习模式），无复习按钮；v97 防御开关也已下线
 function reviewButtonHTML({ id = '', kind = 'again', label = '', cls = 'py-3 text-sm rounded-2xl' }) {
   const isBad = kind === 'again';
   const color = isBad ? 'var(--c-red)' : 'var(--c-green)';
@@ -2786,6 +2798,7 @@ async function rateDueCard(rating) {
     await handleReviewFeedback(String(item.ref.id), rating);
   } else if (rating === 'good') {
     _reviewedErrorIds.add(String(item.id)); // 错题🟢记住：本会话不再重复打卡
+    persistErrorFixed(item.error);          // v97：落库 correct_in_review=true，跨会话不再回炉
   }
   _dueResults[rating === 'good' ? 'remembered' : 'forgot'] += 1;
   if (rating === 'again') {
@@ -3516,12 +3529,12 @@ async function showErrorDetail(pattern) {
 // Template & Import
 // ═══════════════════════════════════════════════════════
 const TEMPLATES = {
-  report: `你现在是我的资深英语口语教练。【本次口语练习时长：__分钟（请先填上实际分钟数再发送；此【】仅为填写提示，不属于日报内容）】请根据我们今天的对话，生成一份结构化的学习日报。这份日报会被我的学习系统直接读取入库，必须一次成型、零修改。
+  report: `你现在是我的资深英语口语教练。请根据我们今天的对话，生成一份结构化的学习日报。这份日报会被我的学习系统直接读取入库，必须一次成型、零修改。
 
 只输出一段纯 JSON 文本：从第一个 { 开始、到最后一个 } 结束。前后严禁出现任何说明文字、标题、Markdown 代码块标记（\`\`\`）。JSON 结构必须严格如下：
 
 {
-  "duration": 25,
+  "speakingRatio": 62,
   "summary": {
     "topic": "今天对话的核心主题标签",
     "dailyThought": { "en": "英文一句反思金句", "zh": "对话后的反思（中文，第一人称，一段话）" },
@@ -3546,8 +3559,8 @@ const TEMPLATES = {
 }
 
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
-1. 顶层必须正好是 duration、summary、mistakes、coreSentences、newWords 这 5 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
-2. duration 必须是本次对话练习的真实总时长（分钟，纯数字，不是字符串）。开头【】里已写明本次练习时长，直接使用该数字；若【】里仍为空，必须先询问用户，得到回答后再生成日报。绝不允许编造或照抄示例值 25。
+1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords 这 5 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
+2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 62。这是从对话内容推导出的客观统计，严禁凭空编造或照抄示例值 62。
 3. summary 必须是对象，且包含以下 8 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、weak_areas（字符串）。8 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
    - "grammar"：语法硬伤（时态、单复数、冠词、句式等）；
@@ -3575,7 +3588,7 @@ const TEMPLATES = {
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
 □ 顶层 5 个键齐全，summary 的 8 个键齐全，空内容用 [] 不用 null；
 □ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种；
-□ duration 是开头【】里填的真实分钟数，不是示例值 25；
+□ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是示例值 62；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 所有键名与上面示例结构一字不差。`
 };
@@ -3691,6 +3704,7 @@ async function importJsonDailyReport(jsonReport, rawText) {
   // 4) 原始 JSON 原样入库（下游 parseSmartReport 每次读取时统一归一化打标 → 上下游绝对对齐）
   await sb.from('reports').upsert({ user_id: uid, date, content: rawText }, { onConflict: 'user_id,date' });
   // v83 时长/评分落 progress 表：与 Markdown 路径 importDailyReport 对齐（此前硬编码 0，时长与趋势数据双丢）
+  // v97：新版日报无 duration（dur 默认 0，不虚增时长）；对话占比走 parsed.summary.speakingRatio，不落 progress 表
   const s2 = (jsonReport?.summary && typeof jsonReport.summary === 'object') ? jsonReport.summary : {};
   const dur = parseInt(String((jsonReport.duration || s2.duration || s2.durationMinutes) || ''), 10) || 0;
   await updateProgress(uid, Number(s2.fluency) || 0, Number(s2.accuracy) || 0, s2.weak_areas || '', topic, dur);
@@ -3787,7 +3801,7 @@ async function updateProgress(uid, fluency, accuracy, weak_areas, topic, duratio
     words_learned: 0, words_mastered: 0, errors_fixed: 0
   };
   p.total_sessions += 1;
-  p.total_minutes += duration;
+  p.total_minutes += (Number(duration) || 0); // v97 防 NaN：新版日报无 duration 字段
   if (topic && !p.topics.includes(topic)) p.topics = [...p.topics, topic];
   p.fluency_trend = [...p.fluency_trend, fluency];
   p.accuracy_trend = [...p.accuracy_trend, accuracy];
