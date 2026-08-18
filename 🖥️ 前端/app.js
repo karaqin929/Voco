@@ -497,6 +497,10 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
   // v97：选中日期 = _viewDate（历史视图）或今天——日期加粗与熊圈严格跟随选中项，不再死锁今天
   const selected = _viewDate || today;
 
+  // v98：滚动位置保持 —— 重渲染前保存 scrollLeft，渲染后恢复（点历史日熊不再弹回最左）；首次渲染锚定最右（今天）
+  const prevStrip = document.getElementById('streak-strip');
+  const savedScroll = prevStrip ? prevStrip.scrollLeft : null;
+
   el.innerHTML = `
     <div class="flex justify-between items-center mb-3">
       <span class="inline-flex items-center gap-1.5 text-[0.6875rem] font-semibold text-[var(--c-text-dim)] cursor-pointer transition-colors active:text-[var(--c-primary)]" onclick="showMonthPicker()">
@@ -510,8 +514,9 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
       }
     </div>
     <!-- v89 横向无限回溯滑条：向右滑 = 回看更早历史；小熊点亮 = 该日有词/日报（与数据库状态精准匹配）
-         v97：单屏最多 7 格（grid auto-cols 14.28%，左右拖动查看更多）；选中日期加粗 + 熊圈 -->
-    <div class="grid overflow-x-auto hide-scrollbar gap-1 pb-1" id="streak-strip" style="grid-auto-flow:column;grid-auto-columns:14.28%">
+         v97：单屏最多 7 格（grid auto-cols 14.28%，左右拖动查看更多）；选中日期加粗 + 熊圈
+         v98：pt-2/pl-1 为 scale-110 放大熊 + 光圈预留空间（overflow-x-auto 会强制垂直裁剪，无 padding 熊头被切） -->
+    <div class="grid overflow-x-auto hide-scrollbar gap-1 pt-2 pb-1 pl-1" id="streak-strip" style="grid-auto-flow:column;grid-auto-columns:14.28%">
       ${days.map(d => `
         <div class="flex flex-col items-center gap-px cursor-pointer" onclick="showBearDay('${d.date}',${d.active})">
           <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===selected?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
@@ -519,6 +524,9 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
         </div>
       `).join('')}
     </div>`;
+  // v98：恢复滚动位置（历史日期点熊 re-render 后不弹回）；首次渲染 scrollLeft = scrollWidth 锚定最右（今天）
+  const strip = document.getElementById('streak-strip');
+  if (strip) strip.scrollLeft = (savedScroll !== null) ? savedScroll : strip.scrollWidth;
   refreshIcons(el);
 }
 
