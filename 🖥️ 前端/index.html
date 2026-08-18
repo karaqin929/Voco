@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=95">
+  <link rel="stylesheet" href="/style.css?v=96">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -384,24 +384,27 @@
 
   </section>
 
-  <!-- ── Import Dialog (Tailwind bottom sheet) ── -->
-  <div id="import-dialog" class="fixed inset-0 bg-black/40 z-[300] flex items-end justify-center hidden">
-    <div class="bg-[var(--c-surface)] rounded-t-[20px] w-full max-w-[480px] max-h-[85vh] flex flex-col animate-[slideUp_0.25s_ease-out]">
-      <div class="flex justify-between items-center px-[18px] py-4 border-b border-[var(--c-border-light)] text-sm font-bold text-[var(--c-text)]">
-        <span class="inline-flex items-center gap-1"><i data-lucide="download" class="w-4 h-4"></i> 导入日报</span>
-        <button class="w-[30px] h-[30px] rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-base cursor-pointer flex items-center justify-center" onclick="hideImportDialog()">✕</button>
-      </div>
-      <div class="flex-1 overflow-y-auto px-[18px] py-3.5">
-        <div class="flex gap-1.5 mb-2.5 flex-wrap">
-          <button class="flex-1 min-w-[90px] px-1.5 py-2 bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg text-xs text-[var(--c-text-dim)] cursor-pointer transition-all active:bg-[var(--c-primary-light)] active:text-[var(--c-primary)] active:border-[var(--c-primary)] text-center whitespace-nowrap" data-tpl="report" onclick="copyTemplate('report')"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> 日报模板</button>
-          <button class="flex-1 min-w-[90px] px-1.5 py-2 bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg text-xs text-[var(--c-text-dim)] cursor-pointer transition-all active:bg-[var(--c-primary-light)] active:text-[var(--c-primary)] active:border-[var(--c-primary)] text-center whitespace-nowrap" data-tpl="topic" onclick="copyTemplate('topic')"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> 话题卡模板</button>
-          <button class="flex-1 min-w-[90px] px-1.5 py-2 bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg text-xs text-[var(--c-text-dim)] cursor-pointer transition-all active:bg-[var(--c-primary-light)] active:text-[var(--c-primary)] active:border-[var(--c-primary)] text-center whitespace-nowrap" data-tpl="insight" onclick="copyTemplate('insight')"><i data-lucide="search" class="w-3.5 h-3.5"></i> 弱点分析模板</button>
+  <!-- ── Import Dialog (v97 重构：居中 Modal + 实时校验预览；输入→校验→确认入库 三段解耦) ──
+       参考业界标准 Modal 骨架（与 inspiration-dialog 同构）：背板模糊 + 居中圆角浮卡 + ✕ 关闭 -->
+  <div id="import-dialog" class="fixed inset-0 z-[300] hidden">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="hideImportDialog()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+      <div class="pointer-events-auto bg-[var(--c-surface)] rounded-[20px] w-full max-w-[480px] max-h-[85vh] flex flex-col overflow-hidden animate-[modalPop_0.25s_ease-out]" style="box-shadow:0 12px 48px rgba(0,0,0,0.18)">
+        <div class="flex justify-between items-center px-[18px] py-4 border-b border-[var(--c-border-light)] text-sm font-bold text-[var(--c-text)]">
+          <span class="inline-flex items-center gap-1"><i data-lucide="download" class="w-4 h-4"></i> 导入日报</span>
+          <button class="w-[30px] h-[30px] rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-base cursor-pointer flex items-center justify-center" onclick="hideImportDialog()">✕</button>
         </div>
-        <textarea id="dialog-report-input" rows="5" placeholder="将 ChatGPT 生成的内容粘贴到这里..." class="w-full min-h-[140px] bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-border)] rounded-2xl p-3.5 text-sm leading-relaxed resize-y mb-2.5 outline-none focus:border-[var(--c-primary)] focus:shadow-[0_0_0_3px_var(--c-primary-light)] placeholder:text-[var(--c-text-ultradim)]"></textarea>
-      </div>
-      <div class="px-[18px] pb-5 pt-3">
-        <button id="btn-dialog-submit" class="w-full py-3.5 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-[15px] font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="importReport()">解析入库</button>
-        <div id="dialog-import-result" class="mt-2"></div>
+        <div class="flex-1 overflow-y-auto px-[18px] py-3.5">
+          <div class="flex items-center justify-between mb-2.5">
+            <span class="text-xs text-[var(--c-text-dim)]">粘贴 ChatGPT 日报 JSON，自动实时校验</span>
+            <button id="btn-copy-report-template" class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg text-xs text-[var(--c-text-dim)] cursor-pointer transition-all active:bg-[var(--c-primary-light)] active:text-[var(--c-primary)] active:border-[var(--c-primary)] whitespace-nowrap"><i data-lucide="copy" class="w-3.5 h-3.5"></i> 复制日报模板</button>
+          </div>
+          <textarea id="dialog-report-input" rows="6" placeholder="将 ChatGPT 生成的内容粘贴到这里，粘贴后自动校验..." class="w-full min-h-[140px] bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-border)] rounded-2xl p-3.5 text-sm leading-relaxed resize-y mb-2.5 outline-none focus:border-[var(--c-primary)] focus:shadow-[0_0_0_3px_var(--c-primary-light)] placeholder:text-[var(--c-text-ultradim)]"></textarea>
+          <div id="dialog-preview" class="hidden"></div>
+        </div>
+        <div class="px-[18px] pb-5 pt-3 border-t border-[var(--c-border-light)]">
+          <button id="btn-dialog-submit" disabled class="w-full py-3.5 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-[15px] font-bold cursor-pointer transition-all active:scale-[0.98] disabled:opacity-35 disabled:cursor-not-allowed disabled:active:scale-100">确认导入</button>
+        </div>
       </div>
     </div>
   </div>
@@ -449,8 +452,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=95"></script>
-<script src="/parser.js?v=95"></script>
-<script src="/app.js?v=95"></script>
+<script src="/supabase-client.js?v=96"></script>
+<script src="/parser.js?v=96"></script>
+<script src="/app.js?v=96"></script>
 </body>
 </html>

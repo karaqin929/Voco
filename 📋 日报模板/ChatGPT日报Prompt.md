@@ -1,57 +1,97 @@
-# 📝 日报模板（新版 JSON 格式 · 2026-08-13 起 · v83 增补 duration · v90 三模块补全 · v94 弯引号禁令）
+# 📝 完美日报生成指令（唯一权威版 · v96）
 
-把下面这段指令发给 ChatGPT（或直接让 Claudian 生成），再把生成的 JSON **原样粘贴进 Voco「导入日报」对话框**即可解析入库。
-
-> ⚠️ v90 起 App 内「复制模板」按钮与本文档完全同步，直接复制即可。
+> **和 ChatGPT 结束对练时，把下面整段指令发过去**（或直接点 App 内「导入日报」弹窗的「复制模板」按钮——两者完全同步）。
+> 生成的 JSON **原样粘贴进 Voco「导入日报」对话框**即可解析入库。
+> ⚠️ 此版已锁定系统认可的完整字段结构：任何键名偏差、弯引号、Markdown 包装都会导致整份日报被拒收。
 
 ---
 
-请根据刚才的口语对话，严格生成以下 JSON 格式的学习日报。不要 Markdown 包装，不要省略任何字段，不要添加额外说明文字：
+你现在是我的资深英语口语教练。【本次口语练习时长：__分钟（请先填上实际分钟数再发送；此【】仅为填写提示，不属于日报内容）】请根据我们今天的对话，生成一份结构化的学习日报。这份日报会被我的学习系统直接读取入库，必须一次成型、零修改。
 
-> 【本次口语练习时长：__分钟】（发出去前先填上实际分钟数）
-
-> ⚠️ **引号铁律：整份 JSON 只允许英文直引号 `"`（半角），严禁弯引号/智能引号 “ ” ‘ ’——任何弯引号都会让 JSON 解析直接失败、整份日报报废。生成完成后自查一遍：看到任何 “ ” ‘ ’ 立即改回直引号。**
+只输出一段纯 JSON 文本：从第一个 { 开始、到最后一个 } 结束。前后严禁出现任何说明文字、标题、Markdown 代码块标记（```）。JSON 结构必须严格如下：
 
 ```json
 {
   "duration": 25,
   "summary": {
-    "topic": "练习话题（英文）",
+    "topic": "今天对话的核心主题标签",
     "dailyThought": { "en": "英文一句反思金句", "zh": "对话后的反思（中文，第一人称，一段话）" },
-    "strengths": ["做得好的地方 1", "做得好的地方 2", "..."],
-    "nextSteps": ["下次要练的重点 1", "重点 2", "..."],
+    "strengths": ["优点1", "优点2", "优点3"],
+    "nextSteps": ["下一次练习建议1", "建议2"],
     "fluency": 7,
     "accuracy": 6.5,
     "naturalness": 6,
-    "weak_areas": "时态, 单复数"
+    "weak_areas": "时态, 冠词"
   },
   "mistakes": [
-    { "type": "grammar", "original": "我说的原话（英文）", "improved": "正确说法", "explanation": "涉及的语法规则" },
+    { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释" },
     { "type": "pronunciation", "original": "发音错误的词或句子", "improved": "正确发音写法", "explanation": "音标或发音要点" },
-    { "type": "expression", "original": "我的表达", "improved": "更地道的说法", "explanation": "什么场景下用" }
+    { "type": "expression", "original": "中式或普通的句子", "improved": "更地道高阶的表达", "explanation": "为什么这样说更好" }
   ],
   "coreSentences": [
-    { "targetSentence": "地道句型（跟读训练用）", "replacedSentence": "普通/生硬的表达", "explanation": "为什么这个更地道" }
+    { "targetSentence": "高阶金句", "replacedSentence": "被替代的普通表达", "explanation": "使用场景或提示" }
   ],
   "newWords": [
-    { "word": "单词", "phonetic": "/音标/", "meaning": "中文释义", "example": "例句" }
+    { "word": "单词", "phonetic": "/音标/", "meaning": "中文释义", "example": "包含该词的例句" }
   ]
 }
 ```
 
-## 字段约定
+【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
+1. 顶层必须正好是 duration、summary、mistakes、coreSentences、newWords 这 5 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
+2. duration 必须是本次对话练习的真实总时长（分钟，纯数字，不是字符串）。开头【】里已写明本次练习时长，直接使用该数字；若【】里仍为空，必须先询问用户，得到回答后再生成日报。绝不允许编造或照抄示例值 25。
+3. summary 必须是对象，且包含以下 8 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、weak_areas（字符串）。8 键一个都不能少。
+4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
+   - "grammar"：语法硬伤（时态、单复数、冠词、句式等）；
+   - "pronunciation"：发音错误（读错的词、重音、元音等）；
+   - "expression"：语法正确但不够地道的表达升级。
+5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。
+6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
+7. coreSentences 与 newWords 不设数量上限：把今天对话中真实出现、值得收录的内容全部整理出来——coreSentences 收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达），newWords 收录所有真实遇到或不会的生词。唯一硬性标准是「真实出现 + 值得收录」：今天没有就输出空数组 []，绝不允许为了凑数量编造内容，也不允许因为觉得太多而漏掉重要内容。
 
-| 字段 | 约定 |
-|------|------|
-| 引号（全局铁律） | **只允许英文直引号 `"`（半角）**，严禁弯引号 “ ” ‘ ’（智能引号会让 JSON 解析失败 → 日报变空壳）。v94 起 App 解析层有归一化兜底，但源头必须遵守此铁律 |
-| `duration` | **必填**。本次对话练习的**真实**总时长（分钟，数字）——首页「开口时长 / 总时长」直接消费（开口时长按 60% 折算）。**开头【】里已写明本次练习时长，直接使用该数字；若【】为空，先询问用户再生成，绝不允许照抄示例值 25 或编造** |
-| `summary.dailyThought` | **必填双语**：`en` 英文一句总结，`zh` 中文第一人称反思（一段话，结合评分表现点出今天最值得改进的一点）——首页「当日对话想法」卡片 |
-| `summary.fluency/accuracy/naturalness` | **必填**，0-10 数字（可含一位小数），驱动首页 4 维指标与 Profile 趋势图。**以专业口语私教评审逻辑，基于今天对话的具体表现逐项打分**：fluency 看停顿迟疑与语速、accuracy 看语法错误频率、naturalness 看地道程度。禁止照抄示例值 7/6.5/6 |
-| `summary.weak_areas` | 弱项标签（逗号分隔，1-3 个）——Profile 页弱项云。**归纳今天对话暴露最明显的弱点，禁止照抄示例「时态, 单复数」** |
-| `mistakes[].type` | 严格三类，绝不混用：`"grammar"`（语法硬伤 → 红色纠错卡）、`"pronunciation"`（发音错误 → 发音纠正卡）、`"expression"`（地道表达升级 → 句型库）。今天没有某类错误的条目直接省略 |
-| `coreSentences` | 成为跟读页沉浸式播放器队列（1/N）；建议 5~8 句；`targetSentence` 与 `replacedSentence` 必须同时存在 |
-| `newWords` | 自动打标「今日新词」；建议 5~12 个当天实际出现的生词 |
+【评分与点评铁律】（专业口语私教评审）：
+- 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）。
+- weak_areas：归纳今天暴露最明显的 1-3 个弱点（中文标签，逗号分隔）。
+- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / "时态, 单复数"。
+- summary.dailyThought：en 用英文一句话总结今天最值得改进的一点；zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
+
+【引号铁律】——违反任何一条 = 整份日报报废，系统直接拒收：
+1. 全篇只允许英文半角直引号 "——包裹键名的引号和包裹字符串值的引号都必须用它。严禁弯引号 “ ” 和弯单引号 ‘ ’，包括字符串值内部（本指令文本中出现的 “ ” ‘ ’ 仅为反面示例，绝不要复制进 JSON）。
+2. 字符串值内部需要中文强调时（如 explanation 里引用某个中文词），一律使用「」（方角括号），或者不加任何引号。严禁在值内出现弯引号。
+3. 英文缩写（I'm、aren't、don't）用英文直单引号 '（半角），绝不用弯单引号 ’。
+4. 所有字符串值必须写成单行——严禁在字符串值内部换行（值内换行会直接导致 JSON 失效）。
+5. 字符串值内如需英文引述（如例句 He said "hi"），请改用英文单引号 '（写成 He said 'hi'）或加反斜杠转义（写成 He said \"hi\"），严禁出现未转义的直双引号。
+
+【输出前自检】——必须逐条确认，全部通过才允许输出：
+□ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
+□ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
+□ 顶层 5 个键齐全，summary 的 8 个键齐全，空内容用 [] 不用 null；
+□ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种；
+□ duration 是开头【】里填的真实分钟数，不是示例值 25；
+□ 所有字符串值均为单行，值内无未转义的直双引号；
+□ 所有键名与上面示例结构一字不差。
+
+---
+
+## 系统认可的字段全链路对照表（调研结论）
+
+GPT 日报 JSON → Voco 系统消费链路的完整映射，字段名即契约：
+
+| GPT JSON 字段 | 类型 | 系统消费位置 |
+|------|------|------|
+| `duration` | 数字（分钟） | 首页「开口时长/总时长」×0.6、`progress.total_minutes` |
+| `summary.topic` | 字符串 | 首页话题标签、`topics` 表、各表 `source_topic` |
+| `summary.dailyThought.en/.zh` | 字符串 | 首页「当日对话想法」卡片 |
+| `summary.strengths[]` | 数组 | 首页「优点」列表 |
+| `summary.nextSteps[]` | 数组 | 首页「下一次练习建议」 |
+| `summary.fluency/accuracy/naturalness` | 0-10 数字 | 首页 4 维指标 + Profile 趋势图 |
+| `summary.weak_areas` | 逗号分隔字符串 | Profile 弱项云 |
+| `mistakes[].type` | 枚举：grammar/pronunciation/expression | 分流三路：grammar+pronunciation → `errors` 表（红卡）；expression → `patterns` 表（句型库） |
+| `mistakes[].original/improved/explanation` | 字符串 | `errors.original/correction/rule` 或 `patterns.original/better/scene` |
+| `coreSentences[].targetSentence/replacedSentence/explanation` | 字符串 | `patterns` 表 + 跟读页沉浸式播放器队列（1/N） |
+| `newWords[].word/phonetic/meaning/example` | 字符串 | `vocabulary` 表（word/phonetic/meaning/example）+ 自动打标「今日新词」 |
 
 ## 兼容说明
 
-旧版 Markdown 模板日报**仍然可以正常导入**——App 内置无损清洗层 `normalizeDailyData` 会自动把老格式适配到新界面，历史记录一条不丢（8.10 / 8.12 等历史日报已验证）。
+- 旧版 Markdown 模板日报**仍然可以正常导入**——App 内置无损清洗层 `normalizeDailyData` 会把老格式适配到新界面，历史记录一条不丢。
+- v96 起 App 解析层内置「智能引号状态机」兜底：即使 GPT 输出含弯引号或值内嵌套中文引号，也能安全归一化后解析（兜底网，不替代本指令的源头铁律）。

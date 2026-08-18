@@ -1191,10 +1191,46 @@ function renderTodoList(speakDoneToday) {
 // v94 弯引号归一化：GPT 输出/复制链路可能把直引号「美化」成弯引号（“ ” ‘ ’ 及全角）
 // → JSON.parse 失败 → 日报被判非日报 → 僵尸行（reports 有行、三表全空、徽章亮/熊白/Hero 未对练）。
 // 所有 JSON 文本入口先过本函数再 parse；isDailyReport 判定同样归一化后再匹配。
+// v96 升级为智能引号状态机（根治值内嵌套引号）：v94 全局替换会把字符串值内部的中文强调号
+// 也换成直引号 —— 如 "once 可以自然表达“等到……以后”" 的内层 “ ” 变成未转义直引号 →
+// 字符串提前截断 → JSON.parse 依旧 SyntaxError（v95 显式报错即源于此）。
+// 状态机规则（逐字符扫描，跟踪「是否在字符串内」）：
+//   结构位置（键名/值边界）的 “ ” → 直引号 "；全角＂同直引号处理；
+//   字符串内部的 “ ” → 「」（中文方角括号，JSON 合法且中文语境显示自然）；
+//   字符串内部的直引号 → 转义 \"；已有反斜杠转义原样保留（防止 \" 被误判为闭引号）；
+//   弯单引号 ‘ ’ 及全角＇ → 直单引号 '（JSON 字符串内单引号合法，如 aren't 缩写）。
 function normalizeSmartQuotes(s) {
-  return String(s || '')
-    .replace(/[“”＂]/g, '"')   // “ ” 全角"
-    .replace(/[‘’＇]/g, "'");  // ‘ ’ 全角'
+  const src = String(s || '');
+  let out = '';
+  let inStr = false, opener = '';
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '\\' && i + 1 < src.length) { out += ch + src[i + 1]; i++; continue; }  // 保留已有转义
+    if (!inStr) {
+      if (ch === '“') { inStr = true; opener = '“'; out += '"'; }
+      else if (ch === '"' || ch === '＂') { inStr = true; opener = '"'; out += '"'; }
+      else if (ch === '‘' || ch === '’' || ch === '＇') out += "'";
+      else out += ch;
+    } else {
+      if (opener === '“' && ch === '”') {
+        // 关键歧义消解：同一个 ” 既可能是结构闭号，也可能是值内强调闭号（如 “等到……以后”）。
+        // 前瞻判定——后一个非空白字符若是 , } ] : 或已到文末 → 结构闭号（结束字符串，出直引号）；
+        // 否则（后跟中文汉字/全角标点/字母等）→ 值内强调闭号（出「」）。
+        // 中文文案的逗号句号冒号均为全角（，。：），不会误入结构集合。
+        let j = i + 1;
+        while (j < src.length && (src[j] === ' ' || src[j] === '\t' || src[j] === '\n' || src[j] === '\r')) j++;
+        if (j >= src.length || src[j] === ',' || src[j] === '}' || src[j] === ']' || src[j] === ':') { inStr = false; out += '"'; }
+        else out += '」';
+      }
+      else if (opener === '"' && (ch === '"' || ch === '＂')) { inStr = false; out += '"'; }
+      else if (ch === '“') out += '「';
+      else if (ch === '”') out += '」';
+      else if (ch === '"' || ch === '＂') out += '\\"';
+      else if (ch === '‘' || ch === '’' || ch === '＇') out += "'";
+      else out += ch;
+    }
+  }
+  return out;
 }
 
 // v95 输入洗理：剥 BOM → 剥 Markdown 代码块围栏（```json 等）→ 提取最外层 {…} JSON 跨度
@@ -1511,7 +1547,8 @@ function parseSmartReport(content) {
 // 上游 ChatGPT JSON → 内部 parsed 结构；在此处统一打上布尔标签：
 //   newWords → isNewToday:true   coreSentences → isTodayCore:true   mistakes → type:grammar/expression
 function normalizeJsonReport(j, raw) {
-  const s = j.summary || {};
+  // v96 可选链加固：summary 缺失/非对象 → 空对象兜底，后续 s.* 读取永不抛 TypeError
+  const s = (j && typeof j.summary === 'object' && j.summary) || {};
   const mistakes = Array.isArray(j.mistakes) ? j.mistakes : [];
   const core = Array.isArray(j.coreSentences) ? j.coreSentences : [];
   const words = Array.isArray(j.newWords) ? j.newWords : [];
@@ -1563,14 +1600,168 @@ function normalizeJsonReport(j, raw) {
   };
 }
 
-// ── Import Dialog (updated for Tailwind) ────────────────
+// ── Import Dialog (v97 重构：实时校验 Modal) ───────────────
+// 交互状态解耦三段式：输入 → 防抖校验预览 → 确认入库。
+// 状态机（等价 React 范式：useState 三个状态 + useEffect(debounce) 监听 input）：
+//   idle   空输入        → 预览卡隐藏，确认按钮禁用
+//   checking 防抖等待中  → 按钮保持禁用（输入即锁）
+//   valid  校验通过      → 绿卡「格式校验通过」+ 统计预览，确认按钮高亮可点
+//   error  校验失败      → 红卡指出具体原因（格式错误 / 缺少关键字段 / 无法识别），按钮强制禁用
+// 入库只消费 _importState.payload（校验时生成的干净产物），绝不从文本框直接解析写库。
+const _importState = { status: 'idle', error: '', preview: null, payload: null };
+let _importDebounceTimer = null;
+const IMPORT_DEBOUNCE_MS = 350;
+
+// ── 实时校验器（纯函数）：输入文本 → 校验结果 + 入库产物 ──
+function validateImportInput(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return { status: 'idle', error: '', preview: null, payload: null };
+
+  // 洗理（BOM/围栏/跨度提取/智能引号状态机）后判定 JSON 意图
+  const cleaned = sanitizeJsonInput(raw);
+  if (cleaned.startsWith('{')) {
+    let j = null;
+    try { j = JSON.parse(cleaned); }
+    catch (e) {
+      console.error('[ImportModal] JSON.parse 失败（真实堆栈）:', e, '\n文本片段:', cleaned.slice(0, 300));
+      return { status: 'error', error: '格式错误：JSON 语法不合法，无法解析（详情见控制台）', preview: null, payload: null };
+    }
+    if (!j || typeof j !== 'object' || Array.isArray(j)) {
+      return { status: 'error', error: '格式错误：解析结果不是有效的 JSON 对象', preview: null, payload: null };
+    }
+    // 关键字段完整性校验（完美日报指令契约：顶层 5 键 + summary 8 键，一个不能少）
+    const requiredTop = ['duration', 'summary', 'mistakes', 'coreSentences', 'newWords'];
+    const missingTop = requiredTop.filter(k => j[k] === undefined || j[k] === null);
+    if (missingTop.length) {
+      return { status: 'error', error: `缺少关键字段：${missingTop.join('、')}。请用「复制日报模板」重新生成`, preview: null, payload: null };
+    }
+    const s = (j.summary && typeof j.summary === 'object') ? j.summary : null;
+    if (!s) return { status: 'error', error: '缺少关键字段：summary 必须是对象', preview: null, payload: null };
+    const requiredSummary = ['topic', 'dailyThought', 'strengths', 'nextSteps', 'fluency', 'accuracy', 'naturalness', 'weak_areas'];
+    const missingSummary = requiredSummary.filter(k => s[k] === undefined || s[k] === null);
+    if (missingSummary.length) {
+      return { status: 'error', error: `summary 缺少关键字段：${missingSummary.join('、')}`, preview: null, payload: null };
+    }
+    // 通过 → 生成归一化产物与预览统计（与入库走同一条 normalize 链，预览即所得）
+    const normalized = normalizeJsonReport(normalizeDailyData(j), cleaned);
+    const errCount = normalized.grammar.length + normalized.pronunciation.length;
+    const patternCount = normalized.patterns.length + normalized.sentence_patterns.length;
+    const dur = Number(j.duration) || 0;
+    const num = (v) => (typeof v === 'number' && isFinite(v)) ? v : null;
+    return {
+      status: 'valid', error: '',
+      preview: {
+        type: 'json', date: getLocalToday(), topic: s.topic || '', duration: dur,
+        fluency: num(s.fluency), accuracy: num(s.accuracy), naturalness: num(s.naturalness),
+        wordCount: normalized.vocabulary.length, errorCount: errCount, patternCount
+      },
+      payload: { kind: 'json', jsonReport: j, cleanedText: cleaned }
+    };
+  }
+
+  // 非 JSON → 传统 Markdown 日报（话题卡 / 分析报告已在 v97 彻底下线，直接拒绝）
+  let parsed = null, type = null;
+  try { parsed = parseSmartReport(cleaned); type = parsed && parsed.meta && parsed.meta.type; }
+  catch (e) {
+    console.error('[ImportModal] Markdown 解析异常（真实堆栈）:', e);
+    return { status: 'error', error: '无法识别内容格式：请粘贴日报 JSON（推荐）或旧版 Markdown 日报', preview: null, payload: null };
+  }
+  if (type === 'topic-card' || type === 'insight-report') {
+    return { status: 'error', error: '话题卡 / 分析报告导入已下线：本入口只接受口语日报', preview: null, payload: null };
+  }
+  if (type === 'daily-report' || (!type && Object.keys(parsed.meta).length > 0)) {
+    const num = (v) => (typeof v === 'number' && isFinite(v)) ? v : null;
+    return {
+      status: 'valid', error: '',
+      preview: {
+        type: 'markdown', date: parsed.meta.date || getLocalToday(), topic: parsed.meta.topic || '',
+        duration: Number(parsed.meta.duration) || 0,
+        fluency: num(parsed.summary.fluency), accuracy: num(parsed.summary.accuracy), naturalness: num(parsed.summary.naturalness),
+        wordCount: (parsed.vocabulary || []).length,
+        errorCount: (parsed.grammar || []).length + (parsed.pronunciation || []).length,
+        patternCount: (parsed.patterns || []).length
+      },
+      payload: { kind: 'markdown', parsed }
+    };
+  }
+  return { status: 'error', error: '无法识别内容格式：请粘贴日报 JSON（推荐）或旧版 Markdown 日报', preview: null, payload: null };
+}
+
+// ── 预览卡渲染 + 确认按钮状态控制（唯一写按钮状态的入口）──
+function setImportSubmitEnabled(enabled) {
+  const btn = document.getElementById('btn-dialog-submit');
+  if (btn) btn.disabled = !enabled;
+}
+function renderImportPreview() {
+  const box = document.getElementById('dialog-preview');
+  const st = _importState;
+  if (!box) return;
+  if (st.status === 'idle' || st.status === 'checking') {
+    box.classList.add('hidden'); box.innerHTML = '';
+    setImportSubmitEnabled(false);
+    return;
+  }
+  box.classList.remove('hidden');
+  if (st.status === 'valid' && st.preview) {
+    const p = st.preview;
+    const scoreCell = (label, v) => `<div class="flex flex-col items-center py-1.5 rounded-xl bg-[var(--c-bg)]"><span class="text-[11px] text-[var(--c-text-ultradim)]">${label}</span><span class="text-sm font-bold text-[var(--c-text)]">${v === null || v === undefined ? '—' : v}</span></div>`;
+    box.innerHTML = `
+      <div class="border border-[#2f9e63] bg-[#2f9e630f] rounded-2xl p-3.5">
+        <div class="flex items-center gap-2 mb-2.5">
+          <span class="w-[18px] h-[18px] rounded-full bg-[#2f9e63] text-white text-[11px] flex items-center justify-center shrink-0">✓</span>
+          <span class="text-sm font-bold text-[#2f9e63]">格式校验通过</span>
+          <span class="ml-auto text-[11px] text-[var(--c-text-ultradim)]">${p.type === 'json' ? 'JSON 日报' : 'Markdown 日报'}</span>
+        </div>
+        <div class="grid grid-cols-4 gap-1.5 mb-1.5">
+          ${scoreCell('时长(分)', p.duration)}${scoreCell('新词', p.wordCount)}${scoreCell('纠错', p.errorCount)}${scoreCell('句型', p.patternCount)}
+        </div>
+        <div class="grid grid-cols-3 gap-1.5">
+          ${scoreCell('流利度', p.fluency)}${scoreCell('准确度', p.accuracy)}${scoreCell('自然度', p.naturalness)}
+        </div>
+        ${p.topic ? `<div class="mt-2 text-[11px] text-[var(--c-text-dim)] leading-relaxed">话题：${h(p.topic)}<span class="ml-2 text-[var(--c-text-ultradim)]">入库日期 ${p.date}</span></div>` : ''}
+      </div>`;
+    setImportSubmitEnabled(true);
+    return;
+  }
+  // error → 红卡 + 具体原因，按钮强制禁用
+  box.innerHTML = `
+    <div class="border border-[#d64545] bg-[#d645450f] rounded-2xl p-3.5">
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="w-[18px] h-[18px] rounded-full bg-[#d64545] text-white text-[11px] flex items-center justify-center shrink-0">✕</span>
+        <span class="text-sm font-bold text-[#d64545]">格式校验失败</span>
+      </div>
+      <div class="text-xs text-[var(--c-text-dim)] leading-relaxed">${h(st.error || '未知错误')}</div>
+    </div>`;
+  setImportSubmitEnabled(false);
+}
+
+// ── 防抖输入监听（粘贴同样触发 input 事件）──
+function onImportInput() {
+  const text = document.getElementById('dialog-report-input').value;
+  // 输入即锁：等待校验期间禁止提交（旧校验结果立即作废）
+  setImportSubmitEnabled(false);
+  clearTimeout(_importDebounceTimer);
+  _importDebounceTimer = setTimeout(() => {
+    const result = validateImportInput(text);
+    _importState.status = result.status;
+    _importState.error = result.error;
+    _importState.preview = result.preview;
+    _importState.payload = result.payload;
+    renderImportPreview();
+  }, IMPORT_DEBOUNCE_MS);
+}
+
 function showImportDialog() {
   const dlg = document.getElementById('import-dialog');
   dlg.classList.remove('hidden');
-  document.getElementById('dialog-report-input').value = '';
-  document.getElementById('dialog-import-result').innerHTML = '';
+  const ta = document.getElementById('dialog-report-input');
+  if (ta) { ta.value = ''; setTimeout(() => ta.focus(), 50); }
+  clearTimeout(_importDebounceTimer);
+  _importState.status = 'idle'; _importState.error = ''; _importState.preview = null; _importState.payload = null;
+  renderImportPreview();
 }
 function hideImportDialog() {
+  clearTimeout(_importDebounceTimer);
   document.getElementById('import-dialog').classList.add('hidden');
 }
 
@@ -3325,9 +3516,9 @@ async function showErrorDetail(pattern) {
 // Template & Import
 // ═══════════════════════════════════════════════════════
 const TEMPLATES = {
-  report: `你现在是我的资深英语口语教练。【本次口语练习时长：__分钟（请先填上实际分钟数再发送）】请根据我们今天的对话，生成一份结构化的复盘日报。
+  report: `你现在是我的资深英语口语教练。【本次口语练习时长：__分钟（请先填上实际分钟数再发送；此【】仅为填写提示，不属于日报内容）】请根据我们今天的对话，生成一份结构化的学习日报。这份日报会被我的学习系统直接读取入库，必须一次成型、零修改。
 
-请务必仅返回合法的 JSON 格式数据，不要包含任何额外的解释文本，不要使用 Markdown 代码块标记。JSON 结构必须严格如下：
+只输出一段纯 JSON 文本：从第一个 { 开始、到最后一个 } 结束。前后严禁出现任何说明文字、标题、Markdown 代码块标记（\`\`\`）。JSON 结构必须严格如下：
 
 {
   "duration": 25,
@@ -3339,7 +3530,7 @@ const TEMPLATES = {
     "fluency": 7,
     "accuracy": 6.5,
     "naturalness": 6,
-    "weak_areas": "时态, 单复数"
+    "weak_areas": "时态, 冠词"
   },
   "mistakes": [
     { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释" },
@@ -3350,56 +3541,45 @@ const TEMPLATES = {
     { "targetSentence": "高阶金句", "replacedSentence": "被替代的普通表达", "explanation": "使用场景或提示" }
   ],
   "newWords": [
-    { "word": "单词", "phonetic": "音标", "meaning": "释义", "example": "包含该词的例句" }
+    { "word": "单词", "phonetic": "/音标/", "meaning": "中文释义", "example": "包含该词的例句" }
   ]
 }
 
-硬性要求：
-1. duration 必须输出：本次对话练习的真实总时长分钟数（数字，用于首页「开口时长 / 总时长」）。开头【】里已写明本次练习时长，直接使用该数字；若【】里仍为空，必须先询问用户，得到回答后再生成日报；绝不允许编造或直接照抄示例值 25。
-2. mistakes 数组必须严格区分三类：type 为 "grammar" 是语法硬伤（时态、单复数、冠词等）；type 为 "pronunciation" 是发音错误（读错的词、重音、元音等）；type 为 "expression" 是语法正确但不够地道的表达升级。三者绝不能混用；今天没有某一类错误时，该类条目直接省略。
-3. 评分与点评（专业口语私教评审）：以资深口语私教的评审标准，逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：
-   - fluency 流利度：依据对话中的停顿、迟疑、重复、语速是否连贯；
-   - accuracy 准确度：依据时态、单复数、冠词、句式等语法错误出现的频率；
-   - naturalness 自然度：依据表达是否地道、搭配是否自然、有无中式英语痕迹；
-   - weak_areas 弱项：归纳今天对话中暴露最明显的 1-3 个弱点（中文标签，逗号分隔，如 "时态, 冠词"）。
-   每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / "时态, 单复数"。
-4. summary.dailyThought 必须双语输出：en 为英文一句总结；zh 为中文第一人称反思（一段话，结合上面的评分表现，点出今天最值得改进的一点）。
-5. coreSentences 必须同时包含高阶金句 targetSentence 和被替换的平庸句 replacedSentence；建议 5 到 8 句。
-6. newWords 给出 5 到 12 个今天实际出现过的生词。
-7. 引号铁律：整份 JSON 只允许英文直引号 "（半角），严禁使用弯引号 “ ” ‘ ’（智能引号会让 JSON 解析直接失败、整份日报报废）。所有键名、字符串值一律用直引号；生成完成后自查一遍，发现任何弯引号立即改回直引号。`,
-  topic: `请为以下内容生成 Voco 话题卡：
+【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
+1. 顶层必须正好是 duration、summary、mistakes、coreSentences、newWords 这 5 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
+2. duration 必须是本次对话练习的真实总时长（分钟，纯数字，不是字符串）。开头【】里已写明本次练习时长，直接使用该数字；若【】里仍为空，必须先询问用户，得到回答后再生成日报。绝不允许编造或照抄示例值 25。
+3. summary 必须是对象，且包含以下 8 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、weak_areas（字符串）。8 键一个都不能少。
+4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
+   - "grammar"：语法硬伤（时态、单复数、冠词、句式等）；
+   - "pronunciation"：发音错误（读错的词、重音、元音等）；
+   - "expression"：语法正确但不够地道的表达升级。
+5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。
+6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
+7. coreSentences 与 newWords 不设数量上限：把今天对话中真实出现、值得收录的内容全部整理出来——coreSentences 收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达），newWords 收录所有真实遇到或不会的生词。唯一硬性标准是「真实出现 + 值得收录」：今天没有就输出空数组 []，绝不允许为了凑数量编造内容，也不允许因为觉得太多而漏掉重要内容。
 
-[在此粘贴视频描述、文章内容或链接]
+【评分与点评铁律】（专业口语私教评审）：
+- 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）。
+- weak_areas：归纳今天暴露最明显的 1-3 个弱点（中文标签，逗号分隔）。
+- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / "时态, 单复数"。
+- summary.dailyThought：en 用英文一句话总结今天最值得改进的一点；zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
 
----
-type: topic-card
-title: [话题标题]
-description: [简短描述]
----
+【引号铁律】——违反任何一条 = 整份日报报废，系统直接拒收：
+1. 全篇只允许英文半角直引号 "——包裹键名的引号和包裹字符串值的引号都必须用它。严禁弯引号 “ ” 和弯单引号 ‘ ’，包括字符串值内部（本指令文本中出现的 “ ” ‘ ’ 仅为反面示例，绝不要复制进 JSON）。
+2. 字符串值内部需要中文强调时（如 explanation 里引用某个中文词），一律使用「」（方角括号），或者不加任何引号。严禁在值内出现弯引号。
+3. 英文缩写（I'm、aren't、don't）用英文直单引号 '（半角），绝不用弯单引号 ’。
+4. 所有字符串值必须写成单行——严禁在字符串值内部换行（值内换行会直接导致 JSON 失效）。
+5. 字符串值内如需英文引述（如例句 He said "hi"），请改用英文单引号 '（写成 He said 'hi'）或加反斜杠转义（写成 He said \\"hi\\"），严禁出现未转义的直双引号。
 
-## 关键术语
-- term | definition | example sentence
-
-## 讨论问题
-- question 1
-- question 2`,
-  insight: `请分析以下 Voco 日报数据中的口语弱点：
-
-[粘贴最近的日报数据]
-
----
-type: insight-report
----
-
-## 反复出现的问题
-- [问题模式] | [出现频率] | [典型例句]
-
-## 根本原因
-- [分析]
-
-## 改进建议
-- [建议]`
+【输出前自检】——必须逐条确认，全部通过才允许输出：
+□ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
+□ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
+□ 顶层 5 个键齐全，summary 的 8 个键齐全，空内容用 [] 不用 null；
+□ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种；
+□ duration 是开头【】里填的真实分钟数，不是示例值 25；
+□ 所有字符串值均为单行，值内无未转义的直双引号；
+□ 所有键名与上面示例结构一字不差。`
 };
+// v97：TEMPLATES.topic / TEMPLATES.insight 已物理删除——话题卡与弱点分析模板功能彻底下线，TEMPLATES 只保留 report。
 
 function copyTemplate(type) {
   const text = TEMPLATES[type];
@@ -3410,56 +3590,49 @@ function copyTemplate(type) {
 }
 
 async function importReport(text) {
-  if (!text) text = document.getElementById('dialog-report-input').value.trim();
-  if (!text) return;
-  const btn = document.getElementById('btn-dialog-submit');
-  const resultEl = document.getElementById('dialog-import-result');
-  if (btn) { btn.disabled = true; btn.textContent = '解析中...'; }
-
-  // v95 输入洗理：剥 BOM/代码块围栏 → 提取最外层 {…} → 弯引号归一化（复制链路全污染防御）
-  const cleaned = sanitizeJsonInput(text);
-
-  // 新版 JSON 日报：JSON.parse 成功后走专用入库器（自动打标）
-  let jsonReport = null;
-  const jsonIntent = cleaned.startsWith('{');
-  if (jsonIntent) {
-    try { jsonReport = JSON.parse(cleaned); } catch (e) { jsonReport = null; }
-  }
-  // v93：GPT 可能省略空 mistakes/coreSentences/newWords 键 → 放宽为 summary/duration 任一存在即认 JSON 日报
-  const isJsonDaily = jsonReport && typeof jsonReport === 'object' &&
-    (jsonReport.mistakes || jsonReport.coreSentences || jsonReport.newWords || jsonReport.summary || jsonReport.duration);
-
-  if (isJsonDaily) {
-    // 入库完成 toast 由 importJsonDailyReport 输出（含词/错/句数量），此处严禁覆盖
-    await importJsonDailyReport(jsonReport, cleaned);
-  } else if (jsonIntent) {
-    // v95 静默失败显式化：文本明显是 JSON 但解析失败 → 明确报错并中断，绝不写空壳行
-    if (resultEl) resultEl.innerHTML = '<span class="toast-error">❌ JSON 格式解析失败，请检查文本：只粘贴从 { 到 } 的纯 JSON，不要附带说明文字</span>';
-    if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
-    return;
-  } else {
-    // 传统 Markdown 日报 / 话题卡 / 洞察报告：原链路保持不变
-    const parsed = parseSmartReport(cleaned);
-    const type = parsed.meta.type || 'daily-report';
-    if (type === 'daily-report' || (!parsed.meta.type && Object.keys(parsed.meta).length > 0)) {
-      await importDailyReport(parsed);
-    } else if (type === 'topic-card') {
-      await importTopicCard(parsed);
-    } else if (type === 'insight-report') {
-      await importInsightReport(parsed);
-    } else {
-      if (resultEl) resultEl.innerHTML = '<span class="toast-error">❌ 无法识别内容格式</span>';
-      if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
+  // v97 状态解耦：确认入库只消费实时校验产物 _importState.payload，
+  // 绝不从文本框直接解析写库（「输入 → 直接写入数据库」危险做法已废弃）。
+  // 兼容外部调用（历史入口带文本参数）：先跑校验，不通过直接拒绝。
+  if (text !== undefined && text !== null && String(text).trim()) {
+    const result = validateImportInput(text);
+    if (result.status !== 'valid') {
+      showToast('❌ ' + (result.error || '格式校验未通过'));
       return;
     }
-    if (resultEl) resultEl.innerHTML = '<span class="toast-success">✅ 导入成功！</span>';
+    _importState.status = 'valid'; _importState.error = ''; _importState.preview = result.preview; _importState.payload = result.payload;
+  }
+  if (_importState.status !== 'valid' || !_importState.payload) {
+    showToast('⚠️ 请先通过格式校验，再确认导入');
+    return;
   }
 
-  document.getElementById('dialog-report-input').value = '';
-  if (btn) { btn.disabled = false; btn.textContent = '解析入库'; }
-  // v95 视图同步：导入即回今日视图（历史 _viewDate 残留不再遮挡刚导入的数据），再全量重载
+  const btn = document.getElementById('btn-dialog-submit');
+  if (btn) { btn.disabled = true; btn.textContent = '导入中...'; }
+  try {
+    if (_importState.payload.kind === 'json') {
+      await importJsonDailyReport(_importState.payload.jsonReport, _importState.payload.cleanedText);
+    } else {
+      await importDailyReport(_importState.payload.parsed);
+    }
+  } catch (e) {
+    // 入库/映射异常显式化：真实堆栈进控制台，红卡展示真实原因，绝不静默吞掉
+    console.error('[importReport] 入库异常（真实堆栈）:', e);
+    _importState.status = 'error';
+    _importState.error = '入库异常：' + String((e && e.message) || e).slice(0, 100) + '（完整堆栈见控制台）';
+    renderImportPreview();
+    if (btn) { btn.disabled = true; btn.textContent = '确认导入'; }
+    return;
+  }
+
+  // 成功：重置校验状态 → 回今日视图 → 全量重载（v95 视图同步逻辑保留）
+  clearTimeout(_importDebounceTimer);
+  const ta = document.getElementById('dialog-report-input');
+  if (ta) ta.value = '';
+  _importState.status = 'idle'; _importState.error = ''; _importState.preview = null; _importState.payload = null;
+  renderImportPreview();
+  if (btn) { btn.disabled = true; btn.textContent = '确认导入'; }
   _viewDate = null;
-  setTimeout(() => { hideImportDialog(); loadHome(); }, 1200);
+  setTimeout(() => { hideImportDialog(); loadHome(); }, 1000);
 }
 
 // ── 新版 JSON 日报入库器：写入时自动打上前端约定标签 ────
@@ -3470,7 +3643,8 @@ async function importJsonDailyReport(jsonReport, rawText) {
   // 下方所有 `!m.original` / `!c.targetSentence` 过滤从此一行都不会丢。
   jsonReport = normalizeDailyData(jsonReport || {});
   const date = getLocalToday();
-  const topic = (jsonReport.summary && jsonReport.summary.topic) || '';
+  // v96 可选链加固：summary 缺失/非对象时安全降级为空串，绝不让映射层因缺字段抛 TypeError
+  const topic = (jsonReport?.summary?.topic) || '';
 
   // 归一化 + 打标：newWords → isNewToday:true；coreSentences → isTodayCore:true
   const parsed = normalizeJsonReport(jsonReport, rawText);
@@ -3517,7 +3691,7 @@ async function importJsonDailyReport(jsonReport, rawText) {
   // 4) 原始 JSON 原样入库（下游 parseSmartReport 每次读取时统一归一化打标 → 上下游绝对对齐）
   await sb.from('reports').upsert({ user_id: uid, date, content: rawText }, { onConflict: 'user_id,date' });
   // v83 时长/评分落 progress 表：与 Markdown 路径 importDailyReport 对齐（此前硬编码 0，时长与趋势数据双丢）
-  const s2 = (jsonReport.summary && typeof jsonReport.summary === 'object') ? jsonReport.summary : {};
+  const s2 = (jsonReport?.summary && typeof jsonReport.summary === 'object') ? jsonReport.summary : {};
   const dur = parseInt(String((jsonReport.duration || s2.duration || s2.durationMinutes) || ''), 10) || 0;
   await updateProgress(uid, Number(s2.fluency) || 0, Number(s2.accuracy) || 0, s2.weak_areas || '', topic, dur);
 
@@ -3531,8 +3705,7 @@ async function importJsonDailyReport(jsonReport, rawText) {
     }
   }
 
-  document.getElementById('dialog-import-result').innerHTML =
-    `<span class="toast-success">✅ 入库完成！单词 ${parsed.vocabulary.length} · 语法纠错 ${allErrors.length} · 地道表达/句型 ${patRows.length}</span>`;
+  showToast(`✅ 入库完成！单词 ${parsed.vocabulary.length} · 语法纠错 ${allErrors.length} · 地道表达/句型 ${patRows.length}`);
 }
 
 async function importDailyReport(parsed) {
@@ -3580,36 +3753,12 @@ async function importDailyReport(parsed) {
     }
   }
 
-  document.getElementById('dialog-import-result').innerHTML =
-    `<span class="toast-success">✅ 入库完成！单词 ${parsed.vocabulary.length} · 纠错 ${allErrors.length} · 句型 ${parsed.patterns.length}</span>`;
+  showToast(`✅ 入库完成！单词 ${parsed.vocabulary.length} · 纠错 ${allErrors.length} · 句型 ${parsed.patterns.length}`);
 }
 
-async function importTopicCard(parsed) {
-  const { data: { session } } = await sb.auth.getSession();
-  const uid = session.user.id;
-  const title = parsed.meta.title || '未命名话题';
-  const description = parsed.meta.description || '';
-  const keyTerms = (parsed.vocabulary || []).map(v => v.word).filter(Boolean);
-  const { data: topic } = await sb.from('topics').insert([{
-    user_id: uid, title, description, source_type: 'chatgpt', key_terms: keyTerms, notes: ''
-  }]).select().single();
-
-  if (parsed.vocabulary.length && topic) {
-    await sb.from('vocabulary').insert(parsed.vocabulary.map(v => ({
-      user_id: uid, word: v.word, phonetic: v.phonetic || '', meaning: v.meaning || '',
-      example: v.example || '', date_added: getLocalToday(), source_topic: title, status: 'new'
-    })));
-  }
-  document.getElementById('dialog-import-result').innerHTML = `<span class="toast-success">✅ 话题「${h(title)}」已添加！词汇 ${parsed.vocabulary.length} 个</span>`;
-}
-
-async function importInsightReport(parsed) {
-  const { data: { session } } = await sb.auth.getSession();
-  await sb.from('reports').upsert({
-    user_id: session.user.id, date: getLocalToday(), content: parsed.raw
-  }, { onConflict: 'user_id,date' });
-  document.getElementById('dialog-import-result').innerHTML = '<span class="toast-success">✅ 分析报告已保存！</span>';
-}
+// v97：importTopicCard / importInsightReport 已物理删除——话题卡与弱点分析模板功能彻底下线。
+// 本入口只接受日报（JSON / Markdown）；parseSmartReport 若判定为 topic-card / insight-report，
+// validateImportInput 会直接拒绝并红卡提示。
 
 // ── v6.0: error category detection (typed linguistic classification) ──
 function detectErrorCategory(original, correction) {
@@ -4039,14 +4188,12 @@ function showToast(msg, type) {
 document.getElementById('btn-login').addEventListener('click', signIn);
 document.getElementById('btn-login-email').addEventListener('click', sendMagicLink);
 document.getElementById('btn-dialog-submit')?.addEventListener('click', () => importReport());
+// v97 实时校验绑定：文本框 input 事件（粘贴/输入/清空均触发）→ 350ms 防抖 → 校验预览 + 按钮状态
+document.getElementById('dialog-report-input')?.addEventListener('input', onImportInput);
+document.getElementById('btn-copy-report-template')?.addEventListener('click', () => copyTemplate('report'));
 document.getElementById('btn-export-data').addEventListener('click', exportData);
 document.getElementById('btn-logout-me').addEventListener('click', signOut);
 document.getElementById('btn-import-json')?.addEventListener('click', importJSON);
-
-// Import dialog overlay click-to-close
-document.getElementById('import-dialog')?.addEventListener('click', function(e) {
-  if (e.target === this) hideImportDialog();
-});
 
 // Theme picker (circle buttons)
 document.querySelectorAll('#theme-picker button').forEach(b => {
