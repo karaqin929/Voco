@@ -11,8 +11,8 @@
 //            时以点击句为首卡入队（sentence-anchor）。一条纠错知识 = 一张卡片 = {original, correction, rule} 完整对象。
 // v88 QA 自检补漏（跳转/计数四缺口）：① 学习建议 vocab 分支 navigateReview('all','today',ctxDate)（杜绝跳全量词库）；
 //            ② 学习建议 sentence 分支未命中兜底同样携带 date（该日核心句型队列，杜绝落今日混合队列）；
-//            ③ 待办任务 3 数字 = due tab 混合卡组真实长度（到期词+错题，allGrammarErrorsToday 今日口径，根治「外面
-//            N 词点进去 N+M 张」）；④ switchWordsView 切 Tab 清 _ctxDate（URL 与上下文脱钩修复，due 卡组不再混历史日错题）
+//            ③ 待办任务 3 数字 = due tab 混合卡组真实长度（到期词+错题，v99 起错题部分改 dueErrorCards() DB 曲线口径，
+//            根治「外面 N 词点进去 N+M 张」）；④ switchWordsView 切 Tab 清 _ctxDate（URL 与上下文脱钩修复，due 卡组不再混历史日错题）
 // v89 打卡日历升维：废除「最近 7 天」硬编码 → 横向无限回溯滑条（flex overflow-x-auto hide-scrollbar，首日→今天连续
 //            日期序列，小熊点亮与 DB 词/日报日期并集精准匹配）+ 全局月历弹窗（showMonthPicker 跨月跨年一键跳转，
 //            数据源 _dateScoreCache 与滑条同源）；reports 拉取 limit 90 → 1000 放开回溯软上限。
@@ -811,12 +811,13 @@ function metricsDonut(score) {
 }
 
 // ── 「今天需要提升」教练视角分类配置 ─────────────────────
-// grammar（硬伤）/ expression（软性升级）/ structure（逻辑衔接）
+// grammar（语法纠错）/ expression（自然表达）/ structure（语法纠错·逻辑衔接）
 // v77 正向输入原则：原句仅小字灰显对照，全句红色删除线绝对禁止（防错误印象石化）
+// v99 标签改版（用户指令）：「语法」→「语法纠错」（跳转语法错题）、「选词」→「自然表达」（跳转句型复习）
 const IMPROVE_TYPES = {
-  grammar:    { badge: '📖 语法',       badgeCls: 'bg-red-50 text-[var(--c-red)]',   wrongCls: 'text-[var(--c-text-ultradim)]', rightCls: 'text-[var(--c-green)]', btn: '查看纠错' },
-  expression: { badge: '🎯 选词',       badgeCls: 'bg-amber-50 text-amber-600',      wrongCls: 'text-[var(--c-text-dim)]',      rightCls: 'text-[var(--c-blue)]',  btn: '句型复习体验' },
-  structure:  { badge: '📖 语法',       badgeCls: 'bg-blue-50 text-[var(--c-blue)]', wrongCls: 'text-[var(--c-text-dim)]',      rightCls: 'text-[var(--c-blue)]',  btn: '专项句型复习' }
+  grammar:    { badge: '📖 语法纠错',   badgeCls: 'bg-red-50 text-[var(--c-red)]',   wrongCls: 'text-[var(--c-text-ultradim)]', rightCls: 'text-[var(--c-green)]', btn: '查看纠错' },
+  expression: { badge: '🎯 自然表达',   badgeCls: 'bg-amber-50 text-amber-600',      wrongCls: 'text-[var(--c-text-dim)]',      rightCls: 'text-[var(--c-blue)]',  btn: '句型复习体验' },
+  structure:  { badge: '📖 语法纠错',   badgeCls: 'bg-blue-50 text-[var(--c-blue)]', wrongCls: 'text-[var(--c-text-dim)]',      rightCls: 'text-[var(--c-blue)]',  btn: '专项句型复习' }
 };
 
 // ── Section 4: Insights (Cards A-F) ─────────────────────
@@ -845,20 +846,20 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // 今日对话想法 / 做得好的地方：时间轴拦截后的展示值直传（loadHome 已按 missionState 强制清空历史数据）
   if (displayThoughts && (displayThoughts.en || displayThoughts.zh)) d.thoughts = displayThoughts;
   if (displayGoodPoints) { const arr = Array.isArray(displayGoodPoints) ? displayGoodPoints : String(displayGoodPoints).split('\n'); const lines = arr.filter(Boolean).map(l => String(l).replace(/^[-•*]\s*/, '')); if (lines.length) d.strengths = lines; }
-  const allErr = p ? [...(p.grammar||[]),...(p.pronunciation||[])] : [];   // v95 空防护：该日无报告 → 空数组 → 空状态
-  // 双维度打标：grammar = 硬性错误（红线纠正）；expression = 地道升级（语法没错，只替换不判错）
+  const allErr = p ? (p.grammar || []) : [];   // v99：发音错题整体移出错题体系（错题本与提升区），提升区只收语法；v95 空防护：无报告 → 空数组 → 空状态
+  // 双维度打标：grammar = 语法纠错（硬性错误，红线纠正）；expression = 自然表达（语法没错，只替换不判错）
   const merged = [
     ...allErr.slice(0, 2).map(e => ({
-      type: 'grammar', issue: e.type === 'pronunciation' ? '发音纠正' : '语法纠错',
+      type: 'grammar', issue: '语法纠错',
       wrong: e.original || '', correct: e.correction || '', explanation: e.rule || '',
       detail: (e.original||'') + ' → ' + (e.correction||'') + (e.rule ? '（' + e.rule + '）' : ''),
       action: '查看纠错', tab: 'words', filter: 'mistakes', filterLabel: '高频错词'
     })),
     ...(p.patterns || []).filter(x => x.better).slice(0, 2).map(e => ({
-      type: 'expression', issue: '地道表达',
+      type: 'expression', issue: '自然表达',
       wrong: e.original || '', correct: e.better || '', explanation: e.scene || '',
       detail: (e.original||'') + ' → ' + (e.better||''),
-      action: '专项句型复习', tab: 'speak', filter: '', filterLabel: '地道表达'
+      action: '专项句型复习', tab: 'speak', filter: '', filterLabel: '自然表达'
     }))
   ];
   if (merged.length) d.improvements = merged;
@@ -894,7 +895,9 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // Card B: 今日对话想法 —— 动态渲染：优先 _reportParsed.summary.dailyThought，次取本函数解析的日报 dailyThought；零硬编码金句
   // v76 修复：① 值净化（trim + 「无/暂无/没有/未记录」判空 → 优雅空状态，绝不渲染生硬「无」字）
   //         ② 字体规范（font-sans not-italic 全局无衬线，删除 Georgia 衬线斜体引语样式）
-  // v78 修复：恒定排版规格 —— 主体恒为 15px 主色（en 缺失时 zh 升主），副行恒为 13px 灰；
+  // v78 修复：恒定排版规格 —— 主体恒为 15px 主色（en 缺失时 zh 升主），副行恒为 13px；
+  //         v99 颜色统一（用户反馈两段式割裂）：en 主行与 zh 副行同用主色 text-[var(--c-text)]，
+  //         不再副行 dim 灰 —— 同属「想法」正文，只靠字号区分主次；
   //         内容经 cleanThoughtText 净化（剥 markdown 星号/残留 HTML/换行），杜绝每天视觉漂移
   // v80 兜底：dailyThought 缺失时，从 summary.thoughts 字符串现场提取（老 JSON/Markdown 数据只有 thoughts 字段的情况）
   const dtRaw = (((p && p.summary && p.summary.dailyThought) || null) || (p && p.summary && p.summary.thoughts ? parseDailyThought(String(p.summary.thoughts)) : null) || d.thoughts) || {};
@@ -902,14 +905,14 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   const NO_THOUGHT_RE = /^(无|暂无|没有|未记录|none?|n\/a)$/i;
   const hasThought = !!(dt.en || (dt.zh && !NO_THOUGHT_RE.test(dt.zh)));
   if (hasThought) {
-    // 单一引语块：左侧主题色竖线 + 中文弯引号；主行/副行字号颜色恒定，不随 en/zh 有无而变
+    // 单一引语块：左侧主题色竖线 + 中文弯引号；主行/副行字号颜色恒定，不随 en/zh 有无而变（v99 起两行同主色）
     // v80 排版拉平：主行 text-sm(14px) font-normal，与 Card C/D 正文层级一致（v78 的 15px font-medium 过于突出）
     const quote = dt.en || dt.zh;        // 主体：优先英文原句，缺失时中文释义升主
     const sub = dt.en ? dt.zh : '';      // 副行：仅当 en 在场时 zh 作释义副行
     html += card(0.06, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('lightbulb','w-3.5 h-3.5')} ${dayLabel}对话想法</div>
       <div class="border-l-[3px] border-l-[var(--c-primary)] pl-3">
         <div class="font-sans not-italic text-sm font-normal text-[var(--c-text)] leading-[1.7]">“${h(quote)}”</div>
-        ${sub ? `<div class="font-sans not-italic text-[0.875rem] font-normal text-[var(--c-text-dim)] mt-1.5 leading-[1.7]">${h(sub)}</div>` : ''}
+        ${sub ? `<div class="font-sans not-italic text-[0.875rem] font-normal text-[var(--c-text)] mt-1.5 leading-[1.7]">${h(sub)}</div>` : ''}
       </div>`);
   } else {
     // 空状态：v76 优雅缺省文案 —— 历史视图「当日未记录想法」；今日视图保留导入引导（不显示任何假数据）
@@ -1742,7 +1745,7 @@ function renderImportPreview() {
           <span class="ml-auto text-[11px] text-[var(--c-text-ultradim)]">${p.type === 'json' ? 'JSON 日报' : 'Markdown 日报'}</span>
         </div>
         <div class="grid grid-cols-4 gap-1.5 mb-1.5">
-          ${(p.speakingRatio !== null && p.speakingRatio !== undefined) ? scoreCell('开口占比', p.speakingRatio + '%') : scoreCell('时长(分)', p.duration)}${scoreCell('新词', p.wordCount)}${scoreCell('纠错', p.errorCount)}${scoreCell('句型', p.patternCount)}
+          ${(p.speakingRatio !== null && p.speakingRatio !== undefined) ? scoreCell('对话占比', p.speakingRatio + '%') : scoreCell('时长(分)', p.duration)}${scoreCell('新词', p.wordCount)}${scoreCell('纠错', p.errorCount)}${scoreCell('句型', p.patternCount)}
         </div>
         <div class="grid grid-cols-3 gap-1.5">
           ${scoreCell('流利度', p.fluency)}${scoreCell('准确度', p.accuracy)}${scoreCell('自然度', p.naturalness)}
@@ -2292,31 +2295,30 @@ let _dueRevealed = false;
 let _dueResults = { remembered: 0, forgot: 0 };
 const _reviewedErrorIds = new Set(); // 本会话已通过的错题 id（🟢记住了 后从混合卡组移除，不重复打卡）
 
-// ── 真实纠错数据源：日报解析 grammar + pronunciation ───
+// ── 真实纠错数据源：日报解析 grammar（v99 起发音错题整体移出错题体系，不再合并 pronunciation）──
 // 真实字段：item.original（错句）/ item.correction（正句）/ item.rule（规则）
 function realReportErrors() {
   if (!_reportParsed) return [];
-  const g = (_reportParsed.grammar || []).map(e => Object.assign({ issue: '语法纠正' }, e));
-  const p = (_reportParsed.pronunciation || []).map(e => Object.assign({ issue: '发音纠正' }, e));
-  return [...g, ...p].filter(e => e && (e.original || e.correction));
+  const g = (_reportParsed.grammar || []).map(e => Object.assign({ issue: '语法纠错' }, e));
+  return g.filter(e => e && (e.original || e.correction));
 }
 
 // ── 模块三：语法错题单一数据源（日报解析优先 → 错题表 → isMistake 词兜底）──
 // 统一输出形状 {id, issue, original, correction, rule, type}，供 tab=grammar 卡片流与待复习混合卡组共用
-// v82 日期路由：_ctxDate 存在 → 该日日报 grammar+pronunciation 为唯一数据源（无该日日报 → 空，绝不回退今日）
+// v82 日期路由：_ctxDate 存在 → 该日日报 grammar 为唯一数据源（无该日日报 → 空，绝不回退今日）
+// v99：发音错题整体移出错题体系（用户指令）—— 所有路径只收 grammar，不再合并 pronunciation
 function allGrammarErrors() {
   if (_ctxDate) {
     const dp = parsedReportFor(_ctxDate);
     if (!dp) return [];
-    const g = (dp.grammar || []).map(e => Object.assign({ issue: '语法纠正' }, e));
-    const p = (dp.pronunciation || []).map(e => Object.assign({ issue: '发音纠正' }, e));
-    return standardizeErrorCards([...g, ...p].filter(e => e && (e.original || e.correction)));
+    const g = (dp.grammar || []).map(e => Object.assign({ issue: '语法纠错' }, e));
+    return standardizeErrorCards(g.filter(e => e && (e.original || e.correction)));
   }
   const real = realReportErrors();
   if (real.length) return standardizeErrorCards(real);
-  const errRows = (_errorsAll || []).map((e, i) => ({
+  const errRows = (_errorsAll || []).filter(e => e.type !== 'pronunciation').map((e, i) => ({
     id: e.id || ('errrow-' + i),
-    issue: e.type === 'expression' ? '地道表达' : '语法纠错',
+    issue: '语法纠错',
     original: e.original || e.wrongSentence || '',
     correction: e.correction || e.correctSentence || '',
     rule: e.rule || e.explanation || ''
@@ -2331,33 +2333,54 @@ function allGrammarErrors() {
   })));
 }
 
-// v88 QA 口径辅助：今日语境错题集（无视 _ctxDate）—— due 卡组与 due 标签的错题计数绝对同源。
-// switchWordsView 切 Tab 即清 _ctxDate，故 buildDueDeck 恒为「无日期」口径；
-// 历史日期上下文下 due 标签若沿用当日错题数，会与点击后的卡组口径分裂
-function allGrammarErrorsToday() {
-  if (!_ctxDate) return allGrammarErrors();
-  const bak = _ctxDate; _ctxDate = null;
-  const r = allGrammarErrors();
-  _ctxDate = bak;
-  return r;
+// v99 错题真 SM-2（A+B 组合的 B 半）：errors 表接入记忆曲线 ——
+// due = errors 表行（非发音、未纠正、未掌握、无曲线日期或已到期）；新错题无 next_review_date → 立即到期；
+// 复习后按 1→6→间隔×EF 推进；5 次 good → mastered 永久出队；correct_in_review=true（历史清理行）永久出队。
+// 与 v97 相比：不再以「今日语境错题 − 已纠正签名」推算（today-first 口径会破坏曲线节律），
+// 改为 DB 驱动 —— _errorsAll 行由全局输入构建器统一碎片合并，可直接消费，ref 挂载原始行供 reviewErrorItem 写回
+function dueErrorCards() {
+  const today = getLocalToday();
+  return (_errorsAll || [])
+    .filter(e => e && e.original && e.type !== 'pronunciation'
+      && !e.correct_in_review && !e.mastered
+      && (!e.next_review_date || e.next_review_date <= today))
+    .map(e => ({
+      id: 'err-' + (e.id != null ? e.id : 'row'),
+      issue: '语法纠错',
+      original: e.original,
+      correction: e.correction || '',
+      rule: e.rule || '',
+      type: 'grammar',
+      ref: e
+    }));
 }
-
-// v97 错题诚实口径（SM-2 审计结论）：errors 表无 SM-2 字段，错题本没有记忆曲线——
-// 改为「未纠正 = 到期」：correct_in_review=true 的错题不再回炉，due 数字 = 词(SM-2) + 未纠正错题
-// 签名以「原句|正句」为准（跨会话稳定，行 id 不稳定）；规范化与 standardizeErrorCards 同构（换行→空格、trim、小写）
-function errSig(e) { return [String((e && e.original) || ''), String((e && e.correction) || '')].map(s => s.replace(/\s*\n\s*/g, ' ').trim().toLowerCase()).join('|'); }
-function _fixedErrorSigs() { const out = new Set(); (_errorsAll || []).forEach(e => { if (e && e.correct_in_review) out.add(errSig(e)); }); return out; }
-function dueErrorCards() { const fixed = _fixedErrorSigs(); return allGrammarErrorsToday().filter(e => !fixed.has(errSig(e))); }
-// 错题🟢记住 → 落库 correct_in_review=true（不再每会话全量回炉）；查不到库行（今日新错题/演示态）静默跳过
-async function persistErrorFixed(e) {
-  if (!e || !String(e.original || '').trim()) return;
+// 错题 SM-2 推进 + 落库（与 reviewPatternItem/reviewWordItem 同构）：again(0)/good(3) 均写回曲线；
+// 按「原句+正句」查 errors 表行更新 SM-2 列；库行缺失（今日新错题未入库/演示态）→ 仅本地快照，静默降级
+async function reviewErrorItem(card, quality) {
+  const src = (card && card.ref) || card || {};
+  if (!src || !String(src.original || '').trim()) return;
+  const result = sm2(src.ease_factor, src.sm2_interval, src.sm2_repetitions, quality);
+  const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
+  const status = quality < 3 ? 'learning' : (result.repetitions >= 5 ? 'mastered' : 'learning');
+  src.review_count = (src.review_count || 0) + 1;
+  src.ease_factor = result.ease_factor; src.sm2_interval = result.interval; src.sm2_repetitions = result.repetitions;
+  src.status = status; src.mastered = (status === 'mastered');
+  src.next_review_date = fmtLocalDate(nextDate); src.last_reviewed_at = new Date().toISOString();
   try {
-    const { data: rows, error } = await sb.from('errors').select('id').eq('original', e.original).eq('correction', e.correction || '').limit(1);
+    const { data: rows, error } = await sb.from('errors').select('id').eq('original', src.original).eq('correction', src.correction || '').limit(1);
     if (error || !rows || !rows.length) return;
-    await sb.from('errors').update({ correct_in_review: true }).eq('id', rows[0].id);
+    await sb.from('errors').update({
+      status, mastered: (status === 'mastered'),
+      ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
+      review_count: src.review_count, next_review_date: src.next_review_date, last_reviewed_at: src.last_reviewed_at
+    }).eq('id', rows[0].id);
     const local = (_errorsAll || []).find(x => String(x.id) === String(rows[0].id));
-    if (local) local.correct_in_review = true; // 本地快照同步：同会话内 due 标签/卡组即时收敛
-  } catch (err) { /* 演示数据：仅本地会话态 */ }
+    if (local) Object.assign(local, {
+      status, mastered: (status === 'mastered'),
+      ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
+      review_count: src.review_count, next_review_date: src.next_review_date, last_reviewed_at: src.last_reviewed_at
+    });
+  } catch (err) { /* 列未迁移/演示数据：仅本地会话态 */ }
 }
 
 // ── 错题标准化清洗层：任何数据源在进入渲染前收敛为 {id, issue, original, correction, rule, type} ──
@@ -2439,7 +2462,7 @@ function renderWordsSubTabs(activeMode) {
   // Voco 2.0：复习页 Tab 数字强绑定任务状态中心（Mock 已隔离），严禁 UI 层自行 .filter
   // v88：due 标签的错题部分必须用「今日语境」错题数 —— 点击 due tab 后 switchWordsView 清 _ctxDate，
   // 卡组 buildDueDeck = 今日到期词 + 今日错题；沿用历史日错题数会与卡组口径分裂
-  // v97：错题部分 = dueErrorCards()（未纠正口径，与卡组完全同源）
+  // v99：错题部分 = dueErrorCards()（真 SM-2 曲线到期口径，与卡组完全同源）
   const dueCount = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary).totalDueVocabCount + dueErrorCards().length;
   const tabs = [
     { key: 'all', label: '全部词汇', count: _wordsAll.length },
@@ -2549,15 +2572,8 @@ async function fireTopicRevivalPrompt(btn, idx) {
   showToast('📋 话题复盘 Prompt 已复制', 'success');
 }
 
-// ═══ v77 错题本：动态标签 + 对练防御（SSOT）═══
-// 标签三态：📖 语法（语法/逻辑衔接默认）、🗣️ 发音（发音与重音）、🎯 选词（地道表达）——严禁硬编码 ⚠️ 语法纠错
-function errorBadge(type, issue) {
-  const t = String(type || '');
-  const iss = String(issue || '');
-  if (t === '发音与重音' || iss.includes('发音')) return { label: '🗣️ 发音', cls: 'bg-orange-50 text-[var(--c-orange)]' };
-  if (t === '地道表达' || iss.includes('地道') || iss.includes('选词')) return { label: '🎯 选词', cls: 'bg-green-50 text-[var(--c-green)]' };
-  return { label: '📖 语法', cls: 'bg-blue-50 text-[var(--c-blue)]' };
-}
+// ═══ 错题本 ═══
+// v99：发音错题已整体移出错题体系（用户指令）—— 错题只剩语法，errorBadge 三态标签整体删除（无必要再打标）
 // v97：「加入对练防御」功能已全面下线（用户指令：冗余功能彻底去除）——
 // getDefenseSigs / setDefenseSigs / errorSignature / toggleDefense / paintDefenseToggle 已物理删除
 
@@ -2572,7 +2588,6 @@ function renderErrorCards(items) {
     return;
   }
   container.innerHTML = items.map((e) => {
-    const b = errorBadge(e.type, e.issue);
     // 主视觉（大字/深色）：直接渲染正确表达 correct_text；为空降级显示原句（主色，非绿）；
     // 两者皆空 → 整行隐藏，绝无 '-' 占位
     const main = String(e.correction || '').trim() || String(e.original || '').trim();
@@ -2581,9 +2596,6 @@ function renderErrorCards(items) {
     const showOrigRef = mainIsCorrect && String(e.original || '').trim();
     return `
     <div class="err-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)] transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
-      <div class="mb-2.5">
-        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.cls}">${b.label}</span>
-      </div>
       ${main ? `<div class="text-xl font-bold mb-1.5 ${mainIsCorrect ? 'text-[var(--c-green)]' : 'text-[var(--c-text)]'}">${h(main)}</div>` : ''}
       ${showOrigRef ? `<div class="text-xs text-[var(--c-text-ultradim)] mb-2">原句：${h(e.original)}</div>` : ''}
       ${e.rule ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg">📖 ${h(e.rule)}</div>` : ''}
@@ -2599,7 +2611,7 @@ function buildDueDeck() {
   const words = _wordsAll.filter(v => v.needsReview === true)
     .sort((a, b) => (a.next_review_date || '0000') < (b.next_review_date || '0000') ? -1 : 1)
     .map(v => ({ kind: 'word', id: 'w-' + v.id, word: v.word, phonetic: v.phonetic || '', meaning: v.meaning || '', example: v.example || '', ref: v }));
-  // v97 错题诚实口径：dueErrorCards() = 今日语境错题 − 已纠正（correct_in_review 落库，不再历史全量回炉）
+  // v99 错题真 SM-2：dueErrorCards() = errors 表曲线到期行（新卡立即到期 + 间隔推进 + mastered/已纠正出队）
   const errs = dueErrorCards()
     .filter(e => e && e.id && !_reviewedErrorIds.has(String(e.id)))
     .map(e => ({ kind: 'error', id: e.id, error: e }));
@@ -2750,7 +2762,7 @@ function renderDueDeck() {
   showDueCard();
 }
 
-// 未展开（正面）：词卡仅英文+音标（遮挡中文释义与例句）；错题卡按正向输入原则——动态徽章 + 原句小字灰显对照 + 中性回忆引导（大字号错误句主视觉已废弃）
+// 未展开（正面）：词卡仅英文+音标（遮挡中文释义与例句）；错题卡按正向输入原则——原句小字灰显对照 + 中性回忆引导（v99 起错题只剩语法，类型徽章已删除）
 // 中央统一 [眼睛图标 点击显示答案]（v79 去 emoji，Lucide 图标 + 纯文本）；展开后（背面）底部切换 [没记住] [记住了]（v76 统一 ReviewButton 模板）
 function showDueCard() {
   const item = _dueDeck[_dueIdx];
@@ -2758,12 +2770,8 @@ function showDueCard() {
   _dueRevealed = false;
   const front = item.kind === 'word'
     ? `<div class="text-xl font-bold text-[var(--c-text)]">${h(item.word)}</div>${item.phonetic ? `<div class="text-sm text-[var(--c-primary)] mt-1">${h(item.phonetic)}</div>` : ''}`
-    : (() => {
-        const b = errorBadge(item.error.type, item.error.type === 'pronunciation' ? '发音纠正' : '语法纠错');
-        return `<span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.cls}">${b.label}</span>
-          <div class="text-xs text-[var(--c-text-ultradim)] mt-2">原句：${h(item.error.original)}</div>
+    : `<div class="text-xs text-[var(--c-text-ultradim)]">原句：${h(item.error.original)}</div>
           <div class="flex items-center justify-center gap-1.5 text-xs text-[var(--c-text-dim)] mt-4">${icon('lightbulb','w-4 h-4')} 回忆正确的英文表达</div>`;
-      })();
   document.getElementById('due-card').innerHTML = `
     <div id="due-card-body" class="bg-[var(--c-surface)] rounded-2xl p-6 border border-[var(--c-border-light)] text-center transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
       ${front}
@@ -2804,9 +2812,11 @@ async function rateDueCard(rating) {
   if (item.kind === 'word') {
     // 统一反馈服务：与句型复习卡片共用同一 SM-2 写回路径（deck item id 带 'w-' 前缀 → 传原始单词 id）
     await handleReviewFeedback(String(item.ref.id), rating);
-  } else if (rating === 'good') {
-    _reviewedErrorIds.add(String(item.id)); // 错题🟢记住：本会话不再重复打卡
-    persistErrorFixed(item.error);          // v97：落库 correct_in_review=true，跨会话不再回炉
+  } else {
+    // v99 错题真 SM-2：again/good 均推进曲线并落库
+    // good → 本会话不再重复打卡；again → 保持到期留在队列（严禁加入 _reviewedErrorIds，否则「再来一轮」重建卡组时到期卡被误滤）
+    if (rating === 'good') _reviewedErrorIds.add(String(item.id));
+    reviewErrorItem(item.error, rating === 'good' ? 3 : 0);
   }
   _dueResults[rating === 'good' ? 'remembered' : 'forgot'] += 1;
   if (rating === 'again') {
@@ -3678,12 +3688,13 @@ async function importJsonDailyReport(jsonReport, rawText) {
     })));
   }
 
-  // 2) 语法硬伤 + 发音纠正（type:'grammar'/'pronunciation'）→ errors 表（v90 发音不再降级为语法）
+  // 2) 语法硬伤 → errors 表（v99：发音纠正整体移出错题体系，只收 grammar —— 原始 JSON 仍整篇归档 reports 表，数据不丢）
   const allErrors = [];
   for (const m of (Array.isArray(jsonReport.mistakes) ? jsonReport.mistakes : [])) {
     if (!m || !m.original || m.type === 'expression') continue;
+    if (m.type === 'pronunciation') continue; // v99：发音错题不进错题本（用户指令）
     allErrors.push({
-      user_id: uid, type: m.type === 'pronunciation' ? 'pronunciation' : 'grammar', original: m.original || '',
+      user_id: uid, type: 'grammar', original: m.original || '',
       correction: m.improved || '', rule: m.explanation || '',
       date_added: date, source_topic: topic,
       error_pattern: classifyErrorType(m.original, m.improved, m.explanation)
@@ -3745,10 +3756,7 @@ async function importDailyReport(parsed) {
   }
 
   const allErrors = [];
-  for (const e of parsed.pronunciation) allErrors.push({
-    user_id: uid, type: 'pronunciation', original: e.original || '', correction: e.correction || '',
-    date_added: date, source_topic: topic, error_pattern: classifyErrorType(e.original, e.correction, '')
-  });
+  // v99：发音纠正（parsed.pronunciation）不再写入 errors 表（用户指令：错题本只收语法）
   for (const e of parsed.grammar) allErrors.push({
     user_id: uid, type: 'grammar', original: e.original || '', correction: e.correction || '',
     rule: e.rule || '', date_added: date, source_topic: topic, error_pattern: classifyErrorType(e.original, e.correction, e.rule || '')

@@ -33,8 +33,9 @@ function classifyErrorType(original, correction, rule) {
   const text = [rule, original, correction].filter(Boolean).join(' ').toLowerCase();
   const o = (original || '').toLowerCase();
   const c = (correction || '').toLowerCase();
-  // ① 发音与重音：读音/音标/重音/音节/pronunciation
-  if (/pronunciation|pronunc|读音|音标|重音|音节|发音/.test(text)) return '发音与重音';
+  // ① 发音与重音：读音/音标/重音/音节/pronunciation + 读作/的音/音标斜杠（/ˈælɡərɪðəm/）——
+  //    v99 补漏：algorithm 类发音条目 rule 无关键词时仍可经 IPA 斜杠命中，不再误落「语法与句式」
+  if (/pronunciation|pronunc|读音|音标|重音|音节|发音|读作|的音|\/[^/]+\//.test(text)) return '发音与重音';
   // ② 语法与句式：grammar/tense/article/plural/时态/语态/单复数/单数/复数/冠词/介词/主谓/词性/搭配 关键词
   //    或 时态助动词/词尾特征 或 原句/正句仅冠词差集
   //    in/on/at：规则文本出现字面 "in/on/at"，或单独介词词（in/on/at）与介词语义词（用法/混淆/搭配/区别/用错/误用）共现才命中 ——

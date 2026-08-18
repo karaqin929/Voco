@@ -79,7 +79,7 @@ GPT 日报 JSON → Voco 系统消费链路的完整映射，字段名即契约�
 
 | GPT JSON 字段 | 类型 | 系统消费位置 |
 |------|------|------|
-| `speakingRatio` | 数字（0-100 百分比） | 首页「对话占比」头部行（你% / AI%）+ 导入预览卡「开口占比」 |
+| `speakingRatio` | 数字（0-100 百分比） | 首页「对话占比」头部行（你% / AI%）+ 导入预览卡「对话占比」 |
 | `duration`（旧版兼容，可选） | 数字（分钟） | 首页「开口时长/总时长」×0.6、`progress.total_minutes`（旧日报仍可用，新模板不再输出） |
 | `summary.topic` | 字符串 | 首页话题标签、`topics` 表、各表 `source_topic` |
 | `summary.dailyThought.en/.zh` | 字符串 | 首页「当日对话想法」卡片 |
