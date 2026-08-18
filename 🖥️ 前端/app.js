@@ -896,8 +896,8 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // v76 修复：① 值净化（trim + 「无/暂无/没有/未记录」判空 → 优雅空状态，绝不渲染生硬「无」字）
   //         ② 字体规范（font-sans not-italic 全局无衬线，删除 Georgia 衬线斜体引语样式）
   // v78 修复：恒定排版规格 —— 主体恒为 15px 主色（en 缺失时 zh 升主），副行恒为 13px；
-  //         v99 颜色统一（用户反馈两段式割裂）：en 主行与 zh 副行同用主色 text-[var(--c-text)]，
-  //         不再副行 dim 灰 —— 同属「想法」正文，只靠字号区分主次；
+  //         v99 颜色统一（用户反馈两段式割裂）：en 主行与 zh 副行同用主色 text-[var(--c-text)]，不再副行 dim 灰；
+  //         v100 用户定调：en/zh 同字号不分主次（两行皆 text-sm 14px）——「想法」是一个整体，层级只靠行序
   //         内容经 cleanThoughtText 净化（剥 markdown 星号/残留 HTML/换行），杜绝每天视觉漂移
   // v80 兜底：dailyThought 缺失时，从 summary.thoughts 字符串现场提取（老 JSON/Markdown 数据只有 thoughts 字段的情况）
   const dtRaw = (((p && p.summary && p.summary.dailyThought) || null) || (p && p.summary && p.summary.thoughts ? parseDailyThought(String(p.summary.thoughts)) : null) || d.thoughts) || {};
@@ -905,7 +905,7 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   const NO_THOUGHT_RE = /^(无|暂无|没有|未记录|none?|n\/a)$/i;
   const hasThought = !!(dt.en || (dt.zh && !NO_THOUGHT_RE.test(dt.zh)));
   if (hasThought) {
-    // 单一引语块：左侧主题色竖线 + 中文弯引号；主行/副行字号颜色恒定，不随 en/zh 有无而变（v99 起两行同主色）
+    // 单一引语块：左侧主题色竖线 + 中文弯引号；主行/副行字号颜色恒定，不随 en/zh 有无而变（v99 起两行同主色，v100 起同字号不分主次）
     // v80 排版拉平：主行 text-sm(14px) font-normal，与 Card C/D 正文层级一致（v78 的 15px font-medium 过于突出）
     const quote = dt.en || dt.zh;        // 主体：优先英文原句，缺失时中文释义升主
     const sub = dt.en ? dt.zh : '';      // 副行：仅当 en 在场时 zh 作释义副行
@@ -1736,13 +1736,13 @@ function renderImportPreview() {
   box.classList.remove('hidden');
   if (st.status === 'valid' && st.preview) {
     const p = st.preview;
-    const scoreCell = (label, v) => `<div class="flex flex-col items-center py-1.5 rounded-xl bg-[var(--c-bg)]"><span class="text-[11px] text-[var(--c-text-ultradim)]">${label}</span><span class="text-sm font-bold text-[var(--c-text)]">${v === null || v === undefined ? '—' : v}</span></div>`;
+    const scoreCell = (label, v) => `<div class="flex flex-col items-center py-1.5 rounded-xl bg-[var(--c-bg)]"><span class="text-[0.6875rem] text-[var(--c-text-ultradim)]">${label}</span><span class="text-sm font-bold text-[var(--c-text)]">${v === null || v === undefined ? '—' : v}</span></div>`;
     box.innerHTML = `
       <div class="border border-[#2f9e63] bg-[#2f9e630f] rounded-2xl p-3.5">
         <div class="flex items-center gap-2 mb-2.5">
-          <span class="w-[18px] h-[18px] rounded-full bg-[#2f9e63] text-white text-[11px] flex items-center justify-center shrink-0">✓</span>
+          <span class="w-[18px] h-[18px] rounded-full bg-[#2f9e63] text-white text-[0.6875rem] flex items-center justify-center shrink-0">✓</span>
           <span class="text-sm font-bold text-[#2f9e63]">格式校验通过</span>
-          <span class="ml-auto text-[11px] text-[var(--c-text-ultradim)]">${p.type === 'json' ? 'JSON 日报' : 'Markdown 日报'}</span>
+          <span class="ml-auto text-[0.6875rem] text-[var(--c-text-ultradim)]">${p.type === 'json' ? 'JSON 日报' : 'Markdown 日报'}</span>
         </div>
         <div class="grid grid-cols-4 gap-1.5 mb-1.5">
           ${(p.speakingRatio !== null && p.speakingRatio !== undefined) ? scoreCell('对话占比', p.speakingRatio + '%') : scoreCell('时长(分)', p.duration)}${scoreCell('新词', p.wordCount)}${scoreCell('纠错', p.errorCount)}${scoreCell('句型', p.patternCount)}
@@ -1750,7 +1750,7 @@ function renderImportPreview() {
         <div class="grid grid-cols-3 gap-1.5">
           ${scoreCell('流利度', p.fluency)}${scoreCell('准确度', p.accuracy)}${scoreCell('自然度', p.naturalness)}
         </div>
-        ${p.topic ? `<div class="mt-2 text-[11px] text-[var(--c-text-dim)] leading-relaxed">话题：${h(p.topic)}<span class="ml-2 text-[var(--c-text-ultradim)]">入库日期 ${p.date}</span></div>` : ''}
+        ${p.topic ? `<div class="mt-2 text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">话题：${h(p.topic)}<span class="ml-2 text-[var(--c-text-ultradim)]">入库日期 ${p.date}</span></div>` : ''}
       </div>`;
     setImportSubmitEnabled(true);
     return;
@@ -1759,7 +1759,7 @@ function renderImportPreview() {
   box.innerHTML = `
     <div class="border border-[#d64545] bg-[#d645450f] rounded-2xl p-3.5">
       <div class="flex items-center gap-2 mb-1.5">
-        <span class="w-[18px] h-[18px] rounded-full bg-[#d64545] text-white text-[11px] flex items-center justify-center shrink-0">✕</span>
+        <span class="w-[18px] h-[18px] rounded-full bg-[#d64545] text-white text-[0.6875rem] flex items-center justify-center shrink-0">✕</span>
         <span class="text-sm font-bold text-[#d64545]">格式校验失败</span>
       </div>
       <div class="text-xs text-[var(--c-text-dim)] leading-relaxed">${h(st.error || '未知错误')}</div>
@@ -2795,7 +2795,7 @@ function revealDueAnswer() {
   } else {
     // v79：错题背面按 CorrectionCard 正向规格 —— 绿色正确句居中为主视觉（去 → 箭头旧碎片），规则框无 emoji
     const e = item.error;
-    ansArea.innerHTML = `${e.correction ? `<div class="text-2xl font-bold text-[var(--c-green)] text-center mt-4 pt-4 border-t border-[var(--c-border-light)]">${h(e.correction)}</div>` : ''}${e.rule ? `<div class="text-xs text-[var(--c-text-ultradim)] text-left mt-3 p-2.5 bg-[var(--c-bg)] rounded-lg">${h(e.rule)}</div>` : ''}`;
+    ansArea.innerHTML = `${e.correction ? `<div class="text-[1.5rem] font-bold text-[var(--c-green)] text-center mt-4 pt-4 border-t border-[var(--c-border-light)]">${h(e.correction)}</div>` : ''}${e.rule ? `<div class="text-xs text-[var(--c-text-ultradim)] text-left mt-3 p-2.5 bg-[var(--c-bg)] rounded-lg">${h(e.rule)}</div>` : ''}`;
   }
   const fb = document.getElementById('due-feedback');
   fb.className = 'mt-5 flex items-center justify-center gap-3';
@@ -3072,7 +3072,11 @@ async function loadSpeak() {
     else {
       // v86 文本锚定未命中（地道表达句不在该日核心句型队列）：以点击句为首卡入队（sentence-anchor 契约，
       // 复习反馈时自动 INSERT 进入记忆曲线），队列其余部分保持该日核心句型 —— 用户练的永远是点击的那一句
-      sentences = [{ id: 'sentence-anchor', targetSentence: anchorText, replacedSentence: '', explanation: '', isTodayCore: false }].concat(sentences || []);
+      // v100 全库反查：队列未命中 ≠ 库中没有——点击句可能属于自然表达（patterns 表 better/scene），
+      // 先去 _patternLibrary 按 targetSentence 文本精确匹配，命中即以完整记录入队（解析/场景/SM-2 字段全带齐）；
+      // 全库也没有才建空解析 sentence-anchor 卡 —— 「暂无解析」从此只代表数据真缺失
+      const libHit = (_patternLibrary || []).find(p => String(p.targetSentence || '').toLowerCase().trim() === String(anchorText).toLowerCase().trim());
+      sentences = [libHit ? toPlayerItem(libHit) : { id: 'sentence-anchor', targetSentence: anchorText, replacedSentence: '', explanation: '', isTodayCore: false }].concat(sentences || []);
       startIndex = 0;
     }
   }

@@ -47,11 +47,11 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v99）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v109）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v100）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v110）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
 - **版本号更新铁律（2026-08-18 用户指令）**：代码改完后**先问用户是否还有其他更新统一提交，得到确认后才 +1 版本号并 push**——禁止改完代码直接自推版本。（v98 批次为已部署 v97 的用户反馈 Bug 紧急修复，用户报 Bug 即隐含「修复并上线」授权。）
-- 当前线上：**v99 / voco-v109**（v99 六事项批次：发音错题移除 + 真 SM-2 + 徽章删除 + 想法卡颜色统一 + 提升区标签改版，详见下）。
+- 当前线上：**v100 / voco-v110**（v100 排版合规批次 + 句型锚定全库反查，详见下）。
 - **v95 数据幽灵根治**：① **Mock 假数据全部物理删除**（原 L314 mockDashboardData 含 #personal growth / "I have went to three interviews" 等写死内容、L375 mockSentences、L394 mockWords、L400 mockMistakeErrors）→ 替换为 `EMPTY_INSIGHTS` 空态常量；洞察区主题/优点/提升三卡无数据渲染「当日无数据」；mergeDemoVocab 纯透传、_errorsAll/_speakAll/coreDeck 空库=空状态；历史视图 p=null 空指针防护 5 处。**铁律：任何无数据/解析异常场景只渲染空状态，绝不回退假数据**。② `sanitizeJsonInput` 输入洗理（BOM/```围栏/最外层 {…} 跨度提取/引号归一化）——importReport 与 parseSmartReport 双入口，带包装的 JSON 也能解析；③ JSON 意图但 parse 失败 → toast-error 显式报错并中断（禁止静默空壳行）；修复 importJsonDailyReport 的「入库完成」toast 被「导入成功」覆盖的 bug；④ 导入成功 `_viewDate=null` 强制回今日视图再 loadHome；⑤ 评分小数制 ×10 映射（renderMetricsOverview L809 norm100）核查无误，无需改动。
 - **v97 ImportModal 重构（已部署 v96）**：用户指令「彻底重构导入面板（Modal/Bottom Sheet）+ 实时校验流程 + 彻底去除话题卡/弱点分析模板」。**用户指令覆盖 v74「import-dialog DOM 零修改」铁律**（该铁律已废止）。落地：① HTML 改为居中 Modal（与 inspiration-dialog 同构：backdrop-blur + 圆角浮卡 + ✕），仅保留「复制日报模板」按钮，模板三按钮（report/topic/insight）→ 单按钮；② **交互状态解耦三段式**：输入 → 防抖校验预览 → 确认入库。状态机 `_importState = {status: idle|checking|valid|error, error, preview, payload}`（等价 React useState+useEffect 范式）；`onImportInput` 350ms 防抖（输入即锁按钮）→ `validateImportInput` 纯函数校验（JSON：sanitizeJsonInput→JSON.parse→顶层 5 键+summary 8 键完整性→normalizeJsonReport 生成统计；Markdown：parseSmartReport 日报类型；topic-card/insight-report 直接红卡拒绝）→ `renderImportPreview`（绿卡「格式校验通过」+时长/新词/纠错/句型/三维评分/话题/日期统计；红卡「格式校验失败」+具体原因）+ `setImportSubmitEnabled`（唯一按钮状态写入口，仅 valid 可点）；③ **importReport 只消费校验产物 payload，绝不从文本框直接解析写库**（入库异常红卡展示真实原因+console.error 堆栈）；成功 toast 改 showToast（#dialog-import-result 已移除）；④ **话题卡/弱点分析彻底下线**：TEMPLATES.topic/insight 物理删除、importTopicCard/importInsightReport 物理删除、importReport 相关分支删除、校验器拒绝该类型（parser.js 不动铁律）。
 - **v96 治本（已部署 v96/voco-v106，2026-08-18 按铁律获用户「暂时就这些」确认后统一提交）**：用户 v95 上线后导入 8.17/8.18 养狗 JSON 仍报「❌ JSON 格式解析失败」→ 真根因 = **值内嵌套中文强调引号**（`"explanation": "…once 可以自然表达“等到……以后”…"` 等 3+ 处）——v94 朴素全局替换把值内 “ ” 也变成未转义直引号 → 字符串提前截断 → SyntaxError（不是映射 TypeError，映射根本没执行到）。**治本双管**：① **源头**——TEMPLATES.report 重写为【完美日报生成指令】：字段结构铁律（顶层 5 键 + summary 8 键一个不能少、空内容用 [] 不用 null、mistakes[].type 三值枚举；**coreSentences/newWords 不设数量上限，按「真实出现+值得收录」标准全量整理**，杜绝编造凑数——用户否决 5-8 句/5-12 个的历史遗留上限）+ 引号铁律（全篇禁弯引号，**值内中文强调一律用「」或不用引号**，值内单行禁换行，英文引述用 ' 或转义 \"）+ 输出前自检清单（7 条逐项确认才许输出），`📋 日报模板/ChatGPT日报Prompt.md` 全文同步（含「系统认可的字段全链路对照表」）；② **兜底网**——normalizeSmartQuotes 升级为**智能引号状态机**：逐字符跟踪 inStr 状态，结构 “ ” → 直引号、值内 “ ” → 「」、值内直引号 → 转义 \"、反斜杠转义原样保留；关键歧义消解 = `”` 前瞻判定（后跟 `, } ] :` 或文末 → 结构闭号，否则值内强调闭号；中文全角 ，。： 不会误入结构集合）。全场景验证：8.17 养狗 JSON 形状复刻/纯直引号/混合风格/已有转义 4 例全部 JSON.parse 通过。③ importReport 全流程 try/catch：parse 失败独立 catch（console.error 真实堆栈+文本片段）→ toast-error 中断；入库/映射失败外层 catch（console.error 真实堆栈）→ toast「❌ 入库异常」绝不静默；④ 映射层 ?. 加固 ×3（importJsonDailyReport topic/s2、normalizeJsonReport s）。已按双版本 +1 部署（v96/voco-v106，两版本差 10 保持不变）。
@@ -68,8 +68,14 @@
   - ② **打标误判修复**：parser.js `classifyErrorType` ①发音分类 regex 增补 `读作|的音|\/[^/]+\/`——algorithm 类发音条目 rule 无关键词时经 IPA 斜杠（/ˈælɡərɪðəm/）命中，不再误落「语法与句式」。
   - ③ **错题徽章整体删除**（用户确认：错题全是语法后没必要再打标）：`errorBadge` 函数 + renderErrorCards 徽章行 + showDueCard 正面徽章 span 物理删除；正确句→原句→规则三件套呈现保留（用户确认不改）。
   - ④ **错题 A+B 组合**：A 半 = `⚙️ 后端/errors_sm2_cleanup.sql` 批量清历史（删发音/误标发音启发式/去重 original+correction 保最小 id/`date_added<='2026-08-17'` 标 correct_in_review=true，**绝不触碰今日**）；B 半 = 错题接真 SM-2——errors 表加 SM-2 列（migration 同脚本第 1 节），`dueErrorCards()` 重写为 DB 驱动曲线判定（`!correct_in_review && !mastered && (!next_review_date || <=today)`，ref 挂载原始行），`reviewErrorItem(card, quality)` 新增（sm2 推进 + 按 original+correction 查行 UPDATE SM-2 列 + 本地快照同步，列未迁移静默降级），`rateDueCard` 错题分支 again/good 均落库（again 严禁加入 _reviewedErrorIds，否则「再来一轮」重建卡组误滤到期卡）；v97 死代码物理删除（allGrammarErrorsToday/errSig/_fixedErrorSigs/persistErrorFixed）。注：Profile「纠正20次」成就与 errors_fixed 统计在批量清理后点亮/增大——用户立场「清理是承认事实，不是作弊」，不改。
-  - ⑤ **想法卡颜色统一**（用户反馈 en/zh 两段式割裂）：Card B zh 副行 `text-[var(--c-text-dim)]` → `text-[var(--c-text)]`，en/zh 同主色，只靠字号区分主次（主行 14px / 副行 13.125px）。
+  - ⑤ **想法卡颜色统一**（用户反馈 en/zh 两段式割裂）：Card B zh 副行 `text-[var(--c-text-dim)]` → `text-[var(--c-text)]`，en/zh 同主色，只靠字号区分主次（主行 14px / 副行 13.125px）。（v100 用户定调：en/zh 同字号不分主次，代码注释已同步修正。）
   - ⑥ **提升区标签改版**：IMPROVE_TYPES badge「📖 语法」→「📖 语法纠错」（structure 同步）、「🎯 选词」→「🎯 自然表达」；merged improvements issue「地道表达」→「自然表达」、grammar 条目恒「语法纠错」；跳转路由不动（grammar→navigateReview('grammar') 语法错题 / expression→startImprovementSpeak 句型复习，v86 已带日期）。
+- **v100 排版合规批次 + 句型锚定全库反查（已部署 v100/voco-v110，2026-08-18 用户批准后统一提交）**：
+  - ① **字体层级全量审计 + 22 处违规清零**（用户指令：检查各层级字号一致、标题大于正文）：style.css 423 行全部合规；标题>正文全站成立（问候 24 > 指标 20 > 待办标题 16 > 正文 14 > 标签 12）。违规修复：app.js 导入预览卡 `text-[11px]`×5 → L1 `text-[0.6875rem]`、错题复习背面正确答案 `text-2xl` → `text-[1.5rem]`（L6 类名统一）；index.html `text-[11px]`×5 + `text-[10px]`×5 → L1、`text-[13px]`/`text-[15px]` → `text-sm`、`text-lg`×5（chevron 图标容器，SVG 不靠字号）物理删除、问候语 `text-2xl` → `text-[1.5rem]`（保留 24px hero）。**根因 = v84 后新增 UI 回归**；修复后「文字大小」三档全局缩放无死角。
+  - ② **想法卡 en/zh 同字号定调**（用户指令：不需要分主次，保持同一字体大小）：两行皆 14px，层级只靠行序。
+  - ③ **卡头小标签保持 12px**（用户确认）：「标签 vs 内容」的 caption 层级，非「标题 vs 正文」——真正的标题（16px+）全部大于正文。
+  - ④ **句型锚定全库反查（根治「暂无解析」）**：loadSpeak anchorText 未命中队列时，先去 `_patternLibrary` 按 targetSentence 文本精确匹配——命中（自然表达句属于 patterns 表 better/scene，不在当日核心句型队列）则以完整记录入队（解析/SM-2 字段带齐，反馈写回真 DB 行）；全库也没有才建空解析 sentence-anchor 卡。「暂无解析」从此只代表数据真缺失。根因澄清：自然表达 ≠ 核心句型是库里两类合理记录，病灶是「点击入口拿 B 类句去 A 类队列匹配」。
+  - ⑤ 阶梯豁免补充：`text-4xl` 🎉 / `text-6xl` 🐻 为 emoji 图标字符（同 ⏳ text-2xl 豁免），L6 语义扩到首页问候语。
 - **v93 僵尸行修复**：GPT 省略空数组键（今日无错题 → mistakes 整键不输出）时，JSON 日报被判非日报 → Markdown 空壳入库（reports 有行但 vocabulary/errors/patterns 全空）→ 「徽章亮 / 熊白 / Hero 未对练」三分裂。修复：isDailyReport + importReport + parseSmartReport 三处判定放宽（`summary`/`duration` 任一存在即认 JSON 日报，模板必有键）；L428 todayReport 补 isDailyReport 过滤，徽章与熊条/Hero 绝对同源。
 - **v90 日报模板要点**：
   - TEMPLATES.report（App 内复制模板）与 `📋 日报模板/ChatGPT日报Prompt.md` **完全同步**（此前两份不同步：内嵌版缺 fluency/accuracy/naturalness）。
@@ -106,8 +112,8 @@
   - 新学单词数口径统一：`getTodayMissionState.todayNewWordsCount = reportParsed.vocabulary.length`（原 `realVocab.filter(isNewToday).length` 含 DB 残留曾致首页 8 / 列表 6 分裂）。
   - `stampDailyTags` 无条件按 `date_added` 重算 isNewToday（防 DB 行残留穿透；mergeReportVocab 在打标后运行，日报词由它重新打 true 不受影响）。
 - v84 要点：
-  - **7 级字号阶梯（唯一合法字号）**：L1 micro 11px（text-[0.6875rem]，徽章/按钮小字/日历日期）→ L2 caption 12px（text-xs，辅助/计数/提示）→ L3 body 14px（text-sm，正文/按钮/副行）→ L4 title 16px（text-base，区块标题/空态标题）→ L5 headline 20px（text-xl，统计数字/卡片主句/词卡正面/句型卡正面）→ L6 hero 24px（text-[1.5rem]，评分环中心/卡片背面正确答案）→ L7 brand 34px（仅登录页 h1）。数字类只有两级：L5 普通数字 / L6 评分环中心。
-  - **全部 rem 化**：app.js 所有 `text-[NNpx]` 任意值（原 14 种碎字号 8/10/11/12/13/15/17/22/24/26px）与 style.css 所有 font-size 全部改为 rem/标准类——设置页「文字大小」（标准/中/大，applyFontSize 改 html font-size）从此**真正全局生效**（旧 px 值不响应缩放）。图标字符字号（lib-search-icon 14px / login-icon 72px / text-2xl ⏳）豁免不动。
+  - **7 级字号阶梯（唯一合法字号）**：L1 micro 11px（text-[0.6875rem]，徽章/按钮小字/日历日期）→ L2 caption 12px（text-xs，辅助/计数/提示）→ L3 body 14px（text-sm，正文/按钮/副行）→ L4 title 16px（text-base，区块标题/空态标题）→ L5 headline 20px（text-xl，统计数字/卡片主句/词卡正面/句型卡正面）→ L6 hero 24px（text-[1.5rem]，评分环中心/卡片背面正确答案/首页问候语）→ L7 brand 34px（仅登录页 h1）。数字类只有两级：L5 普通数字 / L6 评分环中心。
+  - **全部 rem 化**：app.js 所有 `text-[NNpx]` 任意值（原 14 种碎字号 8/10/11/12/13/15/17/22/24/26px）与 style.css 所有 font-size 全部改为 rem/标准类——设置页「文字大小」（标准/中/大，applyFontSize 改 html font-size）从此**真正全局生效**（旧 px 值不响应缩放）。图标字符字号（lib-search-icon 14px / login-icon 72px / text-2xl ⏳ / text-4xl 🎉 / text-6xl 🐻）豁免不动。
   - 新增任意值只有三个合法 rem：`text-[0.6875rem]`（L1）/ `text-[0.875rem]`（L3）/ `text-[1.5rem]`（L6）；其余一律标准类。**新增 UI 严禁再写 text-[NNpx]。**
 - v83 要点：
   - JSON 日报时长三层修复：① `normalizeJsonReport` meta.duration 提取（顶层 duration / summary.duration / durationMinutes）；② `importJsonDailyReport` updateProgress 不再硬编码 0（时长 + fluency/accuracy 与 Markdown 路径 importDailyReport 对齐）；③ 模板双处补 duration 必填字段（`📋 日报模板/ChatGPT日报Prompt.md` + app.js `TEMPLATES.report`）。
@@ -124,7 +130,7 @@
 - v78 已发布（对话想法卡片排版统一：cleanThoughtText 净化 + 恒定层级规格）。
 - **⚠️ 待用户手动执行：`⚙️ 后端/migration_v2.1.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——patterns 表 SM-2 列（status/mastered/ease_factor/sm2_interval/sm2_repetitions/review_count/next_review_date/last_reviewed_at）+ 到期回填 + 索引。跑之前句型写回静默降级本地会话态（不报错）。
 - ✅ 已执行（用户确认）：`⚙️ 后端/cleanup_2026-08-18.sql`——8.18 狗狗日报已清除，8.18 恢复未打卡。
-- **⚠️ 待用户手动执行：`⚙️ 后端/errors_sm2_cleanup.sql`**（Supabase SQL Editor，project dgmatfpwekziyumdfpcu）——v99 错题体系升级：第 1 节 errors 表 SM-2 列（与 vocabulary 同构）；第 2 节删发音错题（type='pronunciation' + 误标 grammar 的发音行启发式：rule 含发音特征词或 correction 含 IPA 斜杠）；第 3 节去重（original+correction 保最小 id）；第 4 节历史错题批量标 correct_in_review=true（scope date_added<='2026-08-17'，保护今日）。幂等可重复执行。**执行顺序：cleanup_2026-08-18 → 本脚本 → migration_v2.1（若未跑）**。
+- ✅ 已执行（用户确认「SQL清理成功」）：`⚙️ 后端/errors_sm2_cleanup.sql`——v99 错题体系升级：第 1 节 errors 表 SM-2 列（与 vocabulary 同构）；第 2 节删发音错题（type='pronunciation' + 误标 grammar 的发音行启发式：rule 含发音特征词或 correction 含 IPA 斜杠）；第 3 节去重（original+correction 保最小 id）；第 4 节历史错题批量标 correct_in_review=true（scope date_added<='2026-08-17'，保护今日）。幂等可重复执行。
 - **待用户操作遗留**：8.13/8.15 duration Console UPDATE（开口时长缺失修复）；topics 表「新话题只更新不插入」缺陷（话题从未存在于表时 import 只 UPDATE 不 INSERT → 话题库缺卡）。
 
 ## Architecture Notes
