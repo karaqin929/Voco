@@ -39,7 +39,7 @@
 ## Key Files
 | File | Role |
 |------|------|
-| `🖥️ 前端/app.js` | All app logic (~2850 lines) |
+| `🖥️ 前端/app.js` | All app logic (~4500 lines) |
 | `🖥️ 前端/index.html` | Single-page shell |
 | `🖥️ 前端/sw.js` | Service worker (bump CACHE + all `?v=` when deploying) |
 | `🖥️ 前端/parser.js` | Markdown 解析引擎 + `classifyErrorType` 分类规则提取（唯一分类源） |
@@ -47,11 +47,11 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v100）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v110）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v101）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v111）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
 - **版本号更新铁律（2026-08-18 用户指令）**：代码改完后**先问用户是否还有其他更新统一提交，得到确认后才 +1 版本号并 push**——禁止改完代码直接自推版本。（v98 批次为已部署 v97 的用户反馈 Bug 紧急修复，用户报 Bug 即隐含「修复并上线」授权。）
-- 当前线上：**v100 / voco-v110**（v100 排版合规批次 + 句型锚定全库反查，详见下）。
+- 当前线上：**v101 / voco-v111**（v101 词汇评分契约 + 语法三类 category 打标 + 不自然表达分析批次，详见下）。
 - **v95 数据幽灵根治**：① **Mock 假数据全部物理删除**（原 L314 mockDashboardData 含 #personal growth / "I have went to three interviews" 等写死内容、L375 mockSentences、L394 mockWords、L400 mockMistakeErrors）→ 替换为 `EMPTY_INSIGHTS` 空态常量；洞察区主题/优点/提升三卡无数据渲染「当日无数据」；mergeDemoVocab 纯透传、_errorsAll/_speakAll/coreDeck 空库=空状态；历史视图 p=null 空指针防护 5 处。**铁律：任何无数据/解析异常场景只渲染空状态，绝不回退假数据**。② `sanitizeJsonInput` 输入洗理（BOM/```围栏/最外层 {…} 跨度提取/引号归一化）——importReport 与 parseSmartReport 双入口，带包装的 JSON 也能解析；③ JSON 意图但 parse 失败 → toast-error 显式报错并中断（禁止静默空壳行）；修复 importJsonDailyReport 的「入库完成」toast 被「导入成功」覆盖的 bug；④ 导入成功 `_viewDate=null` 强制回今日视图再 loadHome；⑤ 评分小数制 ×10 映射（renderMetricsOverview L809 norm100）核查无误，无需改动。
 - **v97 ImportModal 重构（已部署 v96）**：用户指令「彻底重构导入面板（Modal/Bottom Sheet）+ 实时校验流程 + 彻底去除话题卡/弱点分析模板」。**用户指令覆盖 v74「import-dialog DOM 零修改」铁律**（该铁律已废止）。落地：① HTML 改为居中 Modal（与 inspiration-dialog 同构：backdrop-blur + 圆角浮卡 + ✕），仅保留「复制日报模板」按钮，模板三按钮（report/topic/insight）→ 单按钮；② **交互状态解耦三段式**：输入 → 防抖校验预览 → 确认入库。状态机 `_importState = {status: idle|checking|valid|error, error, preview, payload}`（等价 React useState+useEffect 范式）；`onImportInput` 350ms 防抖（输入即锁按钮）→ `validateImportInput` 纯函数校验（JSON：sanitizeJsonInput→JSON.parse→顶层 5 键+summary 8 键完整性→normalizeJsonReport 生成统计；Markdown：parseSmartReport 日报类型；topic-card/insight-report 直接红卡拒绝）→ `renderImportPreview`（绿卡「格式校验通过」+时长/新词/纠错/句型/三维评分/话题/日期统计；红卡「格式校验失败」+具体原因）+ `setImportSubmitEnabled`（唯一按钮状态写入口，仅 valid 可点）；③ **importReport 只消费校验产物 payload，绝不从文本框直接解析写库**（入库异常红卡展示真实原因+console.error 堆栈）；成功 toast 改 showToast（#dialog-import-result 已移除）；④ **话题卡/弱点分析彻底下线**：TEMPLATES.topic/insight 物理删除、importTopicCard/importInsightReport 物理删除、importReport 相关分支删除、校验器拒绝该类型（parser.js 不动铁律）。
 - **v96 治本（已部署 v96/voco-v106，2026-08-18 按铁律获用户「暂时就这些」确认后统一提交）**：用户 v95 上线后导入 8.17/8.18 养狗 JSON 仍报「❌ JSON 格式解析失败」→ 真根因 = **值内嵌套中文强调引号**（`"explanation": "…once 可以自然表达“等到……以后”…"` 等 3+ 处）——v94 朴素全局替换把值内 “ ” 也变成未转义直引号 → 字符串提前截断 → SyntaxError（不是映射 TypeError，映射根本没执行到）。**治本双管**：① **源头**——TEMPLATES.report 重写为【完美日报生成指令】：字段结构铁律（顶层 5 键 + summary 8 键一个不能少、空内容用 [] 不用 null、mistakes[].type 三值枚举；**coreSentences/newWords 不设数量上限，按「真实出现+值得收录」标准全量整理**，杜绝编造凑数——用户否决 5-8 句/5-12 个的历史遗留上限）+ 引号铁律（全篇禁弯引号，**值内中文强调一律用「」或不用引号**，值内单行禁换行，英文引述用 ' 或转义 \"）+ 输出前自检清单（7 条逐项确认才许输出），`📋 日报模板/ChatGPT日报Prompt.md` 全文同步（含「系统认可的字段全链路对照表」）；② **兜底网**——normalizeSmartQuotes 升级为**智能引号状态机**：逐字符跟踪 inStr 状态，结构 “ ” → 直引号、值内 “ ” → 「」、值内直引号 → 转义 \"、反斜杠转义原样保留；关键歧义消解 = `”` 前瞻判定（后跟 `, } ] :` 或文末 → 结构闭号，否则值内强调闭号；中文全角 ，。： 不会误入结构集合）。全场景验证：8.17 养狗 JSON 形状复刻/纯直引号/混合风格/已有转义 4 例全部 JSON.parse 通过。③ importReport 全流程 try/catch：parse 失败独立 catch（console.error 真实堆栈+文本片段）→ toast-error 中断；入库/映射失败外层 catch（console.error 真实堆栈）→ toast「❌ 入库异常」绝不静默；④ 映射层 ?. 加固 ×3（importJsonDailyReport topic/s2、normalizeJsonReport s）。已按双版本 +1 部署（v96/voco-v106，两版本差 10 保持不变）。
@@ -76,6 +76,16 @@
   - ③ **卡头小标签保持 12px**（用户确认）：「标签 vs 内容」的 caption 层级，非「标题 vs 正文」——真正的标题（16px+）全部大于正文。
   - ④ **句型锚定全库反查（根治「暂无解析」）**：loadSpeak anchorText 未命中队列时，先去 `_patternLibrary` 按 targetSentence 文本精确匹配——命中（自然表达句属于 patterns 表 better/scene，不在当日核心句型队列）则以完整记录入队（解析/SM-2 字段带齐，反馈写回真 DB 行）；全库也没有才建空解析 sentence-anchor 卡。「暂无解析」从此只代表数据真缺失。根因澄清：自然表达 ≠ 核心句型是库里两类合理记录，病灶是「点击入口拿 B 类句去 A 类队列匹配」。
   - ⑤ 阶梯豁免补充：`text-4xl` 🎉 / `text-6xl` 🐻 为 emoji 图标字符（同 ⏳ text-2xl 豁免），L6 语义扩到首页问候语。
+- **v101 语法三类 + 不自然表达批次（已部署 v101/voco-v111，2026-08-19 用户授权「可以，部署」）**：
+  - ① **词汇评分契约**（修复恒 100%）：旧公式 `vocabulary.length*20` 词数≥5 即封顶 → 新契约 `summary.vocabulary`（0-10 私教评分，GPT 直接打）→ norm100；历史日报无该键回退 `Math.min(vocabulary.length*20, 100)`。
+  - ② **数据管理 6 表还原**：exportData/importJSON 对称（vocabulary/errors/patterns/progress/reports/topics），safe() 每表独立 try/catch。
+  - ③ **语法三类（用户定调收敛）**：`GRAMMAR_CATEGORIES = ['动词与时态', '名词与冠词', '句式与搭配']`。桶① 动词与时态不变；桶② 名词与冠词仅含冠词+单复数（名词属性修饰合并）；桶③ 句式与搭配 = 句式结构/词性与搭配/**介词**/兜底（介词误用多为固定搭配记忆错误）。`classifyGrammarCategory` 关键字判定 + 防误落保护（第三人称/三单先于桶②「单数」匹配）+ 原句/正句仅冠词差集判定；`resolveGrammarCategory` 三级读取（error_pattern 3 枚举直读 → category 键直读 → 启发式回退）。**category 打标**：GPT 显式 `mistakes[].category` 三枚举 → 入库写 errors 表**现有 error_pattern 列**（复用零 SQL 迁移；旧值 v60-99 4 标准分类唯一读取方 renderDetails 是死代码）→ Profile「语法弱点分析」三类分布 + 「建议优先练习 X 类语法错误」。
+  - ④ **不自然表达分析**（Profile 新面板）：扫 reports 表原始 JSON（零迁移），pattern 4 枚举（直译语序/用词搭配/冗余啰嗦/表达习惯，GPT 打标）+ classifyExpressionCause 启发式回退；根因分布 + TOP 5 高频句式。**审计修复**：高频句行点按由 `data-key="${h(t.key)}"` 改数组下标 `data-idx` + `_expressionStats.top`——**h() 不转义引号，属性值场景禁止包裹原始文本（铁律）**。
+  - ⑤ **趋势图四维分线**：综合单线 → 流利度/语法/词汇/地道与思维 4 分线（0-100，spanGaps:false 缺日留空），`_trendChart.destroy()` 防重入，词汇公式与首页逐字一致。
+  - ⑥ **主题/护眼修复**：5 主题钮统一 ✓ 标记（applyTheme 遍历 textContent 切换）；护眼 18 键 tokens（legacy 组与 :root 全集对应，login-card 等旧类在消费是活代码）。
+  - ⑦ **审计 3 修复**：发音行防御过滤（loadMe eList 前 `type!=='pronunciation'`，备份还原可带回旧发音行污染三类分布）；naturalness 真值判定 `typeof === 'number'`（旧 `|| fluency*0.8` 把 0 分当缺失）。
+  - ⑧ **SW 注册版本串陈旧修复**：app.js `sw.js?v=81`（前几批漏 bump 的漂移）→ v=101，双版本差 10 恢复。
+  - 模板同步：`ChatGPT日报Prompt.md` + `TEMPLATES.report`——grammar 项第五键 category（三枚举）、expression 项 pattern（四枚举）、铁律 4 重写、自检行加 category 检查、对照表新增 category 行。**校验器要求 summary 9 键：已入库旧日报不受影响；重导旧版 8 键 JSON 会被拒绝（预期行为）。**
 - **v93 僵尸行修复**：GPT 省略空数组键（今日无错题 → mistakes 整键不输出）时，JSON 日报被判非日报 → Markdown 空壳入库（reports 有行但 vocabulary/errors/patterns 全空）→ 「徽章亮 / 熊白 / Hero 未对练」三分裂。修复：isDailyReport + importReport + parseSmartReport 三处判定放宽（`summary`/`duration` 任一存在即认 JSON 日报，模板必有键）；L428 todayReport 补 isDailyReport 过滤，徽章与熊条/Hero 绝对同源。
 - **v90 日报模板要点**：
   - TEMPLATES.report（App 内复制模板）与 `📋 日报模板/ChatGPT日报Prompt.md` **完全同步**（此前两份不同步：内嵌版缺 fluency/accuracy/naturalness）。
@@ -157,7 +167,8 @@
   - `resolveActiveReport(reports)`：日报解析一律经此网关（今天 → _viewDate 历史视图 → 最新有效日报 → null），播放器/生词/错题共用，禁止 `r.date === today` 直连
   - `mergeReportVocab(snapshot, reportParsed)`：日报 newWords 完整并入全局词库（同名继承真实 id + 打 isNewToday，缺词 `rep-N` 追加）——首页/复习页绝对同源；`getFilteredVocab 'today'` 以日报生词为唯一事实源（与首页 `newCount = parsed.vocabulary.length` 一致），禁止打标词短路
   - `standardizeErrorCards(rawItems)`：所有错题渲染前必经清洗——碎片合并（`→`/`➡️`/`-` 开头的延续行并入前一条）+ 结构归一 `{id, original, correction, rule, type}`；单卡单外层容器
-  - `classifyErrorType(o, c, rule)`（parser.js 唯一分类源）：**4 标准分类**——发音与重音/语法与句式/地道表达/逻辑与衔接（未命中→其他）；`normalizeErrorCategory(type,o,c,r)` 归一化器：旧标签（发音纠偏/时态语态/冠词使用/逻辑衔接/时态/冠词/preposition…）强制映射为 4 标准，存量「其他」按内容重算；`aggregateErrorPatterns` 聚合前必经归一化器（输出键只可能是 4 标准+其他，零同义分桶）+ **排序铁律：明确分类按次数降序、「其他」固定沉底最后一行**；`showErrorPatterns` 建议优先练习**剔除「其他」**取真实最高具体弱点、左侧标签 `whitespace-nowrap min-w-[72px]` 禁折行；`showErrorDetail` 逐行归一化过滤
+  - `classifyErrorType(o, c, rule)`（parser.js 唯一分类源）：**4 标准分类**——发音与重音/语法与句式/地道表达/逻辑与衔接（未命中→其他）；`normalizeErrorCategory(type,o,c,r)` 归一化器：旧标签（发音纠偏/时态语态/冠词使用/逻辑衔接/时态/冠词/preposition…）强制映射为 4 标准，存量「其他」按内容重算——v101 起仅服务**存量标签映射/错题卡渲染链路**，Profile 语法弱点分析已改走语法三类
+  - **语法三类（v101 用户定调，Profile「语法弱点分析」唯一口径）**：`GRAMMAR_CATEGORIES = ['动词与时态','名词与冠词','句式与搭配']`；`classifyGrammarCategory(original, correction, rule)` 关键字判定（第三人称/三单先于「单数」匹配防误落 + 原句/正句仅冠词差集）；`resolveGrammarCategory(e)` 三级读取（error_pattern 3 枚举直读 → category 键直读 → 启发式回退）；`aggregateGrammarCategories` 三类分布 + `showErrorDetail` 顶部「建议优先练习 X 类语法错误」
   - v60 词表：语法与句式增补 主谓/词性/搭配/in\/on\/at/plural（**搭配 从地道表达移入语法**）；地道表达增补 表达/换成/建议/更好的说法/better。**in/on/at 捕获限定**：仅字面 "in/on/at" 或规则文本中单独介词与介词语义词（用法/混淆/搭配/区别/用错/误用）共现才命中——防止误伤地道表达例句里的普通 in（如 breathtaking in IMAX）
   - 学习建议分流 `classifySuggestion`：sentence → `navigateShadowing('core-N')` 锚定 / vocab → `navigateReview` / coach → 私教任务弹窗（指引 + 一键复制 ChatGPT Prompt），**禁止盲跳句型复习页**
   - 教练卡句型入口 `startImprovementSpeak(idx)`：携带用户点击句经 `navigateShadowing(undefined, sentence)` → `?sentence=` → loadSpeak 以该句为起始卡片，**禁止无参 navigateShadowing 默认句开头**
