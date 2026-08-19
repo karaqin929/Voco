@@ -47,11 +47,11 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v101）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v111）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v102）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v112）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
 - **版本号更新铁律（2026-08-18 用户指令）**：代码改完后**先问用户是否还有其他更新统一提交，得到确认后才 +1 版本号并 push**——禁止改完代码直接自推版本。（v98 批次为已部署 v97 的用户反馈 Bug 紧急修复，用户报 Bug 即隐含「修复并上线」授权。）
-- 当前线上：**v101 / voco-v111**（v101 词汇评分契约 + 语法三类 category 打标 + 不自然表达分析批次，详见下）。
+- 当前线上：**v102 / voco-v112**（v102 右引号双边状态机加固，详见下）。
 - **v95 数据幽灵根治**：① **Mock 假数据全部物理删除**（原 L314 mockDashboardData 含 #personal growth / "I have went to three interviews" 等写死内容、L375 mockSentences、L394 mockWords、L400 mockMistakeErrors）→ 替换为 `EMPTY_INSIGHTS` 空态常量；洞察区主题/优点/提升三卡无数据渲染「当日无数据」；mergeDemoVocab 纯透传、_errorsAll/_speakAll/coreDeck 空库=空状态；历史视图 p=null 空指针防护 5 处。**铁律：任何无数据/解析异常场景只渲染空状态，绝不回退假数据**。② `sanitizeJsonInput` 输入洗理（BOM/```围栏/最外层 {…} 跨度提取/引号归一化）——importReport 与 parseSmartReport 双入口，带包装的 JSON 也能解析；③ JSON 意图但 parse 失败 → toast-error 显式报错并中断（禁止静默空壳行）；修复 importJsonDailyReport 的「入库完成」toast 被「导入成功」覆盖的 bug；④ 导入成功 `_viewDate=null` 强制回今日视图再 loadHome；⑤ 评分小数制 ×10 映射（renderMetricsOverview L809 norm100）核查无误，无需改动。
 - **v97 ImportModal 重构（已部署 v96）**：用户指令「彻底重构导入面板（Modal/Bottom Sheet）+ 实时校验流程 + 彻底去除话题卡/弱点分析模板」。**用户指令覆盖 v74「import-dialog DOM 零修改」铁律**（该铁律已废止）。落地：① HTML 改为居中 Modal（与 inspiration-dialog 同构：backdrop-blur + 圆角浮卡 + ✕），仅保留「复制日报模板」按钮，模板三按钮（report/topic/insight）→ 单按钮；② **交互状态解耦三段式**：输入 → 防抖校验预览 → 确认入库。状态机 `_importState = {status: idle|checking|valid|error, error, preview, payload}`（等价 React useState+useEffect 范式）；`onImportInput` 350ms 防抖（输入即锁按钮）→ `validateImportInput` 纯函数校验（JSON：sanitizeJsonInput→JSON.parse→顶层 5 键+summary 8 键完整性→normalizeJsonReport 生成统计；Markdown：parseSmartReport 日报类型；topic-card/insight-report 直接红卡拒绝）→ `renderImportPreview`（绿卡「格式校验通过」+时长/新词/纠错/句型/三维评分/话题/日期统计；红卡「格式校验失败」+具体原因）+ `setImportSubmitEnabled`（唯一按钮状态写入口，仅 valid 可点）；③ **importReport 只消费校验产物 payload，绝不从文本框直接解析写库**（入库异常红卡展示真实原因+console.error 堆栈）；成功 toast 改 showToast（#dialog-import-result 已移除）；④ **话题卡/弱点分析彻底下线**：TEMPLATES.topic/insight 物理删除、importTopicCard/importInsightReport 物理删除、importReport 相关分支删除、校验器拒绝该类型（parser.js 不动铁律）。
 - **v96 治本（已部署 v96/voco-v106，2026-08-18 按铁律获用户「暂时就这些」确认后统一提交）**：用户 v95 上线后导入 8.17/8.18 养狗 JSON 仍报「❌ JSON 格式解析失败」→ 真根因 = **值内嵌套中文强调引号**（`"explanation": "…once 可以自然表达“等到……以后”…"` 等 3+ 处）——v94 朴素全局替换把值内 “ ” 也变成未转义直引号 → 字符串提前截断 → SyntaxError（不是映射 TypeError，映射根本没执行到）。**治本双管**：① **源头**——TEMPLATES.report 重写为【完美日报生成指令】：字段结构铁律（顶层 5 键 + summary 8 键一个不能少、空内容用 [] 不用 null、mistakes[].type 三值枚举；**coreSentences/newWords 不设数量上限，按「真实出现+值得收录」标准全量整理**，杜绝编造凑数——用户否决 5-8 句/5-12 个的历史遗留上限）+ 引号铁律（全篇禁弯引号，**值内中文强调一律用「」或不用引号**，值内单行禁换行，英文引述用 ' 或转义 \"）+ 输出前自检清单（7 条逐项确认才许输出），`📋 日报模板/ChatGPT日报Prompt.md` 全文同步（含「系统认可的字段全链路对照表」）；② **兜底网**——normalizeSmartQuotes 升级为**智能引号状态机**：逐字符跟踪 inStr 状态，结构 “ ” → 直引号、值内 “ ” → 「」、值内直引号 → 转义 \"、反斜杠转义原样保留；关键歧义消解 = `”` 前瞻判定（后跟 `, } ] :` 或文末 → 结构闭号，否则值内强调闭号；中文全角 ，。： 不会误入结构集合）。全场景验证：8.17 养狗 JSON 形状复刻/纯直引号/混合风格/已有转义 4 例全部 JSON.parse 通过。③ importReport 全流程 try/catch：parse 失败独立 catch（console.error 真实堆栈+文本片段）→ toast-error 中断；入库/映射失败外层 catch（console.error 真实堆栈）→ toast「❌ 入库异常」绝不静默；④ 映射层 ?. 加固 ×3（importJsonDailyReport topic/s2、normalizeJsonReport s）。已按双版本 +1 部署（v96/voco-v106，两版本差 10 保持不变）。
@@ -86,6 +86,11 @@
   - ⑦ **审计 3 修复**：发音行防御过滤（loadMe eList 前 `type!=='pronunciation'`，备份还原可带回旧发音行污染三类分布）；naturalness 真值判定 `typeof === 'number'`（旧 `|| fluency*0.8` 把 0 分当缺失）。
   - ⑧ **SW 注册版本串陈旧修复**：app.js `sw.js?v=81`（前几批漏 bump 的漂移）→ v=101，双版本差 10 恢复。
   - 模板同步：`ChatGPT日报Prompt.md` + `TEMPLATES.report`——grammar 项第五键 category（三枚举）、expression 项 pattern（四枚举）、铁律 4 重写、自检行加 category 检查、对照表新增 category 行。**校验器要求 summary 9 键：已入库旧日报不受影响；重导旧版 8 键 JSON 会被拒绝（预期行为）。**
+- **v102 右引号双边紧急修复（已部署 v102/voco-v112，2026-08-19 用户报 8.19 日报导入失败）**：
+  - 现象：8.19 日报 12 个 phonetic 字段全部是 `”/ˈsiːlɪŋ/”` 形态——GPT 用 ” 同时作开闭引号，v96 状态机只认 “ 作开引号，结构位置的 ” 被原样放过 → JSON.parse SyntaxError（错误精确指向第一个 phonetic）。
+  - 修复：`normalizeSmartQuotes` 结构位置的 `”` 也视为开引号（opener='”'）；`(opener === '“' || opener === '”')` 共用同一歧义消解前瞻。附带兼容 `{”key”:”value”}` 全右引号形态。
+  - Prompt 源头三层预防（两份模板同步）：开头第一段加引号最高权重警示（点名「严禁用 ” 同时作开闭引号」）；引号铁律第 1 条加「右引号双边」硬错误 + phonetic 示例；自检新增「□ 无任何以 ” 开头的字符串（逐字段检查 phonetic）」。
+  - 验证：用户原始文本一字不改走通完整链路（parse OK → validate valid → 14 错题 category/pattern 枚举 0 越界、12 句 12 词完整）；状态机回归 5 例全过。**本次修复零 SQL。**
 - **v93 僵尸行修复**：GPT 省略空数组键（今日无错题 → mistakes 整键不输出）时，JSON 日报被判非日报 → Markdown 空壳入库（reports 有行但 vocabulary/errors/patterns 全空）→ 「徽章亮 / 熊白 / Hero 未对练」三分裂。修复：isDailyReport + importReport + parseSmartReport 三处判定放宽（`summary`/`duration` 任一存在即认 JSON 日报，模板必有键）；L428 todayReport 补 isDailyReport 过滤，徽章与熊条/Hero 绝对同源。
 - **v90 日报模板要点**：
   - TEMPLATES.report（App 内复制模板）与 `📋 日报模板/ChatGPT日报Prompt.md` **完全同步**（此前两份不同步：内嵌版缺 fluency/accuracy/naturalness）。
