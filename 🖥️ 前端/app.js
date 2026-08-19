@@ -1221,6 +1221,9 @@ function renderTodoList(speakDoneToday) {
 // 字符串提前截断 → JSON.parse 依旧 SyntaxError（v95 显式报错即源于此）。
 // 状态机规则（逐字符扫描，跟踪「是否在字符串内」）：
 //   结构位置（键名/值边界）的 “ ” → 直引号 "；全角＂同直引号处理；
+//   v102 加固：结构位置的 ”（右弯引号）也视为开引号——GPT 存在以 ” 双边包裹字符串的
+//   系统性错误（8.19 日报 12 个 phonetic 字段全部是 ”/音标/” 形态），此前 ” 在结构位置
+//   被原样放过 → JSON.parse 直接失败；
 //   字符串内部的 “ ” → 「」（中文方角括号，JSON 合法且中文语境显示自然）；
 //   字符串内部的直引号 → 转义 \"；已有反斜杠转义原样保留（防止 \" 被误判为闭引号）；
 //   弯单引号 ‘ ’ 及全角＇ → 直单引号 '（JSON 字符串内单引号合法，如 aren't 缩写）。
@@ -1234,10 +1237,11 @@ function normalizeSmartQuotes(s) {
     if (!inStr) {
       if (ch === '“') { inStr = true; opener = '“'; out += '"'; }
       else if (ch === '"' || ch === '＂') { inStr = true; opener = '"'; out += '"'; }
+      else if (ch === '”') { inStr = true; opener = '”'; out += '"'; }  // v102：GPT ” 双边包裹字符串（音标字段高发）
       else if (ch === '‘' || ch === '’' || ch === '＇') out += "'";
       else out += ch;
     } else {
-      if (opener === '“' && ch === '”') {
+      if ((opener === '“' || opener === '”') && ch === '”') {
         // 关键歧义消解：同一个 ” 既可能是结构闭号，也可能是值内强调闭号（如 “等到……以后”）。
         // 前瞻判定——后一个非空白字符若是 , } ] : 或已到文末 → 结构闭号（结束字符串，出直引号）；
         // 否则（后跟中文汉字/全角标点/字母等）→ 值内强调闭号（出「」）。
@@ -3722,7 +3726,7 @@ const TEMPLATES = {
 - summary.dailyThought：en 用英文一句话总结今天最值得改进的一点；zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
 
 【引号铁律】——违反任何一条 = 整份日报报废，系统直接拒收：
-1. 全篇只允许英文半角直引号 "——包裹键名的引号和包裹字符串值的引号都必须用它。严禁弯引号 “ ” 和弯单引号 ‘ ’，包括字符串值内部（本指令文本中出现的 “ ” ‘ ’ 仅为反面示例，绝不要复制进 JSON）。
+1. 全篇只允许英文半角直引号 "——包裹键名的引号和包裹字符串值的引号都必须用它。严禁弯引号 “ ” 和弯单引号 ‘ ’，包括字符串值内部（本指令文本中出现的 “ ” ‘ ’ 仅为反面示例，绝不要复制进 JSON）。特别警惕「右引号双边」硬错误：部分 GPT 版本会把某个字符串的开闭引号都写成弯右引号 ”（高频出现在 phonetic 音标字段，如 ”/ˈsiːlɪŋ/”），这同样是硬错误——开引号与闭引号必须同为半角直引号 "（写成 "/ˈsiːlɪŋ/"）。
 2. 字符串值内部需要中文强调时（如 explanation 里引用某个中文词），一律使用「」（方角括号），或者不加任何引号。严禁在值内出现弯引号。
 3. 英文缩写（I'm、aren't、don't）用英文直单引号 '（半角），绝不用弯单引号 ’。
 4. 所有字符串值必须写成单行——严禁在字符串值内部换行（值内换行会直接导致 JSON 失效）。
@@ -3735,6 +3739,7 @@ const TEMPLATES = {
 □ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
 □ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是示例值 62；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
+□ 无任何以 ” 开头的字符串——开闭引号必须同为半角直引号 "（逐字段检查 phonetic 音标字段）；
 □ 所有键名与上面示例结构一字不差。`
 };
 // v97：TEMPLATES.topic / TEMPLATES.insight 已物理删除——话题卡与弱点分析模板功能彻底下线，TEMPLATES 只保留 report。
@@ -4435,5 +4440,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=101');
+  navigator.serviceWorker.register('/sw.js?v=102');
 }
