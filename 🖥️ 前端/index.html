@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=102">
+  <link rel="stylesheet" href="/style.css?v=103">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -174,7 +174,6 @@
           <button class="text-[0.6875rem] text-[var(--c-blue)] font-medium ml-1 cursor-pointer bg-transparent border-0 p-0" onclick="showImportDialog()">查看日报 ›</button>
         </div>
       </div>
-      <div class="flex items-center gap-[3px] overflow-x-auto hide-scrollbar max-w-[55%] shrink-0 pt-0.5" id="header-bears"></div>
     </div>
 
     <!-- History Banner -->
@@ -339,7 +338,7 @@
     <div class="mb-4">
       <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i> 近 7 天评分走势</div>
       <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] p-4" style="box-shadow:var(--c-shadow-sm)">
-        <div class="relative h-[180px]"><canvas id="trendChart"></canvas></div>
+        <div class="relative h-[196px]"><canvas id="trendChart"></canvas></div>
         <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] text-center mt-2">四维度分线走势：流利度 / 语法 / 词汇 / 地道与英文思维（0–100），缺日报的日子留空</div>
       </div>
     </div>
@@ -466,8 +465,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=102"></script>
-<script src="/parser.js?v=102"></script>
-<script src="/app.js?v=102"></script>
+<script src="/supabase-client.js?v=103"></script>
+<script src="/parser.js?v=103"></script>
+<script src="/app.js?v=103"></script>
 </body>
 </html>
