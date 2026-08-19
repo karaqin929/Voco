@@ -1,4 +1,4 @@
-# 📝 完美日报生成指令（唯一权威版 · v97）
+# 📝 完美日报生成指令（唯一权威版 · v97 + summary.vocabulary 与 mistakes[].category 增补）
 
 > **和 ChatGPT 结束对练时，把下面整段指令发过去**（或直接点 App 内「导入日报」弹窗的「复制模板」按钮——两者完全同步）。
 > 生成的 JSON **原样粘贴进 Voco「导入日报」对话框**即可解析入库。
@@ -21,12 +21,13 @@
     "fluency": 7,
     "accuracy": 6.5,
     "naturalness": 6,
+    "vocabulary": 7,
     "weak_areas": "时态, 冠词"
   },
   "mistakes": [
-    { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释" },
+    { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释", "category": "动词与时态" },
     { "type": "pronunciation", "original": "发音错误的词或句子", "improved": "正确发音写法", "explanation": "音标或发音要点" },
-    { "type": "expression", "original": "中式或普通的句子", "improved": "更地道高阶的表达", "explanation": "为什么这样说更好" }
+    { "type": "expression", "original": "中式或普通的句子", "improved": "更地道高阶的表达", "explanation": "为什么这样说更好", "pattern": "直译语序" }
   ],
   "coreSentences": [
     { "targetSentence": "高阶金句", "replacedSentence": "被替代的普通表达", "explanation": "使用场景或提示" }
@@ -40,19 +41,23 @@
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
 1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords 这 5 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
 2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 62。这是从对话内容推导出的客观统计，严禁凭空编造或照抄示例值 62。
-3. summary 必须是对象，且包含以下 8 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、weak_areas（字符串）。8 键一个都不能少。
+3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
-   - "grammar"：语法硬伤（时态、单复数、冠词、句式等）；
+   - "grammar"：语法硬伤——还必须包含第五个键 category（语法弱点分类，只允许以下三个值之一，按错误的本质归类）：
+     "动词与时态"（时态错误、主谓一致、第三人称单数等动词形态问题）、
+     "名词与冠词"（冠词 a/an/the 的缺失或误用、名词单复数等名词属性问题）、
+     "句式与搭配"（介词误用、固定搭配、词性误用、句式结构、其他语法问题）；
+     explanation 必须写明具体的语法规则和改正要点（如「一般过去时用 went」），严禁用分类名代替解释。
    - "pronunciation"：发音错误（读错的词、重音、元音等）；
-   - "expression"：语法正确但不够地道的表达升级。
+   - "expression"：语法正确但不够地道的表达升级——type 为 expression 的项还必须包含第五个键 pattern（不自然根因，只允许以下四个值之一）："直译语序"（中文语序/逐字直译，如 I very like it）、"用词搭配"（用词不当、词性误用或搭配错误，如 learn knowledge）、"冗余啰嗦"（多余的重复或填充，如 more better）、"表达习惯"（语法没错但不符合母语者习惯的说法）。
 5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
 7. coreSentences 与 newWords 不设数量上限：把今天对话中真实出现、值得收录的内容全部整理出来——coreSentences 收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达），newWords 收录所有真实遇到或不会的生词。唯一硬性标准是「真实出现 + 值得收录」：今天没有就输出空数组 []，绝不允许为了凑数量编造内容，也不允许因为觉得太多而漏掉重要内容。
 
 【评分与点评铁律】（专业口语私教评审）：
-- 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）。
+- 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）；vocabulary 词汇丰富度（用词是否丰富准确：是否反复依赖简单词、是否用上对话中学到的新表达）。
 - weak_areas：归纳今天暴露最明显的 1-3 个弱点（中文标签，逗号分隔）。
-- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / "时态, 单复数"。
+- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / 7 / "时态, 单复数"。
 - summary.dailyThought：en 用英文一句话总结今天最值得改进的一点；zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
 
 【引号铁律】——违反任何一条 = 整份日报报废，系统直接拒收：
@@ -65,8 +70,8 @@
 【输出前自检】——必须逐条确认，全部通过才允许输出：
 □ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
-□ 顶层 5 个键齐全，summary 的 8 个键齐全，空内容用 [] 不用 null；
-□ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种；
+□ 顶层 5 个键齐全，summary 的 9 个键齐全，空内容用 [] 不用 null；
+□ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
 □ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是示例值 62；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 所有键名与上面示例结构一字不差。
@@ -85,10 +90,12 @@ GPT 日报 JSON → Voco 系统消费链路的完整映射，字段名即契约�
 | `summary.dailyThought.en/.zh` | 字符串 | 首页「当日对话想法」卡片 |
 | `summary.strengths[]` | 数组 | 首页「优点」列表 |
 | `summary.nextSteps[]` | 数组 | 首页「下一次练习建议」 |
-| `summary.fluency/accuracy/naturalness` | 0-10 数字 | 首页 4 维指标 + Profile 趋势图 |
+| `summary.fluency/accuracy/naturalness/vocabulary` | 0-10 数字 | 首页 4 维指标 + Profile 趋势图（vocabulary = 词汇丰富度私教评分，替代旧版「词数×20」折算） |
 | `summary.weak_areas` | 逗号分隔字符串 | Profile 弱项云 |
 | `mistakes[].type` | 枚举：grammar/pronunciation/expression | 分流三路：grammar+pronunciation → `errors` 表（红卡）；expression → `patterns` 表（句型库） |
 | `mistakes[].original/improved/explanation` | 字符串 | `errors.original/correction/rule` 或 `patterns.original/better/scene` |
+| `mistakes[].pattern`（expression 专属） | 枚举：直译语序/用词搭配/冗余啰嗦/表达习惯 | Profile「不自然表达分析」根因分布 + 高频句式 |
+| `mistakes[].category`（grammar 专属） | 枚举：动词与时态/名词与冠词/句式与搭配 | 入库写入 `errors.error_pattern` 列 → Profile「语法弱点分析」三类分布（旧行无标签按内容自动归类） |
 | `coreSentences[].targetSentence/replacedSentence/explanation` | 字符串 | `patterns` 表 + 跟读页沉浸式播放器队列（1/N） |
 | `newWords[].word/phonetic/meaning/example` | 字符串 | `vocabulary` 表（word/phonetic/meaning/example）+ 自动打标「今日新词」 |
 

@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=100">
+  <link rel="stylesheet" href="/style.css?v=101">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -97,8 +97,16 @@
       --c-border:#30382C;--c-border-light:#283024;
       --c-shadow-sm:0 1px 3px rgba(0,0,0,0.2);--c-shadow:0 2px 12px rgba(0,0,0,0.25);
     }
-    /* Eye-care mode — soft sage tint */
-    [data-mode="eye-care"]{--c-bg:#E5EBE0;--c-surface:#F0F4EC;}
+    /* Eye-care mode — soft sage tint (v101: full token set, coherent with forest palette) */
+    [data-mode="eye-care"]{
+      --c-bg:#E5EBE0;--c-surface:#F0F4EC;
+      --c-primary:#7D8B74;--c-primary-light:#E0E6DA;
+      --c-blue:#84988C;--c-blue-light:#E4ECE6;--c-green:#7A9472;--c-green-light:#E2ECE0;
+      --c-orange:#B4A088;--c-orange-light:#F4EEE4;--c-red:#B08884;
+      --c-text:#384034;--c-text-dim:#788474;--c-text-ultradim:#A8B0A4;
+      --c-border:#D8E0D0;--c-border-light:#E8EEE2;
+      --c-shadow-sm:0 1px 3px rgba(40,55,30,0.04);--c-shadow:0 2px 12px rgba(40,55,30,0.06);
+    }
     /* Base resets (minimal — Tailwind handles the rest) */
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;background:var(--c-bg);color:var(--c-text);min-height:100vh;min-height:100dvh;padding-bottom:96px;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;}
     @keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
@@ -282,7 +290,7 @@
         <div class="px-4 py-3">
           <span class="text-xs text-[var(--c-text-dim)]">配色方案</span>
           <div class="flex gap-2.5 mt-2 mb-1" id="theme-picker">
-            <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-[var(--c-border)] transition-all active:scale-90 flex items-center justify-center text-white text-xs font-bold" data-theme="warm" style="background:#C4A0A0" title="烟粉玫瑰">A</button>
+            <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent transition-all active:scale-90 flex items-center justify-center text-white text-xs font-bold" data-theme="warm" style="background:#C4A0A0" title="烟粉玫瑰"></button>
             <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent transition-all active:scale-90" data-theme="beach" style="background:#8BA08A" title="雾绿薄荷"></button>
             <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent transition-all active:scale-90" data-theme="ocean" style="background:#8898B0" title="灰蓝暮色"></button>
             <button class="w-8 h-8 rounded-full cursor-pointer border-2 border-transparent transition-all active:scale-90" data-theme="ice" style="background:#B4A090" title="暖杏陶土"></button>
@@ -329,10 +337,10 @@
 
     <!-- Group: 7-Day Trend (Voco 2.0 评分趋势) -->
     <div class="mb-4">
-      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i> 近 7 天综合得分</div>
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i> 近 7 天评分走势</div>
       <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] p-4" style="box-shadow:var(--c-shadow-sm)">
         <div class="relative h-[180px]"><canvas id="trendChart"></canvas></div>
-        <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] text-center mt-2">综合得分 = 流利度 / 语法 / 词汇 / 地道与英文思维 四维度均值（0–100）</div>
+        <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] text-center mt-2">四维度分线走势：流利度 / 语法 / 词汇 / 地道与英文思维（0–100），缺日报的日子留空</div>
       </div>
     </div>
 
@@ -372,8 +380,14 @@
 
     <!-- Error Patterns -->
     <div id="error-patterns-group" class="hidden mb-4">
-      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="search" class="w-3.5 h-3.5"></i> 错误模式分析</div>
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="search" class="w-3.5 h-3.5"></i> 语法弱点分析</div>
       <div class="bg-[var(--c-surface)] rounded-2xl p-4 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" id="error-patterns"></div>
+    </div>
+
+    <!-- Expression Insights -->
+    <div id="expression-insights-group" class="hidden mb-4">
+      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i> 不自然表达分析</div>
+      <div class="bg-[var(--c-surface)] rounded-2xl p-4 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" id="expression-insights"></div>
     </div>
 
     <!-- Footer -->
@@ -452,8 +466,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=100"></script>
-<script src="/parser.js?v=100"></script>
-<script src="/app.js?v=100"></script>
+<script src="/supabase-client.js?v=101"></script>
+<script src="/parser.js?v=101"></script>
+<script src="/app.js?v=101"></script>
 </body>
 </html>

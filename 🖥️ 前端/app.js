@@ -727,7 +727,10 @@ function renderMetricsOverview() {
   const fluency = Math.min((parsed.summary.fluency||0) * 10, 100);
   const accuracy = Math.min((parsed.summary.accuracy||0) * 10, 100);
   const natural = Math.min((parsed.summary.naturalness||Math.round((parsed.summary.fluency||0)*0.8)) * 10, 100);
-  const vocabScore = Math.min(parsed.vocabulary.length * 20, 100);
+  // v101 词汇维度：新版日报 summary.vocabulary（0-10 私教评分）；历史日报无该键 → 回退词数折算公式
+  const vocabScore = (typeof parsed.summary.vocabulary === 'number' && isFinite(parsed.summary.vocabulary))
+    ? norm100(parsed.summary.vocabulary)
+    : Math.min(parsed.vocabulary.length * 20, 100);
   const overall = Math.round((fluency+accuracy+natural+vocabScore)/4);
   const duration = parsed.meta.duration||0;
   const speakTime = Math.round(duration*0.6);
@@ -1526,7 +1529,7 @@ function parseSmartReport(content) {
         const normalized = normalizeJsonReport(cleanedRaw, t);
         // ③ 评分无损透传：summary.fluency/accuracy/naturalness 归一化层不携带，原样补回（仪表盘指标用）
         const s = (cleanedRaw && typeof cleanedRaw.summary === 'object' && cleanedRaw.summary) || {};
-        for (const k of ['fluency', 'accuracy', 'naturalness']) {
+        for (const k of ['fluency', 'accuracy', 'naturalness', 'vocabulary']) {
           if (typeof s[k] === 'number' && normalized.summary[k] === undefined) normalized.summary[k] = s[k];
         }
         // ④ 对话占比（Voco 2.0）：优先 JSON transcript 数组（role/content），否则扫原始文本角色标注行
@@ -1659,7 +1662,7 @@ function validateImportInput(text) {
     if (!j || typeof j !== 'object' || Array.isArray(j)) {
       return { status: 'error', error: '格式错误：解析结果不是有效的 JSON 对象', preview: null, payload: null };
     }
-    // 关键字段完整性校验（完美日报指令契约：内容 4 键 + summary 8 键必查；
+    // 关键字段完整性校验（完美日报指令契约：内容 4 键 + summary 9 键必查；
     // 会话维度 duration（旧版分钟数）/ speakingRatio（新版对话占比）均可选，新旧模板兼容）
     const requiredTop = ['summary', 'mistakes', 'coreSentences', 'newWords'];
     const missingTop = requiredTop.filter(k => j[k] === undefined || j[k] === null);
@@ -1668,7 +1671,7 @@ function validateImportInput(text) {
     }
     const s = (j.summary && typeof j.summary === 'object') ? j.summary : null;
     if (!s) return { status: 'error', error: '缺少关键字段：summary 必须是对象', preview: null, payload: null };
-    const requiredSummary = ['topic', 'dailyThought', 'strengths', 'nextSteps', 'fluency', 'accuracy', 'naturalness', 'weak_areas'];
+    const requiredSummary = ['topic', 'dailyThought', 'strengths', 'nextSteps', 'fluency', 'accuracy', 'naturalness', 'vocabulary', 'weak_areas'];
     const missingSummary = requiredSummary.filter(k => s[k] === undefined || s[k] === null);
     if (missingSummary.length) {
       return { status: 'error', error: `summary 缺少关键字段：${missingSummary.join('、')}`, preview: null, payload: null };
@@ -1684,7 +1687,7 @@ function validateImportInput(text) {
       preview: {
         type: 'json', date: getLocalToday(), topic: s.topic || '', duration: dur,
         speakingRatio: num(j.speakingRatio),
-        fluency: num(s.fluency), accuracy: num(s.accuracy), naturalness: num(s.naturalness),
+        fluency: num(s.fluency), accuracy: num(s.accuracy), naturalness: num(s.naturalness), vocabulary: num(s.vocabulary),
         wordCount: normalized.vocabulary.length, errorCount: errCount, patternCount
       },
       payload: { kind: 'json', jsonReport: j, cleanedText: cleaned }
@@ -1747,8 +1750,8 @@ function renderImportPreview() {
         <div class="grid grid-cols-4 gap-1.5 mb-1.5">
           ${(p.speakingRatio !== null && p.speakingRatio !== undefined) ? scoreCell('对话占比', p.speakingRatio + '%') : scoreCell('时长(分)', p.duration)}${scoreCell('新词', p.wordCount)}${scoreCell('纠错', p.errorCount)}${scoreCell('句型', p.patternCount)}
         </div>
-        <div class="grid grid-cols-3 gap-1.5">
-          ${scoreCell('流利度', p.fluency)}${scoreCell('准确度', p.accuracy)}${scoreCell('自然度', p.naturalness)}
+        <div class="grid grid-cols-4 gap-1.5">
+          ${scoreCell('流利度', p.fluency)}${scoreCell('准确度', p.accuracy)}${scoreCell('自然度', p.naturalness)}${scoreCell('词汇', p.vocabulary)}
         </div>
         ${p.topic ? `<div class="mt-2 text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">话题：${h(p.topic)}<span class="ml-2 text-[var(--c-text-ultradim)]">入库日期 ${p.date}</span></div>` : ''}
       </div>`;
@@ -3340,7 +3343,8 @@ async function loadMe() {
 
   const vList = vocab || [];
   // v86 全局加固：成就/错误模式聚合前的碎片合并 —— 一条知识 = 一行，聚合计数不再虚高
-  const eList = mergeLabelFragments(errors || []);
+  // v101 审计：语法弱点分析只计语法错题 —— 备份还原可能带回旧备份中的发音行，防御过滤（与 v99 错题体系口径一致）
+  const eList = mergeLabelFragments((errors || []).filter(e => e && e.type !== 'pronunciation'));
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
   const level = calcLevel(prog?.total_sessions || 0, streak, vList.length);
@@ -3358,12 +3362,18 @@ async function loadMe() {
     document.getElementById('error-patterns-group').classList.add('hidden');
   }
 
-  // Voco 2.0：近 7 天综合得分趋势（Chart.js，莫兰迪绿/大地色系）
+  // v101：不自然表达分析（根因分布 + 高频不自然句式，扫 reports 原始 JSON）
+  renderExpressionInsights();
+
+  // v101：近 7 天四维度分线走势（Chart.js，莫兰迪色系）
   renderTrendChart();
 }
 
-// ── 近 7 天趋势图（Voco 2.0）：历史 reports 综合得分 → Chart.js 平滑折线 ──
-// 综合得分口径与首页打分板完全一致：流利度/语法/词汇/地道与英文思维 四维度 norm100 均值
+// ── 近 7 天趋势图（v101 四维分线）：历史 reports → Chart.js 四维度折线 ──
+// 旧版单线综合均值在分数区间窄时是一条直线、无参考价值（用户反馈）。
+// 专业口语 App（Speak/ELSA 类）做法：分维度多线 —— 暴露「哪条腿短」而不是把差异抹平成一条均值线。
+// 口径与首页打分板完全一致：流利度/语法/词汇/地道与英文思维 四维度 norm100；
+// 词汇维度：新版日报 summary.vocabulary（0-10 私教评分），历史日报回退词数折算公式。
 let _trendChart = null;
 async function renderTrendChart() {
   const canvas = document.getElementById('trendChart');
@@ -3374,39 +3384,43 @@ async function renderTrendChart() {
   // 最近 7 个本地日历日（含今天），getLocalToday 时区安全
   const days = [];
   for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(fmtLocalDate(d)); }
-  const scoreMap = {};
+  const dims = { f: [], a: [], n: [], v: [] };
   (reports || []).forEach(r => {
     if (!r.date || !days.includes(r.date) || !isDailyReport(r)) return;
-    if (r.date in scoreMap) return;
+    const dayIdx = days.indexOf(r.date);
+    if (dims.f[dayIdx] !== undefined) return; // 同日多报 → 只取第一条
     try {
       const p = parseSmartReport(r.content);
-      const f = norm100(p.summary.fluency);
-      const a = norm100(p.summary.accuracy);
-      const n = norm100(p.summary.naturalness || Math.round((p.summary.fluency || 0) * 0.8));
-      const v = Math.min((p.vocabulary || []).length * 20, 100);
-      scoreMap[r.date] = Math.round((f + a + n + v) / 4);
+      dims.f[dayIdx] = norm100(p.summary.fluency);
+      dims.a[dayIdx] = norm100(p.summary.accuracy);
+      // v101 审计：naturalness 用 typeof 判定而非真值 —— 旧 Markdown 日报无该键才回退 fluency×0.8，避免 0 分被回退吞掉
+      dims.n[dayIdx] = (typeof p.summary.naturalness === 'number' && isFinite(p.summary.naturalness))
+        ? norm100(p.summary.naturalness)
+        : norm100(Math.round((p.summary.fluency || 0) * 0.8));
+      dims.v[dayIdx] = (typeof p.summary.vocabulary === 'number' && isFinite(p.summary.vocabulary))
+        ? norm100(p.summary.vocabulary)
+        : Math.min((p.vocabulary || []).length * 20, 100);
     } catch (e) { /* 单日解析失败 → 该日留空（gap），绝不拖垮整图 */ }
+  });
+  const mkSeries = (label, color, arr) => ({
+    label,
+    data: arr.map(v => (v === undefined ? null : v)),
+    borderColor: color, backgroundColor: color,
+    pointBackgroundColor: color, pointBorderColor: '#FFFDF9',
+    pointBorderWidth: 1.2, pointRadius: 3, pointHoverRadius: 5,
+    borderWidth: 2, fill: false, tension: 0.4, spanGaps: false  // 平滑曲线；缺日留空不造假连线
   });
   if (_trendChart) _trendChart.destroy();
   _trendChart = new Chart(canvas.getContext('2d'), {
     type: 'line',
     data: {
       labels: days.map(d => d.slice(5).replace('-', '/')),
-      datasets: [{
-        label: '综合得分',
-        data: days.map(d => (d in scoreMap ? scoreMap[d] : null)),
-        borderColor: '#8A9B6E',                    // 莫兰迪鼠尾草绿
-        backgroundColor: 'rgba(138,155,110,0.15)', // 曲线下方柔雾填充
-        pointBackgroundColor: '#6B7D54',           // 深橄榄绿数据点
-        pointBorderColor: '#FFFDF9',
-        pointBorderWidth: 1.5,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        borderWidth: 2.5,
-        fill: true,
-        tension: 0.4,                              // 平滑曲线（用户指定）
-        spanGaps: false                            // 缺日留空，不造假连线
-      }]
+      datasets: [
+        mkSeries('流利度', '#8A9B6E', dims.f),      // 莫兰迪鼠尾草绿
+        mkSeries('语法', '#B08884', dims.a),        // 灰玫瑰
+        mkSeries('词汇', '#8898B0', dims.v),        // 灰蓝
+        mkSeries('地道与思维', '#B4A090', dims.n)   // 暖杏陶土
+      ]
     },
     options: {
       responsive: true,
@@ -3423,14 +3437,14 @@ async function renderTrendChart() {
         }
       },
       plugins: {
-        legend: { display: false },
+        legend: { display: true, position: 'bottom', labels: { color: '#8C8478', font: { size: 10 }, boxWidth: 14, boxHeight: 3, padding: 12 } },
         tooltip: {
           backgroundColor: '#4A4438',
           titleColor: '#F5F1E8',
           bodyColor: '#F5F1E8',
           padding: 10,
           callbacks: {
-            label: ctx => (ctx.parsed.y == null ? '暂无数据' : `综合得分 ${ctx.parsed.y} / 100`)
+            label: ctx => (ctx.parsed.y == null ? `${ctx.dataset.label}：暂无数据` : `${ctx.dataset.label} ${ctx.parsed.y} / 100`)
           }
         }
       }
@@ -3477,8 +3491,9 @@ function renderAchievements(prog, vocab, errors, streak) {
 }
 
 // ── Error patterns ─────────────────────────────────────
-// 强制分类归一化（Normalizer）：聚合统计前，所有错题 type 必须经本映射函数收敛为
-// 且仅收敛为 4 标准分类：发音与重音 / 语法与句式 / 地道表达 / 逻辑与衔接（未命中 → 其他）。
+// 强制分类归一化（Normalizer）：错题卡渲染链路（standardizeErrorCards）中，
+// 所有错题 type 必须经本映射函数收敛为且仅收敛为 4 标准分类：
+// 发音与重音 / 语法与句式 / 地道表达 / 逻辑与衔接（未命中 → 其他）。
 // 存量标签快查（旧 6 分类 发音纠偏/时态语态/冠词使用/逻辑衔接 及历史 error_pattern 别名）→ 标准名；
 // 未识别标签 → 内容动态推断（存量「其他」同样重算，绝不无条件保留）。
 function normalizeErrorCategory(type, original, correction, rule) {
@@ -3495,55 +3510,158 @@ function normalizeErrorCategory(type, original, correction, rule) {
   return classifyErrorType(original, correction, rule);
 }
 
-// 高频错误模式聚合（纯函数，UI 与测试共用）：每一行先过归一化器再计数 ——
-// 输出键只可能是 4 标准分类 + 其他，杜绝「时态语态/时态/冠词」等同义重复分桶
-function aggregateErrorPatterns(errors) {
-  const patternCount = {};
+// ── 语法三类（v101 用户定调收敛；2026-08-19 口径微调）────────────────
+// v99 起 errors 表只收语法错题，「错误模式分析」的 4 标准分类坍缩为「语法与句式」单桶、
+// 失去分析价值 —— 改由语法三维度提供洞察（用户定调精简为三类，口径按中国学习者语言逻辑）：
+//   ① 动词与时态：时态 / 主谓一致 / 第三人称单数（动词形态问题）
+//   ② 名词与冠词：冠词 a/an/the / 名词单复数（名词属性修饰：可数性/特指性）
+//   ③ 句式与搭配：句式结构 / 词性与搭配 / 介词 / 其他语法兜底（介词误用多为固定搭配记忆错误，按用户口径归此类）
+const GRAMMAR_CATEGORIES = ['动词与时态', '名词与冠词', '句式与搭配'];
+function classifyGrammarCategory(original, correction, rule) {
+  const text = [rule, original, correction].filter(Boolean).join(' ').toLowerCase();
+  const o = (original || '').toLowerCase(), c = (correction || '').toLowerCase();
+  // ① 动词与时态（第三人称|三单|单三 先于桶②的「单数」关键词匹配，防第三人称单数误落名词桶）
+  if (/时态|过去式|完成时|进行时|过去时|将来时|一般现在|一般过去|tense|主谓|主谓一致|主语|谓语|agreement|第三人称|三单|单三/.test(text)) return '动词与时态';
+  // ② 名词与冠词：关键词 或 原句/正句仅冠词差集（GPT 规则缺关键词时仍能命中）
+  if (/冠词|article|单复数|单数|复数|plural|singular/.test(text)
+      || ((/\b(a|an|the)\b/.test(o) || /\b(a|an|the)\b/.test(c)) && o.replace(/\b(a|an|the)\b/gi, '') === c.replace(/\b(a|an|the)\b/gi, ''))) return '名词与冠词';
+  // ③ 句式与搭配：兜底（介词 in/on/at 不再设专属桶，自然落入）
+  return '句式与搭配';
+}
+
+// 分类口径统一入口：① 新入库行 error_pattern 列带 3 桶标签（GPT 显式 category 或导入时关键字归类）→ 直读；
+// ② 内存解析行（日报 JSON 直读）带 category 键 → 直读；③ 旧行（error_pattern 为 v60-99 的 4 标准分类值）→ 关键字启发式回退。
+function resolveGrammarCategory(e) {
+  if (!e) return '句式与搭配';
+  if (GRAMMAR_CATEGORIES.includes(e.error_pattern)) return e.error_pattern;
+  if (GRAMMAR_CATEGORIES.includes(e.category)) return e.category;
+  return classifyGrammarCategory(e.original, e.correction || e.improved || '', e.rule || e.explanation || '');
+}
+
+// 语法三类聚合（纯函数）：「语法弱点分析」只在此维度计数，输出键只可能是三个语法桶
+function aggregateGrammarCategories(errors) {
+  const count = {};
   (errors || []).forEach(e => {
     if (!e) return;
-    const cat = normalizeErrorCategory(e.error_pattern, e.original, e.correction, e.rule);
-    patternCount[cat] = (patternCount[cat] || 0) + 1;
+    const cat = resolveGrammarCategory(e);
+    count[cat] = (count[cat] || 0) + 1;
   });
-  // 排序铁律：明确分类按次数降序；「其他」固定沉底排最后一行（即使次数最多）
-  const rest = Object.entries(patternCount).filter(([n]) => n !== '其他').sort((a, b) => b[1] - a[1]);
-  const others = Object.entries(patternCount).filter(([n]) => n === '其他');
-  return rest.concat(others);
+  return Object.entries(count).sort((a, b) => b[1] - a[1]);
 }
 
 function showErrorPatterns(errors) {
   const grp = document.getElementById('error-patterns-group');
   grp.classList.remove('hidden');
   const epDiv = document.getElementById('error-patterns');
-  const sorted = aggregateErrorPatterns(errors);
+  const sorted = aggregateGrammarCategories(errors);
   const max = sorted[0]?.[1] || 1;
   const fixedCount = errors.filter(e => e.correct_in_review).length;
   const fixRate = errors.length > 0 ? Math.round((fixedCount / errors.length) * 100) : 0;
-  // 建议生成：剔除「其他」—— 选取真实排名最高的具体弱点（绝不让「其他」充当建议）
-  const topPick = (sorted.find(([n]) => n !== '其他') || [])[0] || '无';
+  // 建议生成：三类均为真实弱点，直接取排名最高者
+  const topPick = (sorted[0] || [])[0] || '无';
 
   epDiv.innerHTML = `
     <div class="flex gap-3 mb-4">${[
       `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${errors.length}</strong>个错误</div>`,
       `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${fixRate}%</strong>已纠正</div>`
     ].join('')}</div>
-    <div class="mb-3"><div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">高频错误模式</div>${sorted.map(([name, count]) =>
+    <div class="mb-3"><div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">语法弱点分布</div>${sorted.map(([name, count]) =>
       `<div class="flex items-center gap-2.5 mb-2 cursor-pointer" onclick="showErrorDetail('${name}')">
         <span class="whitespace-nowrap min-w-[72px] text-xs text-[var(--c-text-dim)] text-right shrink-0">${name}</span>
         <div class="flex-1 h-2 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-500" style="width:${(count/max)*100}%;"></div></div>
         <span class="w-[30px] text-[0.6875rem] text-[var(--c-text-ultradim)] shrink-0">${count}次</span>
       </div>`
     ).join('')}</div>
-    <div class="text-xs text-[var(--c-primary)] px-3 py-2 bg-[var(--c-primary-light)] rounded-lg inline-flex items-center gap-1">${icon('lightbulb','w-3.5 h-3.5')} 建议优先练习 <strong>${topPick}</strong> 类型的错误</div>`;
+    <div class="text-xs text-[var(--c-primary)] px-3 py-2 bg-[var(--c-primary-light)] rounded-lg inline-flex items-center gap-1">${icon('lightbulb','w-3.5 h-3.5')} 建议优先练习 <strong>${topPick}</strong> 类语法错误</div>`;
   refreshIcons(epDiv);
 }
 
 async function showErrorDetail(pattern) {
-  // 归一化过滤：DB 存量 error_pattern 可能是旧标签（时态语态/冠词…），逐行过 Normalizer 后按 4 标准分类匹配
+  // v101：按语法三类匹配（errors 表 v99 起只收语法错题，分类口径与分布条一致 —— resolveGrammarCategory 统一入口）
   const { data: errors } = await sb.from('errors').select('*');
-  const matches = (errors || []).filter(e => normalizeErrorCategory(e.error_pattern, e.original, e.correction, e.rule) === pattern);
+  const matches = (errors || []).filter(e => resolveGrammarCategory(e) === pattern);
   const items = matches.slice(0, 5);
-  let msg = `${pattern} 类型错误 (共 ${matches.length} 个):\n\n`;
+  let msg = `${pattern} 类语法错误 (共 ${matches.length} 个):\n\n`;
   items.forEach(e => { msg += `• ${e.original} → ${e.correction}${e.rule ? ' (' + e.rule + ')' : ''}\n`; });
+  showToast(msg);
+}
+
+// ── 不自然表达分析（v101）────────────────────────────
+// 数据源：reports 表原始 JSON 的 expression 升级句（original→better，即「不像 local」的逐条记录）。
+// 根因口径：新版日报 GPT 打标 pattern 键（4 类枚举）；历史日报无 pattern → 启发式关键词回退归类。
+// 产出：根因分布条形 + 高频不自然句式 TOP 5（出现次数最多的原句，点按看最新升级方案）。
+// 无需 SQL/表迁移：统计直接扫 reports 原始 JSON，历史数据零迁移即受益。
+const EXPRESSION_CAUSES = ['直译语序', '用词搭配', '冗余啰嗦', '表达习惯'];
+let _expressionStats = null;
+
+function classifyExpressionCause(original, better, scene) {
+  const t = [scene, original, better].filter(Boolean).join(' ').toLowerCase();
+  if (/语序|词序|直译|逐字|中式语序|word order/.test(t)) return '直译语序';
+  if (/搭配|collocation|用词|词性|词汇|word choice/.test(t)) return '用词搭配';
+  if (/冗余|重复|啰嗦|赘|多余|redundant/.test(t)) return '冗余啰嗦';
+  return '表达习惯'; // 语法没错但不地道 → 默认归入习惯/语用
+}
+
+async function renderExpressionInsights() {
+  const grp = document.getElementById('expression-insights-group');
+  const box = document.getElementById('expression-insights');
+  if (!grp || !box) return;
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  const { data: reports } = await sb.from('reports').select('date, content').limit(1000);
+  const count = {}; const byText = {}; const days = new Set();
+  (reports || []).forEach(r => {
+    let j = null;
+    try { j = JSON.parse(normalizeSmartQuotes(sanitizeJsonInput(String(r.content || '')))); } catch (e) { return; }
+    const mistakes = (j && Array.isArray(j.mistakes)) ? j.mistakes : [];
+    for (const m of mistakes) {
+      if (!m || m.type !== 'expression' || !m.original) continue;
+      const cause = EXPRESSION_CAUSES.includes(m.pattern) ? m.pattern : classifyExpressionCause(m.original, m.improved, m.explanation);
+      count[cause] = (count[cause] || 0) + 1;
+      days.add(r.date);
+      const key = String(m.original).toLowerCase().replace(/\s+/g, ' ').trim();
+      if (!byText[key]) byText[key] = { key, original: m.original, better: m.improved || '', scene: m.explanation || '', n: 0 };
+      byText[key].n++;
+      if (m.improved) byText[key].better = m.improved;   // 保留最新一次的正句
+      if (m.explanation) byText[key].scene = m.explanation;
+    }
+  });
+  const total = Object.values(count).reduce((a, b) => a + b, 0);
+  if (!total) { grp.classList.add('hidden'); return; }
+  grp.classList.remove('hidden');
+  const top = Object.values(byText).sort((a, b) => b.n - a.n).slice(0, 5);
+  _expressionStats = { top };
+  const sorted = EXPRESSION_CAUSES.map(c => [c, count[c] || 0]).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...sorted.map(([, n]) => n), 1);
+  box.innerHTML = `
+    <div class="flex gap-3 mb-4">${[
+      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${total}</strong>次不自然升级</div>`,
+      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${days.size}</strong>天记录</div>`
+    ].join('')}</div>
+    <div class="mb-3"><div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">不自然根因分布</div>${sorted.map(([name, n]) =>
+      `<div class="flex items-center gap-2.5 mb-2">
+        <span class="whitespace-nowrap min-w-[72px] text-xs text-[var(--c-text-dim)] text-right shrink-0">${name}</span>
+        <div class="flex-1 h-2 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-500" style="width:${(n/max)*100}%;"></div></div>
+        <span class="w-[30px] text-[0.6875rem] text-[var(--c-text-ultradim)] shrink-0">${n}次</span>
+      </div>`
+    ).join('')}</div>
+    <div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">高频不自然句式 TOP ${top.length}</div>
+    ${top.map((t, i) => `
+      <div class="text-xs mb-2 cursor-pointer" data-idx="${i}" onclick="showExpressionDetail(Number(this.dataset.idx))">
+        <div class="line-through text-[var(--c-text-dim)]">${h(t.original)}</div>
+        <div class="text-[var(--c-primary)]">${h(t.better || '')}<span class="ml-1.5 text-[0.6875rem] text-[var(--c-text-ultradim)]">×${t.n}</span></div>
+      </div>`).join('')}
+    <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-1 leading-relaxed">根因口径：新版日报由 GPT 标注 pattern，历史日报按内容启发式归类</div>`;
+  refreshIcons(box);
+}
+
+function showExpressionDetail(idx) {
+  // v101 审计：按 TOP 数组下标取条目（原文本作 data-key 遇值内引号会断属性 —— 旧日报数据可含 " 字符）
+  const top = _expressionStats && _expressionStats.top;
+  const t = top && top[Number(idx)];
+  if (!t) return;
+  let msg = `不自然表达（出现 ${t.n} 次）:\n\n你说: ${t.original}\n更自然: ${t.better || '—'}`;
+  if (t.scene) msg += `\n说明: ${t.scene}`;
   showToast(msg);
 }
 
@@ -3565,12 +3683,13 @@ const TEMPLATES = {
     "fluency": 7,
     "accuracy": 6.5,
     "naturalness": 6,
+    "vocabulary": 7,
     "weak_areas": "时态, 冠词"
   },
   "mistakes": [
-    { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释" },
+    { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释", "category": "动词与时态" },
     { "type": "pronunciation", "original": "发音错误的词或句子", "improved": "正确发音写法", "explanation": "音标或发音要点" },
-    { "type": "expression", "original": "中式或普通的句子", "improved": "更地道高阶的表达", "explanation": "为什么这样说更好" }
+    { "type": "expression", "original": "中式或普通的句子", "improved": "更地道高阶的表达", "explanation": "为什么这样说更好", "pattern": "直译语序" }
   ],
   "coreSentences": [
     { "targetSentence": "高阶金句", "replacedSentence": "被替代的普通表达", "explanation": "使用场景或提示" }
@@ -3583,19 +3702,23 @@ const TEMPLATES = {
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
 1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords 这 5 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
 2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 62。这是从对话内容推导出的客观统计，严禁凭空编造或照抄示例值 62。
-3. summary 必须是对象，且包含以下 8 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、weak_areas（字符串）。8 键一个都不能少。
+3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
-   - "grammar"：语法硬伤（时态、单复数、冠词、句式等）；
+   - "grammar"：语法硬伤——还必须包含第五个键 category（语法弱点分类，只允许以下三个值之一，按错误的本质归类）：
+     "动词与时态"（时态错误、主谓一致、第三人称单数等动词形态问题）、
+     "名词与冠词"（冠词 a/an/the 的缺失或误用、名词单复数等名词属性问题）、
+     "句式与搭配"（介词误用、固定搭配、词性误用、句式结构、其他语法问题）；
+     explanation 必须写明具体的语法规则和改正要点（如「一般过去时用 went」），严禁用分类名代替解释。
    - "pronunciation"：发音错误（读错的词、重音、元音等）；
-   - "expression"：语法正确但不够地道的表达升级。
+   - "expression"：语法正确但不够地道的表达升级——type 为 expression 的项还必须包含第五个键 pattern（不自然根因，只允许以下四个值之一）："直译语序"（中文语序/逐字直译，如 I very like it）、"用词搭配"（用词不当、词性误用或搭配错误，如 learn knowledge）、"冗余啰嗦"（多余的重复或填充，如 more better）、"表达习惯"（语法没错但不符合母语者习惯的说法）。
 5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
 7. coreSentences 与 newWords 不设数量上限：把今天对话中真实出现、值得收录的内容全部整理出来——coreSentences 收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达），newWords 收录所有真实遇到或不会的生词。唯一硬性标准是「真实出现 + 值得收录」：今天没有就输出空数组 []，绝不允许为了凑数量编造内容，也不允许因为觉得太多而漏掉重要内容。
 
 【评分与点评铁律】（专业口语私教评审）：
-- 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）。
+- 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）；vocabulary 词汇丰富度（用词是否丰富准确：是否反复依赖简单词、是否用上对话中学到的新表达）。
 - weak_areas：归纳今天暴露最明显的 1-3 个弱点（中文标签，逗号分隔）。
-- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / "时态, 单复数"。
+- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / 7 / "时态, 单复数"。
 - summary.dailyThought：en 用英文一句话总结今天最值得改进的一点；zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
 
 【引号铁律】——违反任何一条 = 整份日报报废，系统直接拒收：
@@ -3608,8 +3731,8 @@ const TEMPLATES = {
 【输出前自检】——必须逐条确认，全部通过才允许输出：
 □ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
-□ 顶层 5 个键齐全，summary 的 8 个键齐全，空内容用 [] 不用 null；
-□ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种；
+□ 顶层 5 个键齐全，summary 的 9 个键齐全，空内容用 [] 不用 null；
+□ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
 □ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是示例值 62；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 所有键名与上面示例结构一字不差。`
@@ -3701,7 +3824,9 @@ async function importJsonDailyReport(jsonReport, rawText) {
       user_id: uid, type: 'grammar', original: m.original || '',
       correction: m.improved || '', rule: m.explanation || '',
       date_added: date, source_topic: topic,
-      error_pattern: classifyErrorType(m.original, m.improved, m.explanation)
+      // v101：error_pattern 列改承载语法 3 桶标签（GPT 显式 category 优先，关键字回退）——
+      // 旧值（v60-99 的 4 标准分类）无活消费者，渲染层 resolveGrammarCategory 对旧值自动回退关键字归类
+      error_pattern: resolveGrammarCategory(m)
     });
   }
   if (allErrors.length) await sb.from('errors').insert(allErrors);
@@ -3763,7 +3888,9 @@ async function importDailyReport(parsed) {
   // v99：发音纠正（parsed.pronunciation）不再写入 errors 表（用户指令：错题本只收语法）
   for (const e of parsed.grammar) allErrors.push({
     user_id: uid, type: 'grammar', original: e.original || '', correction: e.correction || '',
-    rule: e.rule || '', date_added: date, source_topic: topic, error_pattern: classifyErrorType(e.original, e.correction, e.rule || '')
+    rule: e.rule || '', date_added: date, source_topic: topic,
+    // v101：Markdown 日报无 GPT category 标签 → 关键字启发式归类（与 JSON 链路同一 3 桶口径）
+    error_pattern: classifyGrammarCategory(e.original, e.correction, e.rule || '')
   });
   if (allErrors.length) await sb.from('errors').insert(allErrors);
 
@@ -3853,10 +3980,12 @@ function applyTheme(theme, mode) {
   localStorage.setItem('voco-theme', theme);
   localStorage.setItem('voco-mode', mode);
 
-  // Update theme picker (circle buttons)
+  // Update theme picker (circle buttons) —— v101：选中项 = 主色描边 + ring + ✓ 角标（废弃旧硬编码字母方案）
   document.querySelectorAll('#theme-picker button').forEach(b => {
-    b.style.borderColor = b.dataset.theme === theme ? 'var(--c-primary)' : 'transparent';
-    if (b.dataset.theme === theme) b.classList.add('ring-2'); else b.classList.remove('ring-2');
+    const active = b.dataset.theme === theme;
+    b.style.borderColor = active ? 'var(--c-primary)' : 'transparent';
+    if (active) b.classList.add('ring-2'); else b.classList.remove('ring-2');
+    b.textContent = active ? '✓' : '';
   });
 
   // Update mode toggle
@@ -3931,24 +4060,59 @@ async function importJSON() {
       const data = JSON.parse(text);
       const { data: { session } } = await sb.auth.getSession();
       if (!session) return;
+      if (!window.confirm('导入会新增记录，重复导入同一备份会产生重复数据。确定继续？')) return;
+      const uid = session.user.id;
+      const notes = [];
       let imported = 0;
-      if (data.vocabulary?.length) {
-        const items = data.vocabulary.map(v => ({ ...v, id: undefined, user_id: session.user.id }));
+      // v101 补全备份还原：导出 6 表 → 导入 6 表（此前只还原 3/6，备份形同虚设）。
+      // 每表独立 try/catch：单表失败只降级该表，绝不拖垮整体恢复。
+      const safe = async (label, fn) => {
+        try {
+          const n = await fn();
+          if (n > 0) { imported += n; notes.push(`${label} ${n}`); }
+        } catch (err) {
+          console.error(`[importJSON] ${label} 还原失败（真实堆栈）:`, err);
+          notes.push(`${label} 失败`);
+        }
+      };
+      await safe('词汇', async () => {
+        if (!data.vocabulary?.length) return 0;
+        const items = data.vocabulary.map(v => ({ ...v, id: undefined, user_id: uid }));
         await sb.from('vocabulary').insert(items);
-        imported += items.length;
-      }
-      if (data.errors?.length) {
+        return items.length;
+      });
+      await safe('错题', async () => {
+        if (!data.errors?.length) return 0;
         // v86 全局加固：文件导入同样先碎片合并再入库 —— 碎片行从此绝无可能再次进入 errors 表
-        const items = mergeLabelFragments(data.errors).map(e => ({ ...e, id: undefined, user_id: session.user.id }));
+        const items = mergeLabelFragments(data.errors).map(e => ({ ...e, id: undefined, user_id: uid }));
         await sb.from('errors').insert(items);
-        imported += items.length;
-      }
-      if (data.patterns?.length) {
-        const items = mergeLabelFragments(data.patterns).map(p => ({ ...p, id: undefined, user_id: session.user.id }));
+        return items.length;
+      });
+      await safe('句型', async () => {
+        if (!data.patterns?.length) return 0;
+        const items = mergeLabelFragments(data.patterns).map(p => ({ ...p, id: undefined, user_id: uid }));
         await sb.from('patterns').insert(items);
-        imported += items.length;
-      }
-      showToast(`📥 已导入 ${imported} 条数据`);
+        return items.length;
+      });
+      await safe('日报', async () => {
+        if (!data.reports?.length) return 0;
+        const rows = data.reports.map(r => ({ ...r, id: undefined, user_id: uid }));
+        await sb.from('reports').upsert(rows, { onConflict: 'user_id,date' }); // 同日覆盖，重复导入幂等
+        return rows.length;
+      });
+      await safe('进度', async () => {
+        const p = Array.isArray(data.progress) ? data.progress[0] : data.progress;
+        if (!p) return 0;
+        await sb.from('progress').upsert({ ...p, id: undefined, user_id: uid }, { onConflict: 'user_id' });
+        return 1;
+      });
+      await safe('话题', async () => {
+        if (!data.topics?.length) return 0;
+        const rows = data.topics.map(t => ({ ...t, id: undefined, user_id: uid }));
+        await sb.from('topics').upsert(rows, { onConflict: 'user_id,title' });
+        return rows.length;
+      });
+      showToast(`📥 导入完成：${notes.join(' · ') || '无可导入内容'}`);
       loadHome();
     } catch (err) {
       showToast('❌ 导入失败：文件格式错误');
@@ -4271,5 +4435,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=81');
+  navigator.serviceWorker.register('/sw.js?v=101');
 }

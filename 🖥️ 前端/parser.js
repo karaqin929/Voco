@@ -28,7 +28,7 @@ function parseSpeakingRatio(text) {
 
 // ── 分类规则提取引擎（4 标准分类归一化）────────────────────
 // 收敛为且仅收敛为：发音与重音 / 语法与句式 / 地道表达 / 逻辑与衔接，全部未命中才归「其他」。
-// 供解析器（parseItems）、app.js normalizeErrorCategory（存量标签映射）、高频错误模式聚合共用 —— 单一分类源。
+// 供解析器（parseItems）与 app.js normalizeErrorCategory（存量标签映射/错题卡渲染链路）共用 —— 单一分类源。
 function classifyErrorType(original, correction, rule) {
   const text = [rule, original, correction].filter(Boolean).join(' ').toLowerCase();
   const o = (original || '').toLowerCase();

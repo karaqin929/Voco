@@ -122,10 +122,19 @@
 }
 
 /* ═══ Eye-care mode: soft sage green tint (reduces eye strain) ═══ */
+/* v101：完整变量组（此前只设 bg/surface/card 三键 + 文件尾部米黄硬编码互相打架 = 怪异配色根源） */
 [data-mode="eye-care"] {
-  --bg: #E5EBE0;
-  --surface: #F0F4EC;
-  --card: #F0F4EC;
+  --bg: #E5EBE0; --surface: #F0F4EC; --card: #F0F4EC;
+  --primary: #7D8B74; --primary-light: #E0E6DA; --primary-dark: #63715B;
+  --blue: #84988C; --blue-light: #E4ECE6;
+  --green: #7A9472; --green-light: #E2ECE0;
+  --orange: #B4A088; --orange-light: #F4EEE4;
+  --red: #B08884;
+  --text: #384034; --text-dim: #788474; --text-ultradim: #A8B0A4;
+  --border: #D8E0D0; --border-light: #E8EEE2;
+  --shadow-sm: 0 1px 3px rgba(40,55,30,0.04);
+  --shadow: 0 2px 12px rgba(40,55,30,0.06);
+  --shadow-md: 0 4px 20px rgba(40,55,30,0.08);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -386,12 +395,7 @@ textarea::placeholder { color: var(--text-ultradim); }
 [data-mode="dark"] .app-header, [data-mode="dark"] .tab-bar { background: var(--surface); border-color: var(--border); }
 [data-mode="dark"] .vocab-card { background: var(--surface); }
 [data-mode="dark"] input, [data-mode="dark"] textarea, [data-mode="dark"] select { background: var(--bg); color: var(--text); border-color: var(--border); }
-
-/* Eye-care mode overrides */
-[data-mode="eye-care"] body { background: #F5E6D3; }
-[data-mode="eye-care"] .app-header { background: #FBF3E8; border-color: #E8D8C0; }
-[data-mode="eye-care"] .tab-bar { background: #FBF3E8; border-color: #E8D8C0; }
-[data-mode="eye-care"] input, [data-mode="eye-care"] textarea { background: #F5E6D3; border-color: #D8CCB8; }
+/* v101：护眼模式米黄硬编码 4 行已物理删除 —— 与顶部 sage 变量组冲突，是怪异配色的直接来源 */
 
 /* ── Topic Generator 话题 Pill（Voco 2.0 聊前灵感配置舱）── */
 .topic-pill {
