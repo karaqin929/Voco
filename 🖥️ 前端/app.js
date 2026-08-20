@@ -41,6 +41,24 @@
 //            parseSmartReport 双入口；旧僵尸行（带包装文本）读取时也能现场解析。③ JSON 意图但解析失败 →
 //            toast-error 显式报错并中断（禁止静默空壳行）；JSON 入库完成 toast 不再被「导入成功」覆盖。
 //            ④ 导入成功 _viewDate=null 强制回今日视图再 loadHome。⑤ 评分小数制 ×10 映射（L809 norm100）核查无误。
+// v104 首页四维信息架构重构 + 任务 2 换皮不换骨（5 点大改版）：① getDayCounts(parsed) 四维计数 SSOT
+//            （面板子块/提升区/跳转列表/审计共用同一函数同一数据桶，数量 100% 绝对一致；语法口径 = standardizeErrorCards
+//            纯 grammar，发音 v99 起不计）；② 打分面板四子块改版（当日新词/语法纠正/自然表达/核心句型，话题块删除）；
+//            ③ 提升区「需要提升」固定四块（标签+摘要+举例+按钮），goImprove(type) 统一导航精准携带 currentContextDate；
+//            ④ 三张数据卡（新学单词/核心句型/重点纠错）整体删除，首页只留 To-Do List；⑤ 句型复习页三视图
+//            （?view=expressions|core 对比阅读卡片列表 + 默认 SRS 翻卡卡组，sub-tab 切换保留 date 参数）；
+//            ⑥ 任务 2 换皮不换骨：挖空引擎 buildCloze 物理删除，翻卡改标准 SRS（正面仅情境、背面正确句+原句+解析、
+//            反馈键翻卡后才显示），rateSentenceCard/handleReviewFeedback 调度层零改动；⑦ Profile 数据管理新增
+//            「日报一致性审计」（runReportAudit 逐份日报四维钩稽）；⑧ 死代码物理删除：IMPROVE_TYPES/showImprovementDetail/
+//            startImprovementSpeak/showNextStepDetail/showSuggestionModal/classifySuggestion/copyText/detectErrorCategory/
+//            detectErrorPattern/d.nextSteps/targetAreas/executiveSummary/highlights/overallReview。
+//            ⑨ SM-2 队列断层修复（用户指令）：队列纯库捞 —— getDueSentencesQueue(_speakAll) 只从 patterns 库取
+//            needsReview===true 行（新卡=无 next_review_date，到期卡=曲线到期），运行时解析拼凑（coreDeck/expressionDeck
+//            拼接、expr-N/core-N 临时 id）物理退役；导入即正式入库（Markdown 链路补 sentence_patterns，与 JSON 同构）；
+//            reviewPatternItem 文本锚定 UPSERT（先按文本在库中定位既有行 UPDATE 补曲线，未命中才 INSERT）——根治
+//            「导入行 + 复习 INSERT 行」双行双曲线；dedupePatternsByText 库级文本去重收敛存量双行；
+//            getTodayMissionState 句型三输出删除（_dailyPatterns 退役），待办数字 = getDueSentencesQueue 同函数同源；
+//            旧 Speak 过滤机器（SPEAK_PATTERN_TOPICS/SPEAK_FILTER_ALIASES/matchSpeakFilter）零调用方 → 物理删除。
 // ═══════════════════════════════════════════════════════
 
 // ── Tab Switching ──────────────────────────────────────
@@ -153,13 +171,15 @@ function navigateReview(tab, filter, date) {
 // /shadowing?id=${item.id}&date=YYYY-MM-DD — 句型复习页按 id 锚定到指定句（绝不从第 0 句开始）
 // date：v82 日期路由 + v85 今日携带 —— 携带日期（含今日）→ 卡片队列 = 该日日报核心句型；
 //       无 date（待办打卡入口）→ SM-2 到期混合队列
-function navigateShadowing(id, sentence, date) {
+// view：v104 三视图 flag（expressions|core）→ 对比阅读卡片列表；缺省 → SRS 翻卡卡组
+function navigateShadowing(id, sentence, date, view) {
   _activeFilter = null; _activeFilterLabel = '';
   const qs = [];
   if (id !== undefined && id !== null && id !== '') qs.push('id=' + encodeURIComponent(id));
   // sentence：首页「今天需要提升」点击的句文本 —— 卡片队列以这一句为首张，禁止从默认句开始
   if (sentence) qs.push('sentence=' + encodeURIComponent(sentence));
   if (date) qs.push('date=' + encodeURIComponent(date));
+  if (view === 'expressions' || view === 'core') qs.push('view=' + view);
   window.history.pushState({}, '', '/shadowing' + (qs.length ? '?' + qs.join('&') : ''));
   _navigatingViaProgram = true;
   document.querySelector('.tab[data-tab=speak]').click();
@@ -208,10 +228,13 @@ function handleRoute() {
       : (['all', 'grammar', 'due', 'topics', 'new', 'mistakes', 'review'].includes(t) ? t : 'all');
   } else if (path === '/shadowing') {
     tab = 'speak';
-    _activeFilter = null; _activeFilterLabel = ''; // URL 的 filter/id/date 参数才是句型复习页唯一事实源
+    _activeFilter = null; _activeFilterLabel = ''; // URL 的 filter/id/date/view 参数才是句型复习页唯一事实源
     // v85：date 含今日也是合法当日上下文（首页核心句型卡携带 date=today → 队列 = 当日日报句型）
-    const dParam = new URLSearchParams(location.search).get('date');
+    const sp = new URLSearchParams(location.search);
+    const dParam = sp.get('date');
     _ctxDate = dParam || null;
+    // v104 三视图：?view=expressions|core → 列表视图；缺省 → SRS 翻卡卡组
+    _speakView = (sp.get('view') === 'expressions' || sp.get('view') === 'core') ? sp.get('view') : '';
   } else if (path === '/') {
     _ctxDate = null; // 首页无日期上下文（历史视图走 _viewDate，不经 URL 路由）
     const t = new URLSearchParams(location.search).get('tab') || 'home';
@@ -321,16 +344,11 @@ const ICO_REPEAT = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" 
 let _viewDate = null; // null=today, else 'YYYY-MM-DD' for history view
 
 // ── v95 空态数据（演示假数据已物理删除）：无数据/解析异常一律渲染空状态，绝不回退 Mock ──
+// v104：improvements/nextSteps/executiveSummary/highlights/targetAreas/overallReview 已随死代码族物理删除
 const EMPTY_INSIGHTS = {
   topics: [],
   thoughts: null,
-  strengths: [],
-  improvements: [],
-  nextSteps: [],
-  executiveSummary: null,
-  highlights: [],
-  targetAreas: [],
-  overallReview: null
+  strengths: []
 };
 
 // v95 演示词库/句型库/错词库已物理删除：云端数据为空 = 空库 = 空状态，严禁注入假数据
@@ -408,16 +426,16 @@ function renderHomeSections() {
   // v93：今日日报判定加 isDailyReport 过滤——与熊条/Hero 判定绝对对齐（僵尸行不再亮「已打卡」徽章）
   const todayReport = rList.find(r => r.date === today && isDailyReport(r));
   // ── 时间轴拦截（UI 渲染保护，Voco 2.0）：渲染任何「今日」概念组件前先解构任务状态中心 ──
-  const missionState = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
+  const missionState = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds);
   // v75 历史视图：洞察卡展示值直取所选日期日报（_historyParsed）；今日视图仍走任务状态中心时间网关
   const historyMode = !!(_viewDate && _historyParsed);
   // 无今日报告 → 强制清空依赖今日数据的展示状态（严禁泄漏昨天数据）；历史视图除外
   const displayThoughts = historyMode ? ((_historyParsed.summary || {}).dailyThought || null) : (missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).dailyThought || null) : null);
   const displayGoodPoints = historyMode ? ((_historyParsed.summary || {}).strengths || []) : (missionState.hasRealTodayReport ? ((_reportParsed.summary || {}).strengths || []) : []);
-  // ── 空状态全局折叠（UX 重构）：今天视图且未导入今日日报 → 折叠打分面板/洞察卡/三数据卡，Hero 引导卡顶上 ──
+  // ── 空状态全局折叠（UX 重构）：今天视图且未导入今日日报 → 折叠打分面板/洞察卡，Hero 引导卡顶上 ──
   // 常驻组件：本周打卡卡（#home-quote）与今日待办（#home-quests）；历史视图（_viewDate）不受此门影响
   const showEmptyHero = !missionState.hasRealTodayReport && !_viewDate;
-  ['home-metrics', 'home-insights', 'home-summary-cards'].forEach(id => {
+  ['home-metrics', 'home-insights'].forEach(id => {
     const node = document.getElementById(id);
     if (node) node.classList.toggle('hidden', showEmptyHero);
   });
@@ -442,8 +460,7 @@ function renderHomeSections() {
   // Section 4: Insights (Cards A-F) —— 时间轴拦截后的展示值直传（无今日报告即为 null/[]）
   renderInsightsSection(displayThoughts, displayGoodPoints);
 
-  // Section 5: Content Cards + Todos
-  renderContentCards();
+  // Section 5: Todos（v104：三张数据卡已删除，只保留 To-Do List）
   renderTodoList(speakDoneToday);
 }
 
@@ -773,6 +790,29 @@ function stampPatternTags(patterns) {
   });
 }
 
+// v104 句型库文本去重（v103 词库 dedupeWordsByWord 同款先例）：历史「导入行 + 复习 INSERT 行」双行遗留 →
+// 展示层收敛为一知识一行。保留规则：有复习记录（next_review_date 或 review_count>0）的行优先（SM-2 曲线最真），
+// 其次 created_at 较新者；只读去重，不碰存量 DB 行（物理清理走 ⚙️ 后端 SQL，见 cleanup_vocab_dupes.sql 先例）
+function dedupePatternsByText(list) {
+  const seen = new Set();
+  const scored = (list || []).map(p => ({
+    p,
+    hasCurve: !!(p && (p.next_review_date || (p.review_count || 0) > 0)),
+    created: String((p && p.created_at) || '')
+  })).sort((a, b) => {
+    if (a.hasCurve !== b.hasCurve) return a.hasCurve ? -1 : 1;
+    return b.created.localeCompare(a.created);
+  });
+  const out = [];
+  for (const { p } of scored) {
+    const k = String(p.targetSentence || p.better || p.original || '').toLowerCase().trim();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(p);
+  }
+  return out;
+}
+
 // ═══ 渲染层计数（纯布尔读取，零时间判断、零兜底逻辑） ═══
 // 顶部 SM-2 卡片数字 / 首页待办 / 复习页 tab=review 列表 —— 三处共用同一规则，绝不分叉
 function countTodayWords(words) {
@@ -787,7 +827,7 @@ function countReviewWords(words) {
 
 function renderMetricsOverview() {
   const grid = document.getElementById('home-metrics');
-  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
+  const ms = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds);
   // v75 历史视图早分支：所选日期日报存在 → 渲染该日真实数据（评分口径与今日分支完全一致），今日时间网关不拦截
   const historyMode = !!(_viewDate && _historyParsed);
   // 时间网关（Voco 2.0）：今日未导入日报 → 数字全部清零（四维度 0/100、综合 --），绝不回退 Mock 或历史数据
@@ -807,13 +847,16 @@ function renderMetricsOverview() {
   const overall = Math.round((fluency+accuracy+natural+vocabScore)/4);
   const duration = parsed.meta.duration||0;
   const speakTime = Math.round(duration*0.6);
-  const topics = (parsed.meta.topic || '') ? String(parsed.meta.topic).split(/[,，、]/).filter(Boolean).length : 0;
-  const newWords = historyMode ? (parsed.vocabulary || []).length : ms.todayNewWordsCount;
-  const expressions = (parsed.patterns || []).length;
-  const corrections = historyMode ? ((parsed.grammar || []).length + (parsed.pronunciation || []).length) : ms.todayCorrectionsCount;
+  // v104 四子块计数 = getDayCounts SSOT（与四按钮跳转页列表同一函数同一数组，数量 100% 绝对一致）
+  // 语法口径修正：纯 grammar 标准清洗计数（历史/今日同口径，发音 v99 起不计入）
+  const counts = getDayCounts(parsed);
+  const newWords = counts.vocab;
+  const expressions = counts.expressions;
+  const corrections = counts.grammar;
+  const core = counts.core;
   // Voco 2.0 对话占比：parser.js parseSpeakingRatio 的角色词数（无记录 → null，条内优雅降级）
   const ratio = (parsed.summary && parsed.summary.speakingRatio) || null;
-  grid.innerHTML = metricsHTML(overall, speakTime, duration, fluency, accuracy, vocabScore, natural, topics, newWords, expressions, corrections, ratio);
+  grid.innerHTML = metricsHTML(overall, speakTime, duration, fluency, accuracy, vocabScore, natural, newWords, expressions, corrections, core, ratio);
   refreshIcons(grid);
 }
 
@@ -824,7 +867,8 @@ function norm100(v) {
   return Math.max(0, Math.min(100, Math.round(n <= 10 ? n * 10 : n)));
 }
 
-function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natural, topics, newWords, expressions, corrections, ratio) {
+// v104 四子块改版（用户指令）：X个当日新词 / X项语法纠正 / X个自然表达 / X个核心句型 ——「话题」块已删除（与下方话题卡重复）
+function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natural, newWords, expressions, corrections, core, ratio) {
   // v103 对话占比简化（用户指令）：头部行 = 「百分比 + 开口时长/总对话时长」小字标签，去掉总分钟数与下方进度条
   // 两种数据源（新版 JSON {user,ai,pct:true} / 旧 Markdown {user,ai} 词数）统一折算成你%呈现；
   // 无占比的旧日报保留分钟形态；两者皆无 → 占位提示
@@ -863,10 +907,10 @@ function metricsHTML(overall, speakMin, totalMin, fluency, grammar, vocab, natur
       </div>`).join('')}
     </div>
     <div class="flex gap-1.5 flex-wrap pt-3 border-t border-[var(--c-border-light)]">
-      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('message-circle','w-3.5 h-3.5')} ${topics}</strong>个话题</div>
-      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('pen-line','w-3.5 h-3.5')} ${newWords}</strong>个新词</div>
-      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('message-square-text','w-3.5 h-3.5')} ${expressions}</strong>个表达</div>
-      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('wrench','w-3.5 h-3.5')} ${corrections}</strong>项纠正</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('pen-line','w-3.5 h-3.5')} ${newWords}</strong>个当日新词</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('wrench','w-3.5 h-3.5')} ${corrections}</strong>项语法纠正</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('message-square-text','w-3.5 h-3.5')} ${expressions}</strong>个自然表达</div>
+      <div class="flex-1 min-w-[60px] text-center px-1.5 py-1.5 bg-[var(--c-bg)] rounded-lg text-[0.6875rem] text-[var(--c-text-dim)]"><strong class="flex items-center justify-center gap-0.5 text-xl text-[var(--c-text)] font-bold">${icon('gem','w-3.5 h-3.5')} ${core}</strong>个核心句型</div>
     </div>`;
 }
 
@@ -878,24 +922,13 @@ function metricsDonut(score) {
   return `<svg viewBox="0 0 88 88" width="88" height="88"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--c-border-light)" stroke-width="${sw}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${len} ${circ-len}" stroke-dashoffset="0" transform="rotate(-90 44 44)" stroke-linecap="round"/></svg><div class="absolute inset-0 flex items-center justify-center text-[1.5rem] font-extrabold text-[var(--c-text)]">${score}</div>`;
 }
 
-// ── 「今天需要提升」教练视角分类配置 ─────────────────────
-// grammar（语法纠错）/ expression（自然表达）/ structure（语法纠错·逻辑衔接）
-// v77 正向输入原则：原句仅小字灰显对照，全句红色删除线绝对禁止（防错误印象石化）
-// v99 标签改版（用户指令）：「语法」→「语法纠错」（跳转语法错题）、「选词」→「自然表达」（跳转句型复习）
-const IMPROVE_TYPES = {
-  grammar:    { badge: '📖 语法纠错',   badgeCls: 'bg-red-50 text-[var(--c-red)]',   wrongCls: 'text-[var(--c-text-ultradim)]', rightCls: 'text-[var(--c-green)]', btn: '查看纠错' },
-  expression: { badge: '🎯 自然表达',   badgeCls: 'bg-amber-50 text-amber-600',      wrongCls: 'text-[var(--c-text-dim)]',      rightCls: 'text-[var(--c-blue)]',  btn: '句型复习体验' },
-  structure:  { badge: '📖 语法纠错',   badgeCls: 'bg-blue-50 text-[var(--c-blue)]', wrongCls: 'text-[var(--c-text-dim)]',      rightCls: 'text-[var(--c-blue)]',  btn: '专项句型复习' }
-};
-
 // ── Section 4: Insights (Cards A-F) ─────────────────────
 function renderInsightsSection(displayThoughts, displayGoodPoints) {
   const container = document.getElementById('home-insights');
-  _insightsParsed = null;
   // v75 历史视图早分支：所选日期日报存在 → 该日数据直通渲染，今日时间网关不拦截
   const historyMode = !!(_viewDate && _historyParsed);
   // 时间网关（Voco 2.0）：任务状态中心判定今日未导入日报 → 整区优雅空状态，绝对禁止历史数据穿透进「今日」卡组
-  if (!historyMode && !getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary).hasRealTodayReport) {
+  if (!historyMode && !getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds).hasRealTodayReport) {
     container.innerHTML = `<div class="bg-[var(--c-surface)] rounded-2xl p-6 text-center border border-dashed border-[var(--c-border)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="box-shadow:var(--c-shadow-sm)">
       <div class="text-2xl mb-2">⏳</div>
       <div class="text-sm font-semibold text-[var(--c-text)]">等待导入今日报告</div>
@@ -908,52 +941,11 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // 单一事实源：今日=_reportParsed；历史视图=_historyParsed（v75），禁止在此重新解析
   let d = JSON.parse(JSON.stringify(EMPTY_INSIGHTS));
   const p = historyMode ? _historyParsed : _reportParsed;
-  _insightsParsed = p;
   if(p && p.meta.topic) d.topics = p.meta.topic.split(/[,，、]/).map(t=>t.trim()).filter(Boolean);
-  if(p && (p.summary.review||p.summary.thoughts)) d.overallReview = [p.summary.review,p.summary.thoughts].filter(Boolean).join('\n\n');
   // 今日对话想法 / 做得好的地方：时间轴拦截后的展示值直传（loadHome 已按 missionState 强制清空历史数据）
   if (displayThoughts && (displayThoughts.en || displayThoughts.zh)) d.thoughts = displayThoughts;
   if (displayGoodPoints) { const arr = Array.isArray(displayGoodPoints) ? displayGoodPoints : String(displayGoodPoints).split('\n'); const lines = arr.filter(Boolean).map(l => String(l).replace(/^[-•*]\s*/, '')); if (lines.length) d.strengths = lines; }
-  const allErr = p ? (p.grammar || []) : [];   // v99：发音错题整体移出错题体系（错题本与提升区），提升区只收语法；v95 空防护：无报告 → 空数组 → 空状态
-  // 双维度打标：grammar = 语法纠错（硬性错误，红线纠正）；expression = 自然表达（语法没错，只替换不判错）
-  const merged = [
-    ...allErr.slice(0, 2).map(e => ({
-      type: 'grammar', issue: '语法纠错',
-      wrong: e.original || '', correct: e.correction || '', explanation: e.rule || '',
-      detail: (e.original||'') + ' → ' + (e.correction||'') + (e.rule ? '（' + e.rule + '）' : ''),
-      action: '查看纠错', tab: 'words', filter: 'mistakes', filterLabel: '高频错词'
-    })),
-    ...(p.patterns || []).filter(x => x.better).slice(0, 2).map(e => ({
-      type: 'expression', issue: '自然表达',
-      wrong: e.original || '', correct: e.better || '', explanation: e.scene || '',
-      detail: (e.original||'') + ' → ' + (e.better||''),
-      action: '专项句型复习', tab: 'speak', filter: '', filterLabel: '自然表达'
-    }))
-  ];
-  if (merged.length) d.improvements = merged;
-  if(p && p.summary.next_suggestions){ const steps = p.summary.next_suggestions.split('\n').filter(Boolean).map(l=>l.replace(/^[-•*\d]+[\.\、]\s*/,'')); if(steps.length) d.nextSteps = steps.slice(0,3).map(s=>({step:s,action:'去练习',tab:'speak'})); }
-  // v6.0: derive executive summary fields from real report data
-  if(allErr.length) {
-    d.targetAreas = allErr.slice(0,3).map(e => ({
-      category: detectErrorCategory(e.original, e.correction),
-      label: e.rule || e.type || '表达纠正',
-      keyword: (e.correction || '').slice(0, 20),
-      count: 1,
-      filterKey: 'mistakes',
-      filterLabel: '高频错词',
-      actionLabel: '去纠错'
-    }));
-  }
-  if (d.strengths.length) {
-    d.highlights = d.strengths.slice(0, 3).map(s => ({ text: s }));
-  }
-  if (p && p.summary.review) {
-    d.executiveSummary = p.summary.review.slice(0, 100) + (p.summary.review.length > 100 ? '…' : '');
-  }
   const card = (delay,html) => `<div class="bg-[var(--c-surface)] rounded-2xl p-4 mb-2.5 border border-[var(--c-border-light)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s;box-shadow:var(--c-shadow-sm)">${html}</div>`;
-  const cardBg = (delay,html) => `<div class="bg-[var(--c-bg)] rounded-2xl p-4 mb-2.5 border-l-[3px] border-l-[var(--c-primary)] opacity-0 animate-[fadeInUp_0.3s_ease-out_forwards]" style="animation-delay:${delay}s">${html}</div>`;
-
-  _currentInsights = d;
 
   let html = '';
   // v75 历史视图标签语境：今日 → 当日（顶部横幅已标明「正在查看 {date} 数据」，卡片标题同步去「今日」歧义）
@@ -988,76 +980,73 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   }
   // Card C: Strengths
   html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} ${dayLabel}做得好的地方</div>${d.strengths.length ? d.strengths.map(s=>`<div class="flex items-start gap-2 text-[0.875rem] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('') : '<div class="text-sm text-[var(--c-text-ultradim)]">当日无数据</div>'}`);
-  // Card D: 进阶引导 — 一条 = 一卡，按 type 分流教练视角（硬伤红线 / 软性升级 / 逻辑结构）
+  // Card D: 需要提升 —— v104 固定四块（与打分面板四子块 1:1 对应）：词汇 / 语法纠正 / 自然表达 / 核心句型
+  // 每块 = 标签 + 动态摘要（无数据 → 空态文案）+ 首条举例 + 右侧跳转按钮（goImprove 精准携带当前浏览日期）
+  const vocabList = (p && p.vocabulary) || [];
+  const grammarList = standardizeErrorCards(p ? (p.grammar || []) : []); // 与语法错题列表/面板计数同函数
+  const exprList = (p && p.patterns) || [];
+  const coreList = (p && p.sentence_patterns) || [];
+  // 最高频语法错误桶（v101 三类：GPT category 标签直读，旧数据关键字回退）；最高频不自然根因（4 枚举）
+  const grammarTop = grammarList.length ? aggregateGrammarCategories(p.grammar)[0] : null;
+  const exprTop = (() => {
+    if (!exprList.length) return null;
+    const count = {};
+    exprList.forEach(x => { const c = EXPRESSION_CAUSES.includes(x.pattern) ? x.pattern : '表达习惯'; count[c] = (count[c] || 0) + 1; });
+    return Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+  })();
+  const firstVocab = vocabList[0];
+  const firstGrammar = grammarList[0];
+  const firstExpr = exprList.find(x => x && x.better) || exprList[0];
+  const firstCore = coreList[0];
+  const improveBlocks = [
+    {
+      badge: '📚 词汇', badgeCls: 'bg-[var(--c-primary-light)] text-[var(--c-primary)]',
+      summary: vocabList.length ? `${dayLabel}新词 <strong>${vocabList.length}</strong> 个待巩固` : `${dayLabel}无词汇记录`,
+      example: firstVocab ? `${String(firstVocab.word || '').trim()}${firstVocab.meaning ? ' · ' + String(firstVocab.meaning).trim() : ''}` : '',
+      exampleLabel: '示例', btn: `复习${dayLabel}新词`, type: 'vocab'
+    },
+    {
+      badge: '📖 语法纠正', badgeCls: 'bg-red-50 text-[var(--c-red)]',
+      summary: grammarList.length
+        ? `最高频：${grammarTop ? grammarTop[0] + '（' + grammarTop[1] + ' 处）' : '语法问题'}`
+        : `${dayLabel}无语法纠错`,
+      example: firstGrammar ? `${String(firstGrammar.original || '').trim()} → ${String(firstGrammar.correction || '').trim()}` : '',
+      exampleLabel: '举例', btn: `复习${dayLabel}纠错`, type: 'grammar'
+    },
+    {
+      badge: '🎯 自然表达', badgeCls: 'bg-amber-50 text-amber-600',
+      summary: exprList.length
+        ? `不够地道的表达 <strong>${exprList.length}</strong> 句${exprTop ? ` · 主要问题：${exprTop[0]}` : ''}`
+        : `${dayLabel}无自然表达记录`,
+      example: firstExpr ? `${String(firstExpr.original || '').trim()} → ${String(firstExpr.better || '').trim()}` : '',
+      exampleLabel: '举例', btn: `${dayLabel}自然表达`, type: 'expression'
+    },
+    {
+      badge: '💎 核心句型', badgeCls: 'bg-blue-50 text-[var(--c-blue)]',
+      summary: coreList.length
+        ? `<strong>${coreList.length}</strong> 句高阶金句已收录`
+        : `${dayLabel}无核心句型记录`,
+      example: firstCore ? String(firstCore.pattern || firstCore.targetSentence || firstCore.text || '').trim() : '',
+      exampleLabel: '金句', btn: `${dayLabel}核心句型`, type: 'core'
+    }
+  ];
   html += `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2 px-1">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} ${dayLabel}需要提升</div>`;
-  html += d.improvements.length ? d.improvements.map((im, i) => {
-    // Legacy fallback: derive structured fields from detail string if new fields absent
-    const parts = (im.detail || '').split(' → ');
-    const wrong = im.wrong || parts[0] || '';
-    const correct = im.correct || (parts.length > 1 ? parts.slice(1).join(' → ').replace(/^应为\s*/, '') : '');
-    const explanation = im.explanation || (parts.length > 1 ? '' : parts[0] || '');
-    const conf = IMPROVE_TYPES[im.type] || IMPROVE_TYPES.grammar;
-    return card(0.12 + i * 0.02, `
-      <div class="flex items-start justify-between gap-4 cursor-pointer" onclick="showImprovementDetail(${i})">
-        <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-          <span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${conf.badgeCls}">${conf.badge}</span>
-          ${wrong ? `<p class="text-sm ${conf.wrongCls}">${h(wrong)}</p>` : ''}
-          ${correct ? `<p class="text-sm font-semibold ${conf.rightCls}">→ ${h(correct)}</p>` : ''}
-          ${explanation ? `<p class="text-xs text-[var(--c-text-ultradim)] mt-1">${h(explanation)}</p>` : ''}
-        </div>
-        <button class="shrink-0 px-3 py-1.5 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] text-xs text-[var(--c-text-dim)] rounded-full flex items-center gap-1 transition-colors border-0 cursor-pointer mt-1" onclick="event.stopPropagation();showImprovementDetail(${i})">
-          ${conf.btn} ${icon('arrow-right','w-3 h-3')}
-        </button>
+  html += improveBlocks.map((b, i) => card(0.12 + i * 0.02, `
+    <div class="flex items-start justify-between gap-3">
+      <div class="flex flex-col gap-1.5 flex-1 min-w-0">
+        <span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.badgeCls}">${b.badge}</span>
+        <p class="text-sm text-[var(--c-text-dim)]">${b.summary}</p>
+        ${b.example ? `<p class="text-xs text-[var(--c-text-ultradim)]">${b.exampleLabel}：${h(b.example)}</p>` : ''}
       </div>
-    `);
-  }).join('') : '<div class="text-sm text-[var(--c-text-ultradim)] px-1">当日无数据</div>';
+      <button class="shrink-0 px-3 py-1.5 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] text-xs text-[var(--c-text-dim)] rounded-full flex items-center gap-1 transition-colors border-0 cursor-pointer mt-1" onclick="goImprove('${b.type}')">
+        ${b.btn} ${icon('arrow-right','w-3 h-3')}
+      </button>
+    </div>
+  `)).join('');
   // v82：Card E「今日私教对战 Prompt」胶囊模块已彻底移除 —— 首页洞察区终止于 Card D（需要提升），
   // 私教 Prompt 生成统一收敛至【我的】页灵感配置舱（fireTopicGeneratorPrompt；v97 起对练防御功能已全面下线）
   container.innerHTML = html;
   refreshIcons(container);
-}
-
-// Store current insights for detail popovers
-let _currentInsights = null;
-let _insightsParsed = null; // 当前日报 parseSmartReport 产物（学习建议锚定句型用）
-
-// ── Improvement detail: coach advice by type, not a blind error dump ──
-function showImprovementDetail(idx) {
-  const d = _currentInsights || EMPTY_INSIGHTS;
-  const im = d.improvements[idx];
-  if (!im) return;
-  // 教练视角：硬伤给纠错建议，软性升级给语感建议，绝不把地道表达当错误训斥
-  const advice = {
-    grammar:    '在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。',
-    expression: '你这样说语法完全没错，只是不够地道。下次尝试替换成母语者的自然说法，并朗读 3 遍形成语感。',
-    structure:  '长段表达时留意句子之间的逻辑衔接。练习用 however / therefore 等连接词，让层次更分明。'
-  }[im.type] || '在下一次口语练习中，刻意注意此类错误。建议将正确表达抄写到单词本中反复朗读，形成肌肉记忆。';
-  // 模块二：教练卡按钮精准锚定 — 语法纠错 → /review?tab=grammar&date=当前浏览日；
-  // 地道表达/逻辑结构 → startImprovementSpeak 携带用户点击的句文本 + 当前浏览日
-  // v86 路由铁律：所有入口必须携带上下文日期，否则目标页 _ctxDate=null → 降级渲染今日/全量数据
-  const ctxDate = currentContextDate();
-  const navArgs = im.type === 'grammar'
-    ? `navigateReview('grammar', null, '${ctxDate}')`
-    : `startImprovementSpeak(${idx})`;
-  const btnLabel = im.type === 'grammar' ? '去复习页查看语法错题' : '去句型复习页专项练习';
-  const modal = document.createElement('div');
-  modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
-  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
-  modal.innerHTML = `<div class="bg-[var(--c-surface)] rounded-t-[20px] w-full max-w-[480px] max-h-[70vh] flex flex-col overflow-hidden animate-[slideUp_0.25s_ease-out]">
-    <div class="flex justify-between items-center px-5 py-4 border-b border-[var(--c-border-light)]">
-      <div class="flex items-center gap-2 text-sm font-bold text-[var(--c-text)]">${icon('alert-circle','w-4 h-4 text-amber-500')} ${h(im.issue)}</div>
-      <button class="w-7 h-7 rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-sm cursor-pointer flex items-center justify-center" onclick="this.closest('.fixed').remove()">✕</button>
-    </div>
-    <div class="px-5 py-4 overflow-y-auto">
-      <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">问题详情</div>
-      <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-bg)] rounded-xl">${hf(im.detail)}</div>
-      <div class="text-xs font-semibold text-[var(--c-text-ultradim)] mb-1.5">教练建议</div>
-      <div class="text-sm text-[var(--c-text-dim)] leading-relaxed mb-3">${advice}</div>
-      <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="${navArgs};this.closest('.fixed').remove()">${btnLabel} ${icon('arrow-right','w-3.5 h-3.5')}</button>
-    </div>
-  </div>`;
-  document.body.appendChild(modal);
-  refreshIcons(modal);
 }
 
 // ── v86 路由上下文日期：卡片点击时的浏览日期 —— 历史视图 = _viewDate，今日 = 本地今日 ──
@@ -1066,161 +1055,26 @@ function currentContextDate() {
   return (_viewDate && _historyParsed) ? _viewDate : getLocalToday();
 }
 
-// 教练卡句型入口：携带用户点击的这一句（correct 优先）经 ?sentence= 路由参数动态加载卡片队列
-// 禁止 navigateShadowing() 无参调用 —— 那会从写死的默认句（核心句型第 0 句）开始播放，与点击内容完全错位
-// v86 统一锚定契约：只走「?sentence= 文本锚定 + ?date= 日期上下文」——
-// 旧 'pat_N'（patterns 数组序号）与跟读页 'core-N'（核心句型序号）是两套命名空间，
-// 传 id 必然错位触发「未找到句子，已从头开始」；文本 + 日期双参数在 loadSpeak 内精确命中该日核心句型
-function startImprovementSpeak(idx) {
-  const d = _currentInsights || EMPTY_INSIGHTS;
-  const im = d.improvements && d.improvements[idx];
-  if (!im) { navigateShadowing(); return; }
-  navigateShadowing(undefined, im.correct || im.wrong || '', currentContextDate());
+// ── v104 提升区四块统一导航：四按钮 → 四个跳转页（与打分面板四子块 1:1 对应）──
+// 全部精准携带 currentContextDate()（历史视图 = _viewDate，今日 = 本地今日），
+// 目标页按该日日报过滤（_ctxDate 早分支），绝无「看历史数字、跳到今日列表」的路由错乱
+function goImprove(type) {
+  const ctxDate = currentContextDate();
+  if (type === 'vocab') navigateReview('all', 'today', ctxDate);
+  else if (type === 'grammar') navigateReview('grammar', null, ctxDate);
+  else if (type === 'expression') navigateShadowing(undefined, undefined, ctxDate, 'expressions');
+  else if (type === 'core') navigateShadowing(undefined, undefined, ctxDate, 'core');
 }
 
-// ── 学习建议类型分流：sentence=句型练习(锚定句型复习) / vocab=词汇(复习页) / coach=私教任务弹窗 ──
-function classifySuggestion(step) {
-  const s = step || '';
-  if (/单词|词汇|生词/.test(s)) return 'vocab';
-  if (/复述|听力|自由对话|对话|挑战/.test(s)) return 'coach';
-  if (/句型|句型复习|朗读|核心句/.test(s)) return 'sentence';
-  // 兜底：建议文本包含当前日报某条核心句型原文 → 视作句型练习（可精准锚定）
-  const pats = (_insightsParsed && _insightsParsed.sentence_patterns) || [];
-  const hit = pats.some(p => {
-    const t = String(p.pattern || p.targetSentence || '');
-    return t.length > 6 && s.toLowerCase().includes(t.slice(0, 24).toLowerCase());
-  });
-  return hit ? 'sentence' : 'coach'; // 复述/听力/自由对话/话题挑战等一律进私教任务弹窗，绝不盲目跳句型复习页
-}
-
-// ── Next-step detail: contextual action, not blind tab switch ──
-function showNextStepDetail(idx) {
-  const d = _currentInsights || EMPTY_INSIGHTS;
-  const ns = d.nextSteps[idx];
-  if (!ns) return;
-  const kind = classifySuggestion(ns.step);
-  if (kind === 'sentence') {
-    // 句型练习：从当前日报核心句型中匹配本条建议，携带唯一 id 精准锚定卡片
-    const pats = (_insightsParsed && _insightsParsed.sentence_patterns) || [];
-    const stepLower = ns.step.toLowerCase();
-    const hit = pats.findIndex(p => {
-      const t = String(p.pattern || p.targetSentence || '');
-      return t.length > 6 && stepLower.includes(t.slice(0, 24).toLowerCase());
-    });
-    // v86/v88：core-N 锚定必须携带当前浏览日期 —— 无 date 时 loadSpeak 落今日混合队列，历史日报下必然断链；
-    // v88 QA 补漏：未命中单句时兜底同样携带日期（该日核心句型队列，首卡开始），绝不允许无 date 落入今日到期混合队列
-    const ctxDate = currentContextDate();
-    const anchor = hit >= 0 ? `navigateShadowing('core-${hit}', undefined, '${ctxDate}')` : `navigateShadowing(undefined, undefined, '${ctxDate}')`;
-    showSuggestionModal(idx, ns.step,
-      hit >= 0
-        ? `${icon('mic','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为句型练习任务，已为你定位到对应核心句型。`
-        : `${icon('mic','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为句型练习任务，已为你定位到当日核心句型队列。`,
-      `<button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="${anchor};this.closest('.fixed').remove()">去句型复习页定位练习 ${icon('arrow-right','w-3.5 h-3.5')}</button>`
-    );
-    return;
-  }
-  if (kind === 'vocab') {
-    // v88 QA 路由契约补漏：词汇任务同样携带上下文日期 + filter=today —— 历史日报下点击「浏览词汇」
-    // 绝不允许降级到全量词库（与统计卡「复习当日单词」同口径：该日日报词汇）
-    const ctxDate = currentContextDate();
-    showSuggestionModal(idx, ns.step,
-      `${icon('book-open','w-3.5 h-3.5 text-blue-500 inline-block mr-1')} 本条为词汇任务，已为你定位到当日新学单词列表。`,
-      `<button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="navigateReview('all', 'today', '${ctxDate}');this.closest('.fixed').remove()">去复习页浏览当日词汇 ${icon('arrow-right','w-3.5 h-3.5')}</button>`
-    );
-    return;
-  }
-  // coach：复述听力/自由对话挑战 → 私教任务弹窗（练习指引 + 一键复制 ChatGPT Prompt），绝不跳句型复习页
-  const prompt = `你现在是我的英语口语私教。请带我完成下面的专项训练任务：
-
-【任务】${ns.step}
-
-请按以下步骤引导我：
-1. 先用英文简单介绍这个任务的练习目标；
-2. 给我一段相关主题的听力/阅读材料，让我先听/读一遍；
-3. 请我用英语复述要点，实时指出我的语法、发音和用词问题并给出纠正；
-4. 最后给我一个围绕同一主题的自由对话挑战，至少追问 3 个回合。`;
-  showSuggestionModal(idx, ns.step,
-    `${icon('lightbulb','w-3.5 h-3.5 text-amber-500 inline-block mr-1')} 这是私教任务，不是句型复习练习。点击下方按钮复制对话 Prompt，到 ChatGPT 开启专项训练。`,
-    `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-3 rounded-xl mb-3 whitespace-pre-wrap max-h-32 overflow-y-auto">${h(prompt)}</div>
-     <button class="w-full py-3 bg-[var(--c-primary)] text-white border-0 rounded-2xl text-sm font-bold cursor-pointer transition-all active:scale-[0.98]" onclick="copyText(\`${prompt.replace(/`/g, '\\`')}\`);this.closest('.fixed').remove()">📋 一键复制 ChatGPT Prompt</button>`
-  );
-}
-
-function showSuggestionModal(idx, step, hint, actionHtml) {
-  const modal = document.createElement('div');
-  modal.className = 'fixed inset-0 bg-black/40 z-[300] flex items-end justify-center';
-  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
-  modal.innerHTML = `<div class="bg-[var(--c-surface)] rounded-t-[20px] w-full max-w-[480px] max-h-[70vh] flex flex-col overflow-hidden animate-[slideUp_0.25s_ease-out]">
-    <div class="flex justify-between items-center px-5 py-4 border-b border-[var(--c-border-light)]">
-      <div class="flex items-center gap-2 text-sm font-bold text-[var(--c-text)]">${icon('target','w-4 h-4 text-amber-500')} 学习建议 ${idx+1}</div>
-      <button class="w-7 h-7 rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-sm cursor-pointer flex items-center justify-center" onclick="this.closest('.fixed').remove()">✕</button>
-    </div>
-    <div class="px-5 py-4 overflow-y-auto">
-      <div class="text-sm text-[var(--c-text)] leading-relaxed mb-4 p-3 bg-[var(--c-primary-light)] rounded-xl">${h(step)}</div>
-      <div class="text-xs text-[var(--c-text-dim)] leading-relaxed mb-4">${hint}</div>
-      ${actionHtml}
-    </div>
-  </div>`;
-  document.body.appendChild(modal);
-  refreshIcons(modal);
-}
-
-// 剪贴板复制（Clipboard API 优先，execCommand 兜底）
-async function copyText(txt) {
-  try {
-    await navigator.clipboard.writeText(txt);
-    showToast('📋 已复制 Prompt，去 ChatGPT 粘贴开始练习');
-  } catch (e) {
-    const ta = document.createElement('textarea');
-    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); showToast('📋 已复制 Prompt，去 ChatGPT 粘贴开始练习'); }
-    catch (e2) { showToast('复制失败，请长按文本手动复制'); }
-    ta.remove();
-  }
-}
-function renderContentCards() {
-  const container = document.getElementById('home-summary-cards');
-  // 业务概念分离（Voco 2.0）：顶部卡 = 今日增量，唯一数据源 = 全局任务状态中心；
-  // 无今日日报 → 0，绝不回退 mockWords/mockSentences 静默兜底（数字跳变断根）
-  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
-  // v75 历史视图早分支：所选日期日报存在 → 三卡增量改为该日日报真实数量（今日时间网关不拦截）
-  const historyMode = !!(_viewDate && _historyParsed);
-  const newCount = historyMode ? (_historyParsed.vocabulary || []).length : ms.todayNewWordsCount;
-  const coreCount = historyMode ? (_historyParsed.sentence_patterns || []).length : ms.todayCorePatternCount;
-  const errCount = historyMode ? ((_historyParsed.grammar || []).length + (_historyParsed.pronunciation || []).length) : ms.todayCorrectionsCount;
-
-  // 红线1: 3 张卡片永驻 grid — 数据为 0 也强制渲染，绝不消失
-  // 模块二：卡片按钮全部走规范路由（/review?tab=… · /shadowing），零死链
-  // v82 日期路由：历史视图（historyMode）下跳转携带 _viewDate —— 目标页按该日日报过滤，杜绝「看历史数字、跳到今日列表」的路由错乱
-  // v85：核心句型卡今日场景同样携带 date=today —— 队列 = 当日日报核心句型（数字与卡片绝对同源）；
-  //      无 date 的 navigateShadowing() 仍保留给待办打卡入口（SM-2 到期混合队列）
-  const dq = historyMode ? `, '${_viewDate}'` : '';
-  const shadowDate = historyMode ? _viewDate : getLocalToday();
-  const cards = [
-    { icon:'pen-line', num:newCount,  label:'新学单词', btn: historyMode ? '复习当日单词' : '复习今日单词', nav:`navigateReview('all', 'today'${dq})` },
-    { icon:'ruler',    num:coreCount, label:'核心句型', btn:'练习句型',   nav:`navigateShadowing(undefined, undefined, '${shadowDate}')` },
-    { icon:'wrench',   num:errCount,  label:'重点纠错', btn:'查看纠错',   nav:`navigateReview('grammar', null${dq})` }
-  ];
-  container.innerHTML = cards.map(c=>`
-    <div class="bg-[var(--c-surface)] rounded-2xl px-2.5 py-3.5 text-center cursor-pointer transition-all duration-150 border border-[var(--c-border-light)] active:scale-[0.96] active:bg-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" onclick="${c.nav}">
-      <div class="flex justify-center mb-1">${icon(c.icon,'w-[22px] h-[22px] text-[var(--c-primary)]')}</div>
-      <div class="text-xl font-extrabold text-[var(--c-primary)]">${c.num}</div>
-      <div class="text-[0.6875rem] text-[var(--c-text-dim)] mt-0.5">${c.label}</div>
-      <div class="inline-flex items-center gap-0.5 text-[0.6875rem] text-[var(--c-blue)] mt-1.5 font-medium">${c.btn} ${icon('arrow-right','w-3 h-3')}</div>
-    </div>
-  `).join('');
-  refreshIcons(container);
-}
-
+// v104：三张数据卡（新学单词/核心句型/重点纠错）已整体删除（用户指令）——
+// 打分面板四子块 + 提升区四按钮已完整承接其跳转职能，首页只保留 To-Do List
 function renderTodoList(speakDoneToday) {
   // ── 今日待办三闭环（Voco 2.0）：底部待办 = SM-2 记忆任务，数据一律取自全局任务状态中心 ──
-  const ms = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary);
+  const ms = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds);
   const hasTodayReport = ms.hasRealTodayReport;
-  // 句型 SRS 任务口径（v76 同源绑定）：待办数字 = 句型复习页实际队列 getDueSentencesQueue 的 .length
-  // —— 今日新句型（coreDeck 真实解析）+ 历史到期句型（needsReview === true，SM-2 到期判定 isDueBySrs）
-  // 过滤条件仅此两条，文本与今日句去重；严禁任何全量数组 .length 或独立 .filter 路径
-  const patternTaskCount = getDueSentencesQueue(_reportParsed, _patternLibrary).length;
+  // 句型 SRS 任务口径（v76 同源绑定，v104 纯库捞）：待办数字 = 句型复习页实际队列 getDueSentencesQueue 的 .length
+  // —— 库中 needsReview===true 全量（新卡无 next_review_date + 历史到期曲线），文本去重 + cap 15 与卡片页同一函数，绝不分叉
+  const patternTaskCount = getDueSentencesQueue(_patternLibrary).length;
   const dueCount = ms.totalDueVocabCount;       // SM-2 到期全量（今日新词 + 历史到期词），与 tab=due 同源
   const reviewedToday = ms.reviewedVocabToday;  // 今日实际完成反馈（🟢/🔴）的词数（id 集合大小）
   // 任务 2 三态：
@@ -1231,11 +1085,11 @@ function renderTodoList(speakDoneToday) {
     ? { text: '句型复习打卡 · 暂无复习任务', sub: '导入日报获得新句型，或等待历史句型到期', done: false, disabled: true, action: null }
     : {
         text: hasTodayReport ? `句型复习打卡 · 完成今日句型复习 (${patternTaskCount}句)` : `句型复习打卡 · 完成句型复习 (${patternTaskCount}句)`,
-        sub: speakDoneToday ? '今日句型复习已完成' : (hasTodayReport ? '今日新句型 + 历史到期句型混合队列' : '历史到期句型复习队列'),
+        sub: speakDoneToday ? '今日句型复习已完成' : (hasTodayReport ? '今日新句优先 + 历史到期句逐日消化' : '历史到期句型复习队列'),
         done: !!speakDoneToday,
         disabled: false,
         // v82：打卡 = 今日语境 —— 先清除历史视图残留（_viewDate/_historyParsed），
-        // 保证 /shadowing 无 date 参数时严格走「今日到期句型队列」的挖空卡片模式，绝不被历史日报劫持
+        // 保证 /shadowing 无 date 参数时严格走「今日到期句式队列」的 SRS 翻卡模式（v104 混编），绝不被历史日报劫持
         action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateShadowing(); }
       };
   // 任务 3 数字口径（v88 QA 数量一致性 + v97 错题诚实口径）：due tab 卡组 buildDueDeck = 到期词 + 未纠正错题，
@@ -1913,7 +1767,6 @@ function buildGlobalMissionInputs(vocab, errors, reports, patterns) {
   const strictToday = (reports && reports.length) ? reports.find(r => r.date === today && isDailyReport(r)) : null;
   _reportParsed = strictToday ? parseSmartReport(strictToday.content) : null;
   if (_reportParsed) _reportParsed.meta.date = strictToday.date; // meta.date 回写为报表行日期 —— 时间网关校验依据
-  _dailyPatterns = _reportParsed ? (_reportParsed.sentence_patterns || []) : [];
   // v75 历史视图数据源：点小熊日历选择非今日日期时，解析该日日报（独立于今日 _reportParsed，时间网关绝不混流）
   if (_viewDate && _viewDate !== today) {
     const hist = (reports && reports.length) ? reports.find(r => r.date === _viewDate && isDailyReport(r)) : null;
@@ -1922,9 +1775,9 @@ function buildGlobalMissionInputs(vocab, errors, reports, patterns) {
   } else {
     _historyParsed = null;
   }
-  // 句型 SRS 历史库：patterns 表全量打标（needsReview 布尔），喂给 getTodayMissionState 第 5 参
+  // 句型 SRS 历史库：patterns 表全量打标（needsReview 布尔）+ 文本去重（v104 双行遗留收敛），喂给 getTodayMissionState
   // 空表（无历史句型）→ [] 兜底，绝不回退 Mock 句库
-  _patternLibrary = stampPatternTags((patterns && patterns.length) ? patterns : []);
+  _patternLibrary = dedupePatternsByText(stampPatternTags((patterns && patterns.length) ? patterns : []));
   // 打标网关：内置词库合并 + 布尔标签一次性注入（渲染层只读布尔值，零时间判断）
   // 断流修复：日报生词在此合并进全局词库 —— 首页/复习页数据源绝对一致
   // v86 全局加固：错题表行在进入全局状态前统一碎片合并 —— 所有下游消费方
@@ -1964,6 +1817,116 @@ function parsedReportFor(date) {
   if (parsed) parsed.meta.date = row.date; // meta.date 回写为报表行日期
   _parsedReportDateCache.set(date, parsed);
   return parsed;
+}
+
+// ═══════════════════════════════════════════════════════
+// v104 四维计数 SSOT：打分面板四子块 / 提升区四按钮跳转页 / 列表计数头 / 审计机制共用同一函数
+// 数量 100% 一致的唯一地基 —— 列表渲染与面板数字走同一数据桶，杜绝「面板 N、列表 M」
+// 语法纠正必须经 standardizeErrorCards（与语法错题列表同函数：碎片合并 + 形状归一后长度恒一致）；
+// 发音错题 v99 起整体移出错题体系，不再合并 pronunciation
+// ═══════════════════════════════════════════════════════
+function getDayCounts(parsed) {
+  if (!parsed) return { vocab: 0, grammar: 0, expressions: 0, core: 0 };
+  return {
+    vocab: (parsed.vocabulary || []).length,
+    // 与 allGrammarErrors(_ctxDate 分支) 完全同口径：同一 original||correction 过滤网 + 同一 standardizeErrorCards 清洗
+    // （碎片合并会收缩数组长度 —— 面板计数若不与列表同函数，就会再现「面板 N / 列表 M」）
+    grammar: standardizeErrorCards((parsed.grammar || []).filter(e => e && (e.original || e.correction))).length,
+    expressions: (parsed.patterns || []).length,
+    core: (parsed.sentence_patterns || []).length
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// v104 日报一致性审计（用户指令）：逐份日报核对「打分面板四子块数字」与「四按钮跳转页渲染列表长度」
+// 方法论：面板数字 = getDayCounts(parsed)（SSOT 计数）；
+//         列表长度 = 跳转页真实渲染函数实测 —— 词汇 getFilteredVocab(_wordsAll,'today')、语法 allGrammarErrors()
+//         （临时切换 _ctxDate 后立即还原，执行的就是用户点击按钮后页面跑的同一条代码）；
+//         自然表达 / 核心句型 = parsedReportFor(该日).patterns / sentence_patterns 桶长度（三视图列表同源）
+// 历史日期隔离（自我审查）：跳转页在历史日期无报时返回空态（列表 0），面板该日同样 0 —— 绝不回退全局错题本或今日数据
+// ═══════════════════════════════════════════════════════
+async function runReportAudit() {
+  const btn = document.getElementById('btn-audit-reports');
+  if (btn) btn.disabled = true;
+  try {
+    const { data: reports } = await sb.from('reports').select('*').order('date', { ascending: false }).limit(1000);
+    const rows = (reports || []).filter(isDailyReport);
+    // 审计自给自足：缓存换血为最新拉取行，并清空解析缓存 —— parsedReportFor / getFilteredVocab / allGrammarErrors 全部按最新数据解析
+    _reportsCache = rows;
+    if (_parsedReportDateCache && _parsedReportDateCache.clear) _parsedReportDateCache.clear();
+    const today = getLocalToday();
+    const results = [];
+    for (const r of rows) {
+      const parsed = parseSmartReport(r.content);
+      if (!parsed) { results.push({ date: r.date, parseFail: true }); continue; }
+      // 今日行强制同源：无条件以刚拉取的最新内容重建 _reportParsed —— 杜绝「首页旧解析 vs 审计新拉取」的假 ✗ 分歧
+      // （冷启动缺席也一并覆盖）；parsedReportFor(today) 早返回 _reportParsed，今日行必须与此处 parsed 完全同源
+      if (r.date === today) _reportParsed = parsed;
+      const counts = getDayCounts(parsed);
+      const savedCtx = _ctxDate;
+      _ctxDate = r.date;
+      const dp = parsedReportFor(r.date) || {};
+      const list = {
+        vocab: getFilteredVocab(_wordsAll, 'today').length,
+        grammar: allGrammarErrors().length,
+        expressions: (dp.patterns || []).length,
+        core: (dp.sentence_patterns || []).length
+      };
+      _ctxDate = savedCtx;
+      results.push({
+        date: r.date,
+        checks: [
+          { label: '当日新词', panel: counts.vocab, list: list.vocab },
+          { label: '语法纠正', panel: counts.grammar, list: list.grammar },
+          { label: '自然表达', panel: counts.expressions, list: list.expressions },
+          { label: '核心句型', panel: counts.core, list: list.core }
+        ]
+      });
+    }
+    renderAuditModal(results, null);
+  } catch (e) {
+    renderAuditModal([], e);
+  }
+  if (btn) btn.disabled = false;
+}
+
+function renderAuditModal(results, error) {
+  const dialog = document.getElementById('audit-dialog');
+  if (!dialog) { showToast('审计组件缺失，请刷新页面重试'); return; }
+  const body = document.getElementById('audit-report');
+  let html = '';
+  if (error) {
+    html = `<div class="px-4 py-6 text-center text-sm text-[var(--c-text-dim)]">⚠️ 审计执行失败：${h(String((error && error.message) ? error.message : error))}</div>`;
+  } else if (!results.length) {
+    html = `<div class="px-4 py-6 text-center text-sm text-[var(--c-text-dim)]">未找到任何日报记录 —— 先导入日报再审计</div>`;
+  } else {
+    const failedDates = results.filter(r => r.parseFail).length;
+    const allChecks = results.filter(r => r.checks).flatMap(r => r.checks);
+    const bad = allChecks.filter(c => c.panel !== c.list);
+    html += `<div class="px-4 py-4 text-center border-b border-[var(--c-border-light)]">
+      <div class="text-sm font-bold ${bad.length ? 'text-[var(--c-red)]' : 'text-[var(--c-green)]'}">${bad.length ? `✗ 发现 ${bad.length} 处不一致` : '✓ 全部一致 —— 面板数字与跳转页列表 100% 对齐'}</div>
+      <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-1">共审计 ${results.length} 份日报${failedDates ? `（${failedDates} 份解析失败，请检查原始 JSON）` : ''}</div>
+    </div>`;
+    for (const r of results) {
+      if (r.parseFail) {
+        html += `<div class="px-4 py-3 border-b border-[var(--c-border-light)]"><div class="text-sm font-semibold text-[var(--c-text)]">${h(r.date)}</div><div class="text-xs text-[var(--c-red)] mt-0.5">⚠️ JSON 解析失败 —— 该日报不会被首页面板与跳转页计入</div></div>`;
+        continue;
+      }
+      const cells = r.checks.map(c => c.panel === c.list
+        ? `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--c-green-light)] text-[0.6875rem] text-[var(--c-green)]">✓ ${c.label} ${c.panel}</span>`
+        : `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-[0.6875rem] text-[var(--c-red)]">✗ ${c.label} 面板 ${c.panel} ≠ 列表 ${c.list}</span>`).join('');
+      html += `<div class="px-4 py-3 border-b border-[var(--c-border-light)]"><div class="text-sm font-semibold text-[var(--c-text)] mb-1.5">${h(r.date)}</div><div class="flex flex-wrap gap-1.5">${cells}</div></div>`;
+    }
+    html += `<div class="px-4 py-3 text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed bg-[var(--c-bg)]">🛡️ 路由隔离审查：四个跳转按钮均携带该日 date 参数；该日无日报时跳转页返回空态（0 条），绝不回退全局错题本或今日数据。语法/词汇列表经 getFilteredVocab / allGrammarErrors 的 _ctxDate 早分支按日解析；自然表达/核心句型列表直读该日日报 patterns / sentence_patterns 桶。</div>`;
+  }
+  body.innerHTML = html;
+  refreshIcons(dialog);
+  dialog.classList.remove('hidden');
+}
+
+function hideAuditDialog() {
+  const dialog = document.getElementById('audit-dialog');
+  if (dialog) dialog.classList.add('hidden');
 }
 
 async function loadWords() {
@@ -2013,16 +1976,16 @@ let _reportParsed = null;       // 今日日报的 parseSmartReport() 结果（b
 let _historyParsed = null;      // v75 历史视图：所选日期（_viewDate）日报的 parseSmartReport() 结果；未选历史日期或该日无日报 → null（今日链路不受影响）
 let _reportsCache = [];         // v82 日期路由：最近 90 条 reports 行缓存（parsedReportFor 按日期检索解析源）
 let _ctxDate = null;            // v82 日期路由：URL ?date= 非今日日期上下文；目标页列表按该日日报过滤（null = 默认今日链路）
-let _dailyPatterns = [];        // 今日日报 sentence_patterns（SSOT todayCorePatternCount 输入）
+// v104：_dailyPatterns 已退役 —— 句型 SRS 口径纯库捞（getDueSentencesQueue(_patternLibrary)），今日解析不再喂计数
 let _dateScoreCache = {};       // v89 打卡日历数据源：词 date_added + 日报 date → 分值（横滑条与月历面板共用）
 let _pickerYear = null;         // v89 月历当前年份
 let _pickerMonth = null;        // v89 月历当前月份
-let _patternLibrary = [];       // patterns 表历史句型库（打标后，SSOT duePatternList / totalPatternTaskCount 输入）
+let _patternLibrary = [];       // patterns 表历史句型库（打标 + 文本去重后；v104 起 SSOT = getDueSentencesQueue(_patternLibrary)）
 let _reviewedVocabTodayIds = new Set(); // 加载层上收：今日实际完成 SM-2 反馈（🟢/🔴）的词 id 集合（SSOT reviewedVocabToday 输入）
 
 // ═══════════════════════════════════════════════════════
 // Voco 2.0 全局任务状态中心（SSOT）—— 用户骨架强制签名
-// getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocabIds)
+// getTodayMissionState(vocabAll, reportParsed, reviewedVocabIds)   ← v104 收敛：patternsAll/patternLibrary 参数随句型口径纯库捞迁移而删除
 // 所有页面数字（首页待办 / 数据卡 / 复习页 Tab）唯一事实源；UI 层严禁自行 .filter/.length/Mock 兜底
 // 骨架适配说明（Vanilla JS 无模块系统，export 关键字去除）：
 //   · todayStr 用 getLocalToday()（v64 本地时区）—— 骨架里的 toISOString().split('T')[0] 会重新引入 UTC 穿透
@@ -2035,19 +1998,14 @@ function isTodayParsedGate(reportParsed) {
   return !!repDate && repDate.startsWith(getLocalToday());
 }
 
-function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocabIds = new Set(), patternLibrary = []) {
+function getTodayMissionState(vocabAll, reportParsed, reviewedVocabIds = new Set()) {
   // 1. 时间轴拦截：校验是否为今日真实报告
   const hasRealTodayReport = isTodayParsedGate(reportParsed);
 
   // 2. 隔离 Mock 数据：过滤掉所有带有 mock 标记的假数据（mockWords id 已统一 mock-N 前缀）
   const realVocab = (vocabAll || []).filter(v => !String(v.id).startsWith('mock-'));
 
-  // 3. 今日增量（仅当有今日报告时才计数，绝不回退历史/Mock）
-  // v85 口径统一：新学单词数 = 今日日报解析 vocabulary 数（与复习页 filter=today / getFilteredVocab 今日分支绝对同源）
-  //      —— 词库 isNewToday 打标会含历史残留（DB 行带回的旧 true），曾造成首页 8 / 列表 6 的口径分裂
-  const todayNewWordsCount = hasRealTodayReport ? ((reportParsed.vocabulary || []).length) : 0;
-  const todayCorePatternCount = hasRealTodayReport ? (patternsAll || []).length : 0;
-  const todayCorrectionsCount = hasRealTodayReport ? ((reportParsed.grammar || []).length + (reportParsed.pronunciation || []).length) : 0;
+  // 3. 今日增量计数（v104：面板/提升区已改 getDayCounts(parsed) SSOT 直取，计数字段无消费者 → 删除）
 
   // 4. SM-2 记忆任务（真实待复习总数：needsReview 全量，含今日新词 + 历史到期词，与复习页 tab=due 同源）
   const dueVocabList = realVocab.filter(v => v.needsReview);
@@ -2056,33 +2014,16 @@ function getTodayMissionState(vocabAll, patternsAll, reportParsed, reviewedVocab
   // 5. 今日已实际完成复习的数量（id 集合大小）
   const reviewedVocabToday = reviewedVocabIds.size;
 
-  // 6. 句型间隔重复（Sentence SRS）—— 句型复习打卡总任务数 = 今日新解析句型数 + 历史到期句型数
-  //    历史到期 = patternLibrary（patterns 表打标后）中 needsReview===true 的句型；
-  //    文本去重：与今日已含句（targetSentence 小写比对）一致的库行不再计入，绝无双计
-  const todayPatterns = hasRealTodayReport ? (patternsAll || []) : [];
-  const todayPatternTexts = new Set(
-    todayPatterns.map(p => String(p.targetSentence || p.pattern || p.text || '').toLowerCase().trim()).filter(Boolean)
-  );
-  const duePatternList = (patternLibrary || []).filter(p => p.needsReview === true
-    && !todayPatternTexts.has(String(p.targetSentence || p.better || p.original || '').toLowerCase().trim()));
-  const totalDuePatternCount = duePatternList.length;
-  const totalPatternTaskCount = todayPatterns.length + totalDuePatternCount;
-
+  // 6. 句型 SRS 任务口径（v104 纯库捞）：整体迁移至 getDueSentencesQueue(_patternLibrary) ——
+  //    待办任务 2 数字与卡片页队列共用同一函数，此处不再重复计算（duePatternList/totalPatternTaskCount 已删除）
   return {
     hasRealTodayReport,
-    todayNewWordsCount,
-    todayCorePatternCount,
-    todayCorrectionsCount,
     totalDueVocabCount,
     reviewedVocabToday,
     dueVocabList, // 真实待复习词表（totalDueVocabCount 同源数组；v82 后对战胶囊已移除，无外部取词消费）
     // v103 完成判定修复（与任务 3 同口径）：全部复习完后 dueCount 归 0，旧守卫 dueCount>0 恒 false → 永远无法完成；
     // 新口径：dueCount===0 且今日确有复习记录 → 完成；dueCount===0 且今日无记录 → 未完成（防默认值误判）
-    isReviewFinished: totalDueVocabCount === 0 && reviewedVocabToday > 0,
-    // ── 句型 SRS 输出（待办任务 2 / 句型复习队列共用同一口径，UI 层严禁自行 .filter）──
-    duePatternList,          // 历史到期句型表（句型复习队列组装数据字典）
-    totalDuePatternCount,    // 历史到期句型数
-    totalPatternTaskCount    // 句型复习打卡总任务数 = 今日新句型 + 历史到期句型（0 句 → UI 防御态）
+    isReviewFinished: totalDueVocabCount === 0 && reviewedVocabToday > 0
   };
 }
 
@@ -2370,7 +2311,7 @@ function renderWordsSubTabs(activeMode) {
   // v88：due 标签的错题部分必须用「今日语境」错题数 —— 点击 due tab 后 switchWordsView 清 _ctxDate，
   // 卡组 buildDueDeck = 今日到期词 + 今日错题；沿用历史日错题数会与卡组口径分裂
   // v99：错题部分 = dueErrorCards()（真 SM-2 曲线到期口径，与卡组完全同源）
-  const dueCount = getTodayMissionState(_wordsAll, _dailyPatterns, _reportParsed, _reviewedVocabTodayIds, _patternLibrary).totalDueVocabCount + dueErrorCards().length;
+  const dueCount = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds).totalDueVocabCount + dueErrorCards().length;
   const tabs = [
     { key: 'all', label: '全部词汇', count: _wordsAll.length },
     { key: 'grammar', label: '语法错题', count: grammarCount },
@@ -2399,21 +2340,34 @@ function switchWordsView(mode) {
 // ── 模块三：四 Tab 严格渲染隔离 ─────────────────────────────────
 // all=仅全量词汇卡 / grammar=仅语法错题卡（绿色正句为主视觉，原句小字灰显） / due=混合记忆卡组（Active Recall） / topics=话题卡片墙
 // v82 日期路由横幅：复习页正处历史日期上下文 → 列表顶部提示「正在查看该日数据」（今日链路零侵入）
-function prependCtxDateBanner() {
+// v104 扩展：横幅追加「共 N 条」计数行 —— N 与打分面板子块同源（同一 parsed 桶 / 同一标准化函数），
+//     调用方传入列表实际渲染长度（grammar=allGrammarErrors()、vocab=getFilteredVocab('today')），面板/列表永不分叉
+function prependCtxDateBanner(count, unit) {
   if (!_ctxDate) return;
   const container = document.getElementById('words-content');
   const banner = document.createElement('div');
-  banner.className = 'mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)] text-[0.875rem] font-semibold text-[var(--c-primary)]';
-  banner.textContent = `📅 正在查看 ${_ctxDate} 的当日数据`;
+  banner.className = 'mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)]';
+  banner.innerHTML = `<div class="text-[0.875rem] font-semibold text-[var(--c-primary)]">📅 正在查看 ${h(_ctxDate)} 的当日数据</div>`
+    + `<div class="text-xs font-semibold text-[var(--c-text-dim)] mt-1">共 ${count} ${unit}</div>`;
   container.insertBefore(banner, container.firstChild);
 }
 
 function renderWordsList(mode) {
-  if (mode === 'grammar' || mode === 'mistakes') { renderErrorCards(allGrammarErrors()); prependCtxDateBanner(); return; }
+  if (mode === 'grammar' || mode === 'mistakes') {
+    const errs = allGrammarErrors();
+    renderErrorCards(errs);
+    prependCtxDateBanner(errs.length, '条语法纠正');
+    return;
+  }
   if (mode === 'due' || mode === 'review') { renderDueDeck(); return; }
   if (mode === 'topics') { renderTopicLibrary(); return; }
   // filter=today：今日单词过滤态（isNewToday 纯布尔），不污染 Tab 渲染
-  if (mode === 'today') { renderVocabList(getFilteredVocab(_wordsAll, 'today')); prependCtxDateBanner(); return; }
+  if (mode === 'today') {
+    const todayVocab = getFilteredVocab(_wordsAll, 'today');
+    renderVocabList(todayVocab);
+    prependCtxDateBanner(todayVocab.length, '个新词');
+    return;
+  }
   renderVocabList(getFilteredVocab(_wordsAll, 'all'));
 }
 
@@ -2535,7 +2489,7 @@ async function handleReviewFeedback(id, status, itemRef) {
   // ① 句型库行：patterns.id 为 BIGSERIAL 数字主键，_speakAll 打标行携带 SM-2 字段
   const pat = (_speakAll || []).find(p => String(p.id) === sid && /^\d+$/.test(String(p.id)));
   if (pat) { await reviewPatternItem(pat, quality); return { kind: 'pattern', ok: true }; }
-  // ② 今日新句（core-N / sentence-anchor）：无库行，由队列 ref 承载 → INSERT 正式进入记忆曲线
+  // ② 今日新句（core-N / expr-N / sentence-anchor）：无库行，由队列 ref 承载 → INSERT 正式进入记忆曲线
   if (itemRef && (itemRef.targetSentence || itemRef.better || itemRef.pattern)) {
     await reviewPatternItem(itemRef, quality);
     return { kind: 'pattern', ok: true };
@@ -2574,20 +2528,35 @@ async function reviewWordItem(v, quality) {
 
 // 句型 SM-2 推进 + 回写：
 //   · 数字主键（BIGSERIAL）→ 库行 UPDATE（与单词写回同构；migration_v2.1 列未跑时 PostgREST 拒绝 → 静默本地态）
-//   · core-N / sentence-anchor → 今日新句 INSERT 入库（正式进入记忆曲线；列未跑时同样静默本地态）
+//   · core-N / expr-N / sentence-anchor → 非库行临时 id：v104 起先按文本锚定在内存库（_speakAll）定位既有行 ——
+//     命中即视为库行走 UPDATE（导入行补 SM-2 字段，同句绝无双行双曲线）；未命中才 INSERT 正式进入记忆曲线
 async function reviewPatternItem(p, quality) {
   const result = sm2(p.ease_factor, p.sm2_interval, p.sm2_repetitions, quality);
   const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
   const status = quality < 3 ? 'learning' : (result.repetitions >= 5 ? 'mastered' : 'learning');
-  const isDbRow = /^\d+$/.test(String(p.id));
-  const isTodayNew = /^(core-\d+|sentence-anchor)$/.test(String(p.id));
+  let isDbRow = /^\d+$/.test(String(p.id));
+  const isTodayNew = /^(core-\d+|expr-\d+|sentence-anchor)$/.test(String(p.id));
+  if (!isDbRow && isTodayNew) {
+    // v104 文本锚定 UPSERT（SM-2 队列断层修复核心）：导入瞬间已入库的句子，首次复习绝不盲 INSERT 第二行——
+    // 按 better/targetSentence 与 original/replacedSentence 归一化文本（小写去空白）在 _speakAll 打标库中定位既有行，
+    // 命中 → 以既有行身份走 UPDATE（其 SM-2 字段从零起步，与 INSERT 语义等价但零重复）；未命中 → 走 INSERT
+    const tKey = String(p.targetSentence || '').toLowerCase().trim();
+    const oKey = String(p.replacedSentence || '').toLowerCase().trim();
+    const hit = (_speakAll || []).find(r => {
+      const b = String(r.better || r.targetSentence || '').toLowerCase().trim();
+      const o = String(r.original || r.replacedSentence || '').toLowerCase().trim();
+      return (tKey && b === tKey) || (oKey && o === oKey);
+    });
+    if (hit) { p = hit; isDbRow = true; }
+  }
   if (isDbRow) {
     // 库行：本地快照 + SM-2 UPDATE
     p.review_count = (p.review_count || 0) + 1;
     p.ease_factor = result.ease_factor; p.sm2_interval = result.interval; p.sm2_repetitions = result.repetitions;
     p.status = status; p.mastered = status === 'mastered';
     p.next_review_date = fmtLocalDate(nextDate); p.last_reviewed_at = new Date().toISOString();
-    if (quality >= 3) p.needsReview = false;
+    // v104：与单词路径（reviewWordItem）统一口径 —— again/good 都移出今日队列（next_review_date 已推进，重载后 isDueBySrs 判到期）
+    p.needsReview = false;
     try {
       const { data: row, error } = await sb.from('patterns').select('*').eq('id', p.id).single();
       if (!error && row) {
@@ -2599,7 +2568,8 @@ async function reviewPatternItem(p, quality) {
       }
     } catch (e) { /* 列缺失：仅本地会话态 */ }
   } else if (isTodayNew) {
-    // 今日新句：INSERT 入库（user_id 必须显式注入，RLS 校验 auth.uid() = user_id）
+    // 文本锚定未命中的新句（库中确无此行：sentence-anchor 全库反查也落空 / 历史 Markdown 核心句型从未入库）→ INSERT 入库
+    // （user_id 必须显式注入，RLS 校验 auth.uid() = user_id）
     const { data: { session } } = await sb.auth.getSession();
     if (!session) return false;
     const insertRow = {
@@ -2894,33 +2864,9 @@ async function markMastered(id) {
 // ═══════════════════════════════════════════════════════
 // TAB 3: SPEAK
 // ═══════════════════════════════════════════════════════
-// ── Speak 智能过滤匹配（路由 → 严格 .filter()） ─────────
-const SPEAK_PATTERN_TOPICS = ['句型','条件句','连接词','完成时','比较级','过去时','主谓一致','时态','虚拟语气'];
-// English ErrorCategory 键 → 中文话题别名（兼容历史路由参数）
-const SPEAK_FILTER_ALIASES = {
-  'tense': '过去时', 'connective': '连接词', 'article': '冠词', 'preposition': '介词',
-  'word-order': '语序', 'vocabulary': '词汇', 'subject-verb': '主谓一致',
-  'singular-plural': '单复数', 'pronunciation': '发音', 'collocation': '搭配',
-  'conditional': '条件句', 'comparative': '比较级'
-};
-
-function matchSpeakFilter(p, filter) {
-  if (!filter) return true;
-  const q = String(filter).toLowerCase();
-  // 红线3: 标准英文路由键 — 布尔标识精确过滤
-  if (q === 'core_sentences' || q === 'core') {
-    return p.isTodayCore === true || p.is_core === true;
-  }
-  const key = SPEAK_FILTER_ALIASES[q] || q;
-  const topic = ((p.source_topic || '') + '').toLowerCase();
-  // 聚合过滤（兼容历史中文键）
-  if (key === '句型' || key === '核心句型') {
-    return SPEAK_PATTERN_TOPICS.some(t => topic.includes(t.toLowerCase())) || p.isTodayCore === true;
-  }
-  const hay = [topic, p.better, p.original, p.scene, p.topic_tag]
-    .filter(Boolean).map(x => (x + '').toLowerCase()).join(' ');
-  return hay.includes(key);
-}
+// v104：旧 Speak 智能过滤机器（SPEAK_PATTERN_TOPICS / SPEAK_FILTER_ALIASES / matchSpeakFilter）已物理删除——
+// 句型复习页 v104 起由三视图（句型卡组/自然表达/核心句型）接管，?filter= 路由零调用方；
+// 其依赖的 is_core 列从未建表，isTodayCore 布尔自此无渲染消费者（打标字段保留，纯透传）
 
 // 当前日报解析器：今天日报 → 用户正在查看的历史日期 → 最新一份有效日报（三级回退）
 // 句型复习页/复习页共用 —— 绝不再因为日报不是「今天」生成的就回退到 Mock 数据断流
@@ -2940,31 +2886,48 @@ async function loadSpeak() {
     sb.from('reports').select('*').order('date', { ascending: false }).limit(1000)
   ]);
   // v95：mockSentences 已物理删除 —— 真实库打标即全量展示库，空表 = 空状态
-  const taggedPatterns = (patterns && patterns.length) ? stampPatternTags(patterns) : [];
+  // v104：打标 + 文本去重（双行遗留收敛）—— _speakAll 与 _patternLibrary 同源同数组，队列/待办数字绝对一致
+  const taggedPatterns = (patterns && patterns.length) ? dedupePatternsByText(stampPatternTags(patterns)) : [];
   _speakAll = taggedPatterns; // 打标网关：唯一 id + isTodayCore + needsReview + 标准嵌套字段
   _patternLibrary = taggedPatterns;
   _reportsCache = (reports && reports.length) ? reports : _reportsCache; // v82：日期路由解析源缓存刷新
+  renderSpeakRoute();
+}
 
-  // v82/v85 日期路由：?date=YYYY-MM-DD（含今日）→ 句型卡队列 = 该日日报核心句型（挖空卡片模式，不混 SM-2 到期）；
-  // 无 date → 今日默认链路 = SM-2 到期混合队列（待办打卡入口）
-  const today = getLocalToday();
+// ═══════════════════════════════════════════════════════
+// v104 句型复习页三视图分发（URL 是唯一事实源）：
+//   ?view=expressions → 自然表达对比阅读卡片列表（该日日报 patterns，零挖空）
+//   ?view=core        → 核心句型对比阅读卡片列表（该日日报 sentence_patterns，零挖空）
+//   缺省              → SRS 翻卡卡组（任务 2：getDueSentencesQueue 纯库捞 —— 新卡 + SM-2 到期队列，零运行时拼凑）
+// ═══════════════════════════════════════════════════════
+function renderSpeakRoute() {
   const params = new URLSearchParams(window.location.search);
+  // v82/v85 日期路由：?date=YYYY-MM-DD（含今日）→ 列表/卡组队列 = 该日日报数据；无 date → 今日默认链路
   const dParam = params.get('date');
   _ctxDate = dParam || null;
+  const view = params.get('view');
+  _speakView = (view === 'expressions' || view === 'core') ? view : '';
+  // v104 冷启动保障：直达句型复习页时 _reportParsed 可能未建（未经 loadHome）→ 现场解析今日日报，
+  // 保证三个视图（自然表达列表 / 核心句型列表 / SRS 卡组）的 parsedReportFor(today) 都拿得到今日数据
+  const today = getLocalToday();
+  if (!_reportParsed) {
+    const todayRow = (_reportsCache || []).find(r => r.date === today && isDailyReport(r));
+    if (todayRow) _reportParsed = parseSmartReport(todayRow.content);
+  }
+  renderSpeakSubTabs();
+  if (_speakView === 'expressions') { renderExpressionList(); return; }
+  if (_speakView === 'core') { renderCoreList(); return; }
 
+  // ── SRS 卡组（任务 2）──
   let sentences;
-  if (_ctxDate) {
+  if (_ctxDate && _ctxDate !== today) {
+    // 历史日期 → 该日日报核心句型（v85 语义，只读浏览；写回走文本锚定 UPSERT，绝不重复入库）
     const dp = parsedReportFor(_ctxDate);
-    sentences = dp ? coreDeck(dp, _speakAll) : [];
+    sentences = dp ? coreDeck(dp) : [];
   } else {
-    // 真实解析数据源：当前日报的核心句型（parser 原样输出，只消费不修改）
-    // _viewDate 残留仅为历史浏览链路服务；待办打卡入口已在上游清空 _viewDate，此处严格今日
-    const todayReport = _viewDate
-      ? resolveActiveReport(reports)
-      : ((reports || []).find(r => r.date === today && isDailyReport(r)) || null);
-    const parsed = todayReport ? parseSmartReport(todayReport.content) : null;
-    // v73 卡片复习模式：页面只展示「今日到期句型队列」（getDueSentencesQueue 唯一事实源 = 今日新句型 + 历史到期句型）
-    sentences = getDueSentencesQueue(parsed, _speakAll);
+    // v104 SM-2 队列断层修复：队列纯库捞 —— 导入瞬间句子已正式入库，今日新句/历史到期句都在 _speakAll 库中，
+    // getDueSentencesQueue(_speakAll) 唯一事实源（新卡 = 无 next_review_date，到期卡 = 曲线到期），零运行时解析拼凑
+    sentences = getDueSentencesQueue(_speakAll);
   }
   // ?id= / ?sentence= 锚定仅决定起始卡片（首页「今天需要提升」跳转仍然生效），绝不改变队列内容
   const anchorId = params.get('id') || null;
@@ -2976,7 +2939,7 @@ async function loadSpeak() {
     if (hit >= 0) startIndex = hit;
     else {
       // v86 文本锚定未命中（地道表达句不在该日核心句型队列）：以点击句为首卡入队（sentence-anchor 契约，
-      // 复习反馈时自动 INSERT 进入记忆曲线），队列其余部分保持该日核心句型 —— 用户练的永远是点击的那一句
+      // 复习反馈时自动 INSERT 进入记忆曲线），队列其余部分保持该日句式 —— 用户练的永远是点击的那一句
       // v100 全库反查：队列未命中 ≠ 库中没有——点击句可能属于自然表达（patterns 表 better/scene），
       // 先去 _patternLibrary 按 targetSentence 文本精确匹配，命中即以完整记录入队（解析/场景/SM-2 字段全带齐）；
       // 全库也没有才建空解析 sentence-anchor 卡 —— 「暂无解析」从此只代表数据真缺失
@@ -2993,6 +2956,115 @@ async function loadSpeak() {
   renderSentenceReview(sentences, startIndex);
 }
 
+// ── v104 句型复习页 sub-tab 壳（句型卡组 / 自然表达 / 核心句型）──
+// 切换保留当前 date 参数（switchSpeakView 读 URL 原样携带），历史日期上下文绝不丢失
+function renderSpeakSubTabs() {
+  const el = document.getElementById('speak-subtabs');
+  if (!el) return;
+  el.style.display = 'flex';
+  const tabs = [
+    { key: '', label: '句型卡组' },
+    { key: 'expressions', label: '自然表达' },
+    { key: 'core', label: '核心句型' }
+  ];
+  el.innerHTML = tabs.map(t =>
+    `<span class="lib-subtab${t.key === _speakView ? ' active' : ''}" onclick="switchSpeakView('${t.key}')">${t.label}</span>`
+  ).join('');
+}
+
+function switchSpeakView(view) {
+  if (view !== '' && view !== 'expressions' && view !== 'core') view = '';
+  const d = new URLSearchParams(window.location.search).get('date');
+  const qs = [];
+  if (view) qs.push('view=' + view);
+  if (d) qs.push('date=' + encodeURIComponent(d));
+  window.history.pushState({}, '', '/shadowing' + (qs.length ? '?' + qs.join('&') : ''));
+  _ctxDate = d || null;
+  _speakView = view;
+  renderSpeakRoute(); // 数据已加载（_speakAll/_reportsCache），零网络重渲染
+}
+
+// ═══ v104 对比阅读卡片（跳转页 · 用户指令）：主视觉 = Improved/Target 正确句（绿），
+//     辅助视觉 = Original/Replaced 原句（灰小字），底部 = Explanation 解析框 —— 零挖空、零填空 ═══
+function comparisonCardHTML(main, original, note) {
+  return `<div class="err-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)] transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
+    ${main ? `<div class="text-xl font-bold mb-1.5 text-[var(--c-green)]">${h(main)}</div>` : ''}
+    ${original ? `<div class="text-xs text-[var(--c-text-ultradim)] mb-2">原句：${h(original)}</div>` : ''}
+    ${note ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg">📖 ${h(note)}</div>` : ''}
+  </div>`;
+}
+
+// 列表头部：历史日期横幅（今日零侵入）+ 计数行（N 与打分面板子块数字同源 —— 同一 parsed 桶）
+function speakListHeader(count, unit) {
+  const isHist = _ctxDate && _ctxDate !== getLocalToday();
+  const banner = isHist
+    ? `<div class="mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)] text-[0.875rem] font-semibold text-[var(--c-primary)]">📅 正在查看 ${_ctxDate} 的当日数据</div>`
+    : '';
+  return banner + `<div class="flex items-center justify-between mb-3 px-1"><span class="text-xs font-semibold text-[var(--c-text-dim)]">共 ${count} ${unit}</span></div>`;
+}
+
+// 列表空状态：历史日期无记录 → 纯提示；今日无日报 → 导入引导
+function speakListEmpty(label) {
+  const today = getLocalToday();
+  const isHist = _ctxDate && _ctxDate !== today;
+  const dp = parsedReportFor(_ctxDate || today);
+  const hasReport = !!dp;
+  const subtitle = isHist
+    ? `未找到 ${_ctxDate} 日报中的${label}记录`
+    : (hasReport ? `该日日报未记录${label}` : `导入今日日报后，这里会展示${label}对照列表`);
+  const importBtn = (!isHist && !hasReport)
+    ? `<button onclick="showImportDialog()" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
+        style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
+        📥 导入今日日报 <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>`
+    : '';
+  return `<div class="flex h-full items-center justify-center">
+    <div class="w-full max-w-[320px] rounded-3xl px-6 pt-9 pb-8 text-center border border-[var(--c-border-light)]"
+         style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 65%);box-shadow:var(--c-shadow)">
+      <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--c-primary-light)] flex items-center justify-center" style="box-shadow:inset 0 0 0 1px var(--c-primary)">
+        <i data-lucide="book-open" class="w-5 h-5 text-[var(--c-primary)]"></i>
+      </div>
+      <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">暂无${label}记录</div>
+      <div class="text-[0.875rem] text-[var(--c-text-dim)] mb-6 leading-relaxed">${subtitle}</div>
+      ${importBtn}
+    </div>
+  </div>`;
+}
+
+// 自然表达列表：该日日报 patterns（mistakes 过滤 expression）→ 对比阅读卡片
+// 主句 = better（地道升级句），原句 = original，解析 = scene（无 scene 降级 pattern 根因）
+function renderExpressionList() {
+  const container = document.getElementById('speak-player');
+  const dp = parsedReportFor(_ctxDate || getLocalToday());
+  const items = (dp && dp.patterns) || [];
+  if (!items.length) { container.innerHTML = speakListEmpty('自然表达'); refreshIcons(container); return; }
+  container.innerHTML = speakListHeader(items.length, '条自然表达') + items.map(x =>
+    comparisonCardHTML(
+      String(x.better || x.original || '').trim(),
+      x.better ? String(x.original || '').trim() : '',
+      String(x.scene || x.pattern || '').trim()
+    )
+  ).join('');
+  refreshIcons(container);
+}
+
+// 核心句型列表：该日日报 sentence_patterns → 对比阅读卡片
+// 主句 = pattern/targetSentence（金句），原句 = replacedSentence（空则省略整行），解析 = example/explanation
+function renderCoreList() {
+  const container = document.getElementById('speak-player');
+  const dp = parsedReportFor(_ctxDate || getLocalToday());
+  const items = (dp && dp.sentence_patterns) || [];
+  if (!items.length) { container.innerHTML = speakListEmpty('核心句型'); refreshIcons(container); return; }
+  container.innerHTML = speakListHeader(items.length, '句核心句型') + items.map(s =>
+    comparisonCardHTML(
+      String(s.pattern || s.targetSentence || s.text || '').trim(),
+      String(s.replacedSentence || '').trim(),
+      String(s.example || s.explanation || '').trim()
+    )
+  ).join('');
+  refreshIcons(container);
+}
+
 // 纯逻辑：id 锚定定位（缺失/越界/无匹配 → 0；字符串化比对，绝不误判数字 id）
 function resolveAnchorIndex(sentences, anchorId) {
   if (anchorId === undefined || anchorId === null || anchorId === '') return 0;
@@ -3000,37 +3072,42 @@ function resolveAnchorIndex(sentences, anchorId) {
   return idx >= 0 ? idx : 0;
 }
 
-// 核心句型训练队列组装：真实解析 sentence_patterns > isTodayCore 打标 > 内置核心句型
-// v63：parsed（今日日报解析）一旦存在就是唯一事实源 —— 0 句就 0 句，绝不回退打标/Mock；
-//      回退链仅服务于无日报解析的显式过滤视图（?filter=core_sentences），默认今日队列不经此路径
-function coreDeck(parsed, speakAll) {
-  if (parsed) {
-    return (parsed.sentence_patterns || []).map((s, i) => ({
-      id: 'core-' + i,
-      targetSentence: s.pattern || s.targetSentence || s.text || '',
-      replacedSentence: '',
-      explanation: s.example || s.explanation || ''
-    }));
-  }
-  const tagged = (speakAll || []).filter(p => p.isTodayCore === true || p.is_core === true).map(toPlayerItem);
-  return tagged.length ? tagged : [];   // v95：mockSentences 已物理删除，无核心句型 = 空队列 = 空状态
+// 核心句型训练队列组装（v104 后仅服务历史日期只读浏览）：该日日报 sentence_patterns → 队列 item
+// v63：parsed（该日日报解析）一旦存在就是唯一事实源 —— 0 句就 0 句，绝不回退打标/Mock；
+// v104：默认今日队列已纯库捞（getDueSentencesQueue），本函数与默认队列无关；
+//      写回走文本锚定 UPSERT —— 历史句当日若已入库（导入即入库），复习即 UPDATE 既有行，绝不重复 INSERT
+function coreDeck(parsed) {
+  return (parsed.sentence_patterns || []).map((s, i) => ({
+    id: 'core-' + i,
+    targetSentence: s.pattern || s.targetSentence || s.text || '',
+    replacedSentence: s.replacedSentence || '',
+    explanation: s.example || s.explanation || ''
+  }));
 }
 
-// getDueSentencesQueue —— 今日到期句型队列唯一事实源（句型复习打卡总任务数同源）：
-// 今日新句型（coreDeck 真实解析）+ 历史到期句型（needsReview===true）
-// 文本去重：与今日已含句（targetSentence 小写比对）一致的库行不再入队 —— 今日新学即为今日复习，绝无双计
-// 无今日日报 → 纯历史到期队列（完成句型复习）；两者皆无 → 空队列（UI 空状态，严禁回退 Mock）
+// getDueSentencesQueue —— 今日到期句式队列唯一事实源（句型复习打卡总任务数同源）
+// v104 SM-2 队列断层修复（用户指令）：队列纯库捞 —— 导入瞬间句子已正式入库（patterns 表），
+// 新卡 = 库中无 next_review_date 的行（未复习 → 立即到期，isDueBySrs 判据），历史到期卡 = SM-2 曲线到期行；
+// 运行时解析临时拼凑（coreDeck + expressionDeck 拼接、expr-N/core-N 临时 id）已物理退役 —— 队列 item 一律库行 pat_N
+// 文本去重：同句多行（历史「导入行 + 复习 INSERT 行」双行遗留）只保留优先行；库级 dedupePatternsByText 已收敛，此处兜底
+// 排序：新卡优先（date_added 降序 → 今日新句最前）→ 到期卡（next_review_date 升序，最急先练）
 // v77 SM-2 漏斗：单日队列上限截断 slice(0, PATTERN_SESSION_CAP) —— 只取今日到期前 15 句，严禁整个数据库倒给前端；
 // 未入队的到期句次日仍在队列（SM-2 未推进 = 仍到期），逐日消化，绝无丢失
 const PATTERN_SESSION_CAP = 15;
-function getDueSentencesQueue(parsed, speakAll) {
-  const todayItems = parsed ? coreDeck(parsed, speakAll) : [];
-  const todayTexts = new Set(todayItems.map(it => String(it.targetSentence || '').toLowerCase().trim()).filter(Boolean));
-  const dueItems = (speakAll || [])
-    .filter(p => p.needsReview === true
-      && !todayTexts.has(String(p.targetSentence || p.better || p.original || '').toLowerCase().trim()))
-    .map(toPlayerItem);
-  return todayItems.concat(dueItems).slice(0, PATTERN_SESSION_CAP);
+function getDueSentencesQueue(speakAll) {
+  const seen = new Set();
+  const newCards = [];
+  const dueCards = [];
+  for (const p of (speakAll || [])) {
+    if (p.needsReview !== true) continue;
+    const k = String(p.targetSentence || p.better || p.original || '').toLowerCase().trim();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    if (!p.next_review_date) newCards.push(p); else dueCards.push(p);
+  }
+  newCards.sort((a, b) => String(b.date_added || '').localeCompare(String(a.date_added || '')));
+  dueCards.sort((a, b) => String(a.next_review_date || '').localeCompare(String(b.next_review_date || '')));
+  return newCards.concat(dueCards).map(toPlayerItem).slice(0, PATTERN_SESSION_CAP);
 }
 
 // 词条 → 提词器句子：兼容两种数据形状（嵌套对象 targetSentence / 云端 better+original+scene）
@@ -3056,36 +3133,23 @@ function toPlayerItem(p) {
 }
 
 let _speakAll = [];
+let _speakView = '';                 // v104 句型复习页三视图：'' 卡组 / 'expressions' 自然表达 / 'core' 核心句型
 
 // ═══════════════════════════════════════════════════════
-// 句型记忆卡片 — Sentence SRS Cards（v73 重大策略调整）
-// 机械录音（听原音/按住录音/听自己）暂时下线；页面转型为 SM-2 卡片复习：
-// 正面 = 情境提示 + 完形填空 → 点击翻转绿色地道句与解析 → 底部统一 ReviewButton 反馈
-// 铁律：单卡片视口，绝不允许 .map 瀑布流列表；队列 = getDueSentencesQueue 唯一事实源
+// 句型记忆卡片 — Sentence SRS Cards（v73 建卡 · v104 换皮不换骨）
+// 机械录音（听原音/按住录音/听自己）已下线；页面为 SM-2 卡片复习。
+// v104 重构（用户指令）：挖空完形引擎 buildCloze 已物理删除，绝不残留——
+//   卡片统一渲染【主视觉正确句（Improved/Target）+ 辅助视觉原句（Original/Replaced）+ 底部解析（Explanation）】；
+//   标准 SRS 翻卡交互：正面仅情境提示，点击翻面展示正确句/原句/解析后，底部才弹出「还没记住 / 记住了」；
+//   反馈仍走 handleReviewFeedback 统一出口（SM-2 调度层零改动），点完即出队进入下一题。
+// 铁律：单卡片视口，绝不允许 .map 瀑布流列表；队列 = getDueSentencesQueue 唯一事实源（核心句型 + 自然表达同一队列）
 // ═══════════════════════════════════════════════════════
-let _srsQueue = [];                  // 今日到期句型队列
+let _srsQueue = [];                  // 今日到期句式队列（核心句型 + 自然表达混编）
 let _srsIdx = 0;                     // 当前卡片下标
 let _srsReviewed = 0;                // 已复习数（🎯 句型复习 (已复习 x / 总计 y)）
 let _srsTotal = 0;                   // 队列总长（开局快照，splice 移除后不变）
 let _srsResults = { remembered: 0, forgot: 0 };
 let _srsFlipped = false;             // 卡片翻转态
-
-// v77 完形填空引擎（防错误石化）：对地道目标句挖空 1–3 个关键词（≥4 字母内容词，跳过功能词），
-// 正面只暴露「情境 + 挖空句」，原句仅在背面揭晓——用户绝不接触自己的 Chinglish 原句
-function buildCloze(targetSentence) {
-  const words = String(targetSentence || '').split(/\s+/).filter(Boolean);
-  if (words.length <= 2) return { display: words.join(' ') || '______', blanks: [] };
-  const STOP = new Set(['the','a','an','is','are','was','were','to','of','in','on','at','for','with','and','or','but','it','this','that','i','you','he','she','we','they','my','your','his','her','its','me','him','us','them','be','been','do','does','did','not','no','yes','so','as','if','by','from','have','has','had','will','would','can','could','should','may','might']);
-  const picks = [];
-  words.forEach((w, i) => {
-    if (picks.length >= 3) return;
-    if (w.length >= 4 && !STOP.has(w.toLowerCase().replace(/[^a-z]/g, ''))) picks.push(i);
-  });
-  for (let i = words.length - 1; i >= 0 && picks.length < 3; i--) { if (!picks.includes(i)) picks.push(i); }
-  picks.sort((a, b) => a - b);
-  const display = words.map((w, i) => picks.includes(i) ? '______' : w).join(' ');
-  return { display, blanks: words.filter((w, i) => picks.includes(i)) };
-}
 
 function renderSentenceReview(sentences, startIndex) {
   const container = document.getElementById('speak-player');
@@ -3124,25 +3188,26 @@ function renderSentenceReview(sentences, startIndex) {
         <span id="srs-progress-text" class="text-xs font-semibold text-[var(--c-text)] shrink-0"></span>
         <div class="flex-1 h-1.5 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div id="srs-progress-fill" class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-300" style="width:0%"></div></div>
       </div>
-      <!-- 翻转卡片（v77 认知重塑）：正面 = 💡 情境提示 + 完形填空（绝不展示用户原句，防错误石化）
-           背面 = 居中放大绿色地道句 + 解析；容器自适应内容（min-h 250px），不再撑满全屏 -->
+      <!-- v104 翻转卡片（换皮不换骨）：正面 = 💡 情境提示（挖空完形已物理删除，零填空）；
+           背面 = 居中放大绿色地道句（主视觉）+ 原句小字（辅助视觉，无则整行隐藏）+ 解析（底部）-->
       <div class="srs-flip-scene mb-4 cursor-pointer" onclick="flipSrsCard()">
         <div class="srs-flip-inner" id="srs-flip-inner">
           <div class="srs-flip-face srs-flip-front flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:var(--c-surface);box-shadow:var(--c-shadow)">
-            <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-4 tracking-widest">情境完形 · 回忆地道表达</div>
+            <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-4 tracking-widest">情境提示 · 回忆地道表达</div>
             <div id="srs-card-clue" class="font-sans text-[0.875rem] text-[var(--c-text-dim)] mb-5 leading-relaxed"></div>
-            <h2 id="srs-card-front" class="font-sans font-bold text-xl text-[var(--c-text)] leading-relaxed"></h2>
             <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-4">点击卡片查看完整地道句</div>
           </div>
           <div class="srs-flip-face srs-flip-back flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 70%);box-shadow:var(--c-shadow)">
             <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-4 tracking-widest">点击卡片返回情境</div>
             <p id="srs-card-back-correct" class="font-sans font-bold text-[1.5rem] text-[var(--c-green)] leading-snug"></p>
+            <div id="srs-card-back-original" class="font-sans text-[0.8125rem] text-[var(--c-text-ultradim)] mt-2 leading-relaxed"></div>
             <div id="srs-card-back-explanation" class="font-sans text-[0.875rem] text-[var(--c-text-dim)] mt-4 leading-relaxed"></div>
           </div>
         </div>
       </div>
-      <!-- 反馈区：v76 统一 ReviewButton 模板 —— 浅粉/浅绿底 + 纯色圆点 + 红/绿文字，零 emoji，与单词复习页绝对一致 -->
-      <div class="flex items-center justify-center gap-3">
+      <!-- v104 标准 SRS 翻卡：解析与反馈按钮默认隐藏（display:none），flipSrsCard 翻面后才弹出；
+           反馈区沿用 v76 统一 ReviewButton 模板 —— 浅粉/浅绿底 + 纯色圆点 + 红/绿文字，零 emoji，与单词复习页绝对一致 -->
+      <div id="srs-actions" class="flex items-center justify-center gap-3" style="display:none">
         ${reviewButtonHTML({ id: 'srs-forgot', kind: 'again', label: '还没记住', cls: 'flex-1 py-3 text-sm rounded-2xl' })}
         ${reviewButtonHTML({ id: 'srs-remembered', kind: 'good', label: '记住了', cls: 'flex-1 py-3 text-sm rounded-2xl' })}
       </div>
@@ -3153,28 +3218,36 @@ function renderSentenceReview(sentences, startIndex) {
   refreshIcons(container);
 }
 
-// 状态驱动渲染（v77 认知重塑）：正面 = 中文情境 + 地道句完形填空；背面 = 绿色完整地道句 + 解析
-// 铁律：用户原始错误句（replacedSentence/Chinglish）在任何一面都不再出现，防错误印象石化
+// v104 状态驱动渲染（换皮不换骨）：正面 = 仅 💡 情境提示（零挖空）；背面 = 绿色地道句 + 原句小字 + 解析
 function renderSrsCard() {
   const item = _srsQueue[_srsIdx];
   if (!item) return;
   document.getElementById('srs-progress-text').textContent = `🎯 句型复习 (已复习 ${_srsReviewed} / 总计 ${_srsTotal})`;
   document.getElementById('srs-progress-fill').style.width = `${(_srsReviewed / _srsTotal) * 100}%`;
-  const target = String(item.targetSentence || '').trim() || '______';
+  const target = String(item.targetSentence || '').trim();
+  const original = String(item.replacedSentence || '').trim();
   const expl = String(item.explanation || '').trim();
-  // 正面：💡 想要表达：[中文情境] + 完形填空（只暴露地道句挖空版，绝不暴露原句）
+  // 正面：💡 想要表达：[中文情境]（挖空完形已物理删除 —— 不再展示目标句任何遮挡形态）
   document.getElementById('srs-card-clue').textContent = expl ? `💡 想要表达：${expl}` : '💡 想要表达：完成下面的地道表达';
-  document.getElementById('srs-card-front').textContent = buildCloze(target).display;
-  // 背面：居中放大绿色地道句 + 解析
-  document.getElementById('srs-card-back-correct').textContent = target;
+  // 背面三件套：主视觉正确句（绿）+ 辅助视觉原句（灰小字，无则清空隐藏）+ 解析
+  document.getElementById('srs-card-back-correct').textContent = target || '（暂无句子）';
+  const origEl = document.getElementById('srs-card-back-original');
+  if (origEl) origEl.textContent = original ? `原句：${original}` : '';
   document.getElementById('srs-card-back-explanation').textContent = expl ? `🎬 ${expl}` : '（暂无解析）';
+  // 翻卡态复位：回到正面 + 隐藏反馈按钮（标准 SRS：解析与按钮只在翻面后出现）
   _srsFlipped = false;
   document.getElementById('srs-flip-inner').classList.remove('flipped');
+  const actions = document.getElementById('srs-actions');
+  if (actions) actions.style.display = 'none';
 }
 
+// v104 标准 SRS 翻卡交互：点击翻面展示「正确句 + 原句 + 解析」，同时底部弹出「还没记住 / 记住了」；
+// 再点翻回正面 → 按钮随之隐藏。反馈触发仍由 rateSentenceCard → handleReviewFeedback 统一出口，调度层零改动
 function flipSrsCard() {
   _srsFlipped = !_srsFlipped;
   document.getElementById('srs-flip-inner').classList.toggle('flipped', _srsFlipped);
+  const actions = document.getElementById('srs-actions');
+  if (actions) actions.style.display = _srsFlipped ? 'flex' : 'none';
 }
 
 // 反馈闭环：ReviewButton → handleReviewFeedback（SM-2 统一服务）→ 当前句出队 → 进度即时更新
@@ -3816,6 +3889,18 @@ async function importDailyReport(parsed) {
     })));
   }
 
+  // v104 SM-2 队列断层修复：核心句型与自然表达同日正式入库（JSON 链路早已入库，Markdown 链路此前漏写 →
+  // 未复习的核心句型会永久蒸发）。入库行无 SM-2 字段 → 队列按「新卡」语义立即到期，首次复习由文本锚定 UPSERT 补曲线
+  if (parsed.sentence_patterns && parsed.sentence_patterns.length) {
+    await sb.from('patterns').insert(parsed.sentence_patterns.map(s => ({
+      user_id: uid,
+      original: s.replacedSentence || '',
+      better: s.pattern || s.targetSentence || s.text || '',
+      scene: s.example || s.explanation || '',
+      date_added: date, source_topic: '核心句型'
+    })));
+  }
+
   await sb.from('reports').upsert({ user_id: uid, date, content: parsed.raw }, { onConflict: 'user_id,date' });
   await updateProgress(uid, parsed.summary.fluency || 0, parsed.summary.accuracy || 0, parsed.summary.weak_areas, topic, duration);
 
@@ -3829,31 +3914,15 @@ async function importDailyReport(parsed) {
     }
   }
 
-  showToast(`✅ 入库完成！单词 ${parsed.vocabulary.length} · 纠错 ${allErrors.length} · 句型 ${parsed.patterns.length}`);
+  showToast(`✅ 入库完成！单词 ${parsed.vocabulary.length} · 纠错 ${allErrors.length} · 句型 ${parsed.patterns.length + (parsed.sentence_patterns || []).length}`);
 }
 
 // v97：importTopicCard / importInsightReport 已物理删除——话题卡与弱点分析模板功能彻底下线。
 // 本入口只接受日报（JSON / Markdown）；parseSmartReport 若判定为 topic-card / insight-report，
 // validateImportInput 会直接拒绝并红卡提示。
 
-// ── v6.0: error category detection (typed linguistic classification) ──
-function detectErrorCategory(original, correction) {
-  if (!original || !correction) return 'vocabulary';
-  if (/(ed|ing|was|were|have|has|had|will)\b/i.test(original) || /(ed|ing|was|were|have|has|had|will)\b/i.test(correction)) return 'tense';
-  if (/\b(in|on|at|for|to|of|with|by|from)\b/i.test(correction) && original.replace(/\b(in|on|at|for|to|of|with|by|from)\b/gi,'')===correction.replace(/\b(in|on|at|for|to|of|with|by|from)\b/gi,'')) return 'preposition';
-  if (/\b(a|an|the)\b/i.test(original) || /\b(a|an|the)\b/i.test(correction)) return 'article';
-  const oWords = original.toLowerCase().split(/\s+/).sort().join(' ');
-  const cWords = correction.toLowerCase().split(/\s+/).sort().join(' ');
-  if (oWords===cWords && original!==correction) return 'word-order';
-  if (/(s|es)\b/i.test(original) !== /(s|es)\b/i.test(correction)) return 'singular-plural';
-  return 'vocabulary';
-}
-
 // 单一分类源：全部错误模式归类收敛于 parser.js 的 classifyErrorType（发音与重音/语法与句式/地道表达/逻辑与衔接/其他）
-// 旧实现的零散正则已废弃 —— 严禁与分类引擎分叉
-function detectErrorPattern(original, correction) {
-  return classifyErrorType(original, correction, '') || '其他';
-}
+// v104：detectErrorPattern 死函数已物理删除 —— 旧实现的零散正则分类已废弃，严禁与分类引擎分叉
 
 async function updateProgress(uid, fluency, accuracy, weak_areas, topic, duration) {
   const { data: prog } = await sb.from('progress').select('*').eq('user_id', uid).maybeSingle();
@@ -4308,6 +4377,8 @@ document.getElementById('btn-copy-report-template')?.addEventListener('click', (
 document.getElementById('btn-export-data').addEventListener('click', exportData);
 document.getElementById('btn-logout-me').addEventListener('click', signOut);
 document.getElementById('btn-import-json')?.addEventListener('click', importJSON);
+// v104 日报一致性审计：逐份日报核对打分面板四子块数字与四按钮跳转页列表长度（含历史日报）
+document.getElementById('btn-audit-reports')?.addEventListener('click', runReportAudit);
 
 // Theme picker (circle buttons)
 document.querySelectorAll('#theme-picker button').forEach(b => {
@@ -4351,5 +4422,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=102');
+  navigator.serviceWorker.register('/sw.js?v=104');
 }

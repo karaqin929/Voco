@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=103">
+  <link rel="stylesheet" href="/style.css?v=104">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -208,8 +208,7 @@
     <!-- Section 4: Insights (Cards A-F) -->
     <div id="home-insights"></div>
 
-    <!-- Section 5: Content Cards + Todo List -->
-    <div class="grid grid-cols-3 gap-3 mb-3" id="home-summary-cards"></div>
+    <!-- Section 5: Todo List（v104：三张数据卡已删除，只保留今日待办） -->
     <div id="home-quests" class="bg-[var(--c-surface)] rounded-2xl p-5 mb-3 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)"></div>
 
   </section>
@@ -227,6 +226,8 @@
 
   <!-- ── Tab 3: Speak ──────────────────────────── -->
   <section id="tab-speak" class="tab-content">
+    <!-- v104 三视图 sub-tab 壳：句型卡组（SRS 翻卡）/ 自然表达 / 核心句型（对比阅读卡片）-->
+    <div class="lib-subtabs" id="speak-subtabs"></div>
     <!-- 模块四：句型复习卡片模式（Sentence SRS Cards）— 单卡片翻转视口，禁止瀑布流列表 -->
     <div id="speak-player"></div>
   </section>
@@ -355,6 +356,11 @@
           <span class="text-sm text-[var(--c-text)]"><i data-lucide="download" class="w-4 h-4"></i> 导入数据</span>
           <span class="text-[var(--c-text-ultradim)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></span>
         </div>
+        <!-- v104 日报一致性审计：逐份日报核对打分面板四子块数字与四按钮跳转页列表长度 -->
+        <div class="flex justify-between items-center px-4 py-3.5 border-t border-[var(--c-border-light)] cursor-pointer transition-colors active:bg-[var(--c-border-light)]" id="btn-audit-reports">
+          <span class="text-sm text-[var(--c-text)]"><i data-lucide="clipboard-check" class="w-4 h-4"></i> 日报一致性审计</span>
+          <span class="text-[var(--c-text-ultradim)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></span>
+        </div>
       </div>
     </div>
 
@@ -422,6 +428,20 @@
     </div>
   </div>
 
+  <!-- ── Report Audit Dialog (v104 日报一致性审计)：与 import-dialog 同骨架，逐份日报核对面板数字与跳转页列表长度 ── -->
+  <div id="audit-dialog" class="fixed inset-0 z-[300] hidden">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="hideAuditDialog()"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+      <div class="pointer-events-auto bg-[var(--c-surface)] rounded-[20px] w-full max-w-[560px] max-h-[85vh] flex flex-col overflow-hidden animate-[modalPop_0.25s_ease-out]" style="box-shadow:0 12px 48px rgba(0,0,0,0.18)">
+        <div class="flex justify-between items-center px-[18px] py-4 border-b border-[var(--c-border-light)] text-sm font-bold text-[var(--c-text)]">
+          <span class="inline-flex items-center gap-1"><i data-lucide="clipboard-check" class="w-4 h-4"></i> 日报一致性审计</span>
+          <button class="w-[30px] h-[30px] rounded-full border-0 bg-[var(--c-bg)] text-[var(--c-text-dim)] text-base cursor-pointer flex items-center justify-center" onclick="hideAuditDialog()">✕</button>
+        </div>
+        <div id="audit-report" class="flex-1 overflow-y-auto"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Inspiration Dialog (v74 居中模态弹窗，严禁 Bottom Sheet) ──
        1:1 复刻日报导入弹窗骨架：圆角浮动卡 + 背景蒙版 Backdrop Blur + 右上角标准 ✕ 关闭按钮 -->
   <div id="inspiration-dialog" class="fixed inset-0 z-[300] hidden">
@@ -465,8 +485,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=103"></script>
-<script src="/parser.js?v=103"></script>
-<script src="/app.js?v=103"></script>
+<script src="/supabase-client.js?v=104"></script>
+<script src="/parser.js?v=104"></script>
+<script src="/app.js?v=104"></script>
 </body>
 </html>
