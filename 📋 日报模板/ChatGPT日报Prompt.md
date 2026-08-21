@@ -1,4 +1,4 @@
-# 📝 完美日报生成指令（唯一权威版 · v97 + summary.vocabulary 与 mistakes[].category 增补）
+# 📝 完美日报生成指令（唯一权威版 · v105：新增 coach_insights 私教洞察四维诊断）
 
 > **和 ChatGPT 结束对练时，把下面整段指令发过去**（或直接点 App 内「导入日报」弹窗的「复制模板」按钮——两者完全同步）。
 > 生成的 JSON **原样粘贴进 Voco「导入日报」对话框**即可解析入库。
@@ -34,12 +34,18 @@
   ],
   "newWords": [
     { "word": "单词", "phonetic": "/音标/", "meaning": "中文释义", "example": "包含该词的例句" }
-  ]
+  ],
+  "coach_insights": {
+    "vocabulary": "总结今日词汇痛点。例如：在描述抽象概念时词汇受限，过度依赖基础词汇。",
+    "grammar": "总结今日最高频的语法错误模式。例如：频繁在从句时态和介词搭配上出错。",
+    "expression": "点出不够地道的思维原因。例如：习惯中文主谓直译，缺乏地道的物称主语思维。",
+    "core_patterns": "总结今日金句的交际场景。例如：适合用于职场深度探讨和表达个人复盘的复杂句式。"
+  }
 }
 ```
 
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
-1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords 这 5 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
+1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords、coach_insights 这 6 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
 2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 62。这是从对话内容推导出的客观统计，严禁凭空编造或照抄示例值 62。
 3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
@@ -53,6 +59,7 @@
 5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
 7. coreSentences 与 newWords 不设数量上限：只把今天对话中真实出现、值得收录的内容整理出来——coreSentences 收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）；newWords 只收录「你不会的生词」：对话中你不认识、说不出、卡壳、查过、用错或被纠正过的词。严禁收录你本来就认识的常用词。宁缺毋滥：今天没有就输出空数组 []，绝不允许为了凑数量编造内容，也不允许因为觉得太少而凑词。
+8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。
 
 【评分与点评铁律】（专业口语私教评审）：
 - 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）；vocabulary 词汇丰富度（用词是否丰富准确：是否反复依赖简单词、是否用上对话中学到的新表达）。
@@ -70,12 +77,13 @@
 【输出前自检】——必须逐条确认，全部通过才允许输出：
 □ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
-□ 顶层 5 个键齐全，summary 的 9 个键齐全，空内容用 [] 不用 null；
+□ 顶层 6 个键齐全（含 coach_insights），summary 的 9 个键齐全，空内容用 [] 不用 null；
 □ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
 □ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是示例值 62；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 无任何以 ” 开头的字符串——开闭引号必须同为半角直引号 "（逐字段检查 phonetic 音标字段）；
 □ newWords 的每个词都是我今天不会/卡壳/被纠正的生词，没有一个是我本来就认识的常用词；
+□ coach_insights 四句诊断都基于今日对话的具体表现，严厉专业、直接指出问题，无空泛套话；
 □ 所有键名与上面示例结构一字不差。
 
 ---
@@ -100,9 +108,11 @@ GPT 日报 JSON → Voco 系统消费链路的完整映射，字段名即契约�
 | `mistakes[].category`（grammar 专属） | 枚举：动词与时态/名词与冠词/句式与搭配 | 入库写入 `errors.error_pattern` 列 → Profile「语法弱点分析」三类分布（旧行无标签按内容自动归类） |
 | `coreSentences[].targetSentence/replacedSentence/explanation` | 字符串 | `patterns` 表 + 跟读页沉浸式播放器队列（1/N） |
 | `newWords[].word/phonetic/meaning/example` | 字符串 | `vocabulary` 表（word/phonetic/meaning/example）+ 自动打标「今日新词」 |
+| `coach_insights.vocabulary/grammar/expression/core_patterns` | 字符串 ×4 | 首页「需要提升」四卡第 1 行「洞察」（v105 新增；旧日报无该字段 → 同一行静默回落基础统计文案） |
 
 ## 兼容说明
 
 - 旧版 Markdown 模板日报**仍然可以正常导入**——App 内置无损清洗层 `normalizeDailyData` 会把老格式适配到新界面，历史记录一条不丢。
 - v96 起 App 解析层内置「智能引号状态机」兜底：即使 GPT 输出含弯引号或值内嵌套中文引号，也能安全归一化后解析（兜底网，不替代本指令的源头铁律）。
 - v97 起**不再需要手动填写练习时长**：会话维度由 `speakingRatio`（对话占比）承载——这是 ChatGPT 能从对话内容里直接统计出的客观数字。旧版含 `duration` 的日报仍可正常导入（时长保留，新日报不再新增时长）。
+- v105 起新增 `coach_insights`（私教洞察四维诊断）：新版模板必含；旧版模板生成的日报（无该字段）**仍可正常导入**——首页「需要提升」四卡的「洞察」行静默回落为基础统计文案（如「不地道的表达 8 句 · 主要问题：表达习惯」），三行排版结构完全一致、绝不开天窗。用新版模板重新生成当日日报即可获得真正的私教诊断。

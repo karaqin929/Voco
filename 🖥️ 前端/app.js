@@ -367,6 +367,10 @@ let _errorsRaw = [];
 let _patternsRaw = [];
 const _reportContentFetched = new Set();
 let _lastStreakArgs = null;
+// v104.1 熊条滚动状态（JS 单点，不依赖 DOM 存活）：_streakScrollCache 跨重渲染存活；
+// _streakAnchored 本次页面加载首次渲染已锚定最右——此后一切重渲染（历史日切换/后台补水/切页返回）只恢复不重锚定
+let _streakScrollCache = null;
+let _streakAnchored = false;
 async function loadHome() {
   if (_homeLoading) return;
   _homeLoading = true;
@@ -587,9 +591,11 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
   // v97：选中日期 = _viewDate（历史视图）或今天——日期加粗与熊圈严格跟随选中项，不再死锁今天
   const selected = _viewDate || today;
 
-  // v98：滚动位置保持 —— 重渲染前保存 scrollLeft，渲染后恢复（点历史日熊不再弹回最左）；首次渲染锚定最右（今天）
+  // v98/v104.1：滚动位置保持 —— 渲染前从 DOM 读当前位置并存入 JS 缓存（跨重渲染存活，防「DOM 值被时序竞态清零后盲恢复 0」）；
+  // 本次页面加载的首次渲染锚定最右（今天）；此后一切重渲染（历史日切换/后台补水/切页返回）只恢复、绝不重锚定
   const prevStrip = document.getElementById('streak-strip');
   const savedScroll = prevStrip ? prevStrip.scrollLeft : null;
+  if (prevStrip && typeof savedScroll === 'number') _streakScrollCache = savedScroll;
 
   el.innerHTML = `
     <div class="flex justify-between items-center mb-3">
@@ -605,7 +611,8 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
     </div>
     <!-- v89 横向无限回溯滑条：向右滑 = 回看更早历史；小熊点亮 = 该日有词/日报（与数据库状态精准匹配）
          v97：单屏最多 7 格（grid auto-cols 14.28%，左右拖动查看更多）；选中日期加粗 + 熊圈
-         v98：pt-2/pl-1 为 scale-110 放大熊 + 光圈预留空间（overflow-x-auto 会强制垂直裁剪，无 padding 熊头被切） -->
+         v98：pt-2/pl-1 为 scale-110 放大熊 + 光圈预留空间（overflow-x-auto 会强制垂直裁剪，无 padding 熊头被切）
+         v104.1：滚动定位改为 JS 状态单点（_streakScrollCache/_streakAnchored）——首次渲染锚定最右，重渲染只恢复 -->
     <div class="grid overflow-x-auto hide-scrollbar gap-1 pt-2 pb-1 pl-1" id="streak-strip" style="grid-auto-flow:column;grid-auto-columns:14.28%">
       ${days.map(d => `
         <div class="flex flex-col items-center gap-px cursor-pointer" onclick="showBearDay('${d.date}',${d.active})">
@@ -614,9 +621,24 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
         </div>
       `).join('')}
     </div>`;
-  // v98：恢复滚动位置（历史日期点熊 re-render 后不弹回）；首次渲染 scrollLeft = scrollWidth 锚定最右（今天）
   const strip = document.getElementById('streak-strip');
-  if (strip) strip.scrollLeft = (savedScroll !== null) ? savedScroll : strip.scrollWidth;
+  if (strip) {
+    if (!_streakAnchored) {
+      // 首次渲染：锚定最右（今天）。scrollWidth 读取触发同步布局，值可靠；写缓存供后续一切重渲染恢复
+      _streakAnchored = true;
+      strip.scrollLeft = strip.scrollWidth;
+      _streakScrollCache = strip.scrollLeft;
+      // 双保险：若后续异步布局把 scrollLeft 意外归零，下一帧按缓存再断言一次锚定值
+      requestAnimationFrame(() => {
+        const s = document.getElementById('streak-strip');
+        if (s && _streakAnchored && _streakScrollCache !== null) s.scrollLeft = _streakScrollCache;
+      });
+    } else {
+      // 重渲染：只恢复（历史日切换/后台补水/切页返回，熊条位置保持不动）
+      strip.scrollLeft = (_streakScrollCache !== null) ? _streakScrollCache : strip.scrollWidth;
+      _streakScrollCache = strip.scrollLeft;
+    }
+  }
   refreshIcons(el);
 }
 
@@ -981,12 +1003,16 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // Card C: Strengths
   html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} ${dayLabel}做得好的地方</div>${d.strengths.length ? d.strengths.map(s=>`<div class="flex items-start gap-2 text-[0.875rem] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('') : '<div class="text-sm text-[var(--c-text-ultradim)]">当日无数据</div>'}`);
   // Card D: 需要提升 —— v104 固定四块（与打分面板四子块 1:1 对应）：词汇 / 语法纠正 / 自然表达 / 核心句型
-  // 每块 = 标签 + 动态摘要（无数据 → 空态文案）+ 首条举例 + 右侧跳转按钮（goImprove 精准携带当前浏览日期）
+  // v105 重构（用户指令：洞察注入四卡内部 + 无图标极简纯文本行结构）：
+  // 第 1 行 洞察 —— coach_insights 对应句（深灰、正常字重、单行截断）；旧日报无该字段 → 同一行静默回落基础统计文案（排版完全一致，绝无「旧版模板」报错字样）；
+  // 第 2 行 原句 —— items[0].original（浅灰、小字号、单行截断）；第 3 行 地道/修改 —— 品牌绿加粗、单行截断（与语法错题卡绿色正确句同源）；
+  // 词汇卡 = 洞察 + 平铺 3 词；核心句型卡 = 洞察 + 金句 两行；卡片内零 emoji 零图标；「查看全部」无图标文字键保留 goImprove 四跳转链
   const vocabList = (p && p.vocabulary) || [];
   const grammarList = standardizeErrorCards(p ? (p.grammar || []) : []); // 与语法错题列表/面板计数同函数
   const exprList = (p && p.patterns) || [];
   const coreList = (p && p.sentence_patterns) || [];
-  // 最高频语法错误桶（v101 三类：GPT category 标签直读，旧数据关键字回退）；最高频不自然根因（4 枚举）
+  const ci = (p && p.coach_insights) || null;   // v105 私教洞察（GPT 生成日报时产出；旧日报 null）
+  // 旧数据降级统计（与洞察行同一文案位）：最高频语法错误桶（v101 三类）/ 最高频不自然根因（4 枚举）
   const grammarTop = grammarList.length ? aggregateGrammarCategories(p.grammar)[0] : null;
   const exprTop = (() => {
     if (!exprList.length) return null;
@@ -994,53 +1020,75 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
     exprList.forEach(x => { const c = EXPRESSION_CAUSES.includes(x.pattern) ? x.pattern : '表达习惯'; count[c] = (count[c] || 0) + 1; });
     return Object.entries(count).sort((a, b) => b[1] - a[1])[0];
   })();
-  const firstVocab = vocabList[0];
-  const firstGrammar = grammarList[0];
-  const firstExpr = exprList.find(x => x && x.better) || exprList[0];
-  const firstCore = coreList[0];
+  // v105 三行模板（排版规格）：洞察 14px 深灰正常字重，行首维度图标 = 与打分面板四子块图标 1:1 呼应（识别性元素）；
+  // 例证盒（bg 底衬圆角 = 与语法错题卡解析盒同语言的结构性分组，洞察/证据两层分离）：原句 12px 浅灰 / 地道·修改 14px 绿加粗；
+  // 盒内行距 6px；目标行前缀标签常态字重、正文加粗，强调落在内容本身；
+  // v105：各卡 empty 标记 → 「查看全部」disabled 拦截（该维度无数据时禁止进入白板页；全局体检模块五断言此行为）
+  const insightLine = (iconName, text) => `<p class="text-sm text-[var(--c-text-dim)] font-normal flex items-center gap-1.5 min-w-0">
+    ${icon(iconName, 'w-3.5 h-3.5 shrink-0 text-[var(--c-primary)]')}
+    <span class="flex-1 min-w-0 truncate">${h(text)}</span>
+  </p>`;
+  const origLine = (label, text) => text ? `<p class="text-xs text-[var(--c-text-ultradim)] truncate">${label}：${h(text)}</p>` : '';
+  const targetLine = (label, text) => text ? `<p class="text-sm text-[var(--c-green)] truncate"><span class="font-normal opacity-75">${label}：</span><span class="font-bold">${h(text)}</span></p>` : '';
+  const bodyBox = (inner) => inner ? `<div class="bg-[var(--c-bg)] rounded-xl px-3 py-2.5 mt-2 space-y-1.5 min-w-0">${inner}</div>` : '';
   const improveBlocks = [
     {
-      badge: '📚 词汇', badgeCls: 'bg-[var(--c-primary-light)] text-[var(--c-primary)]',
-      summary: vocabList.length ? `${dayLabel}新词 <strong>${vocabList.length}</strong> 个待巩固` : `${dayLabel}无词汇记录`,
-      example: firstVocab ? `${String(firstVocab.word || '').trim()}${firstVocab.meaning ? ' · ' + String(firstVocab.meaning).trim() : ''}` : '',
-      exampleLabel: '示例', btn: `复习${dayLabel}新词`, type: 'vocab'
+      badge: '📚 词汇', badgeCls: 'bg-[var(--c-primary-light)] text-[var(--c-primary)]', type: 'vocab', icon: 'pen-line', empty: vocabList.length === 0,
+      insight: ci ? ci.vocabulary : '',
+      fallback: vocabList.length ? `${dayLabel}新词 ${vocabList.length} 个待巩固` : `${dayLabel}无词汇记录`,
+      body: (() => {
+        const words = vocabList.slice(0, 3).map(v => String(v.word || '').trim()).filter(Boolean);
+        return bodyBox(words.length ? `<p class="text-sm font-bold text-[var(--c-green)] truncate">${h(words.join(' · '))}</p>` : '');
+      })()
     },
     {
-      badge: '📖 语法纠正', badgeCls: 'bg-red-50 text-[var(--c-red)]',
-      summary: grammarList.length
+      badge: '📖 语法纠正', badgeCls: 'bg-red-50 text-[var(--c-red)]', type: 'grammar', icon: 'wrench', empty: grammarList.length === 0,
+      insight: ci ? ci.grammar : '',
+      fallback: grammarList.length
         ? `最高频：${grammarTop ? grammarTop[0] + '（' + grammarTop[1] + ' 处）' : '语法问题'}`
         : `${dayLabel}无语法纠错`,
-      example: firstGrammar ? `${String(firstGrammar.original || '').trim()} → ${String(firstGrammar.correction || '').trim()}` : '',
-      exampleLabel: '举例', btn: `复习${dayLabel}纠错`, type: 'grammar'
+      body: (() => {
+        const g = grammarList[0];
+        if (!g) return '';
+        const corr = String(g.correction || '').trim();
+        const orig = String(g.original || '').trim();
+        return bodyBox(origLine('原句', orig) + targetLine('修改', corr));
+      })()
     },
     {
-      badge: '🎯 自然表达', badgeCls: 'bg-amber-50 text-amber-600',
-      summary: exprList.length
-        ? `不够地道的表达 <strong>${exprList.length}</strong> 句${exprTop ? ` · 主要问题：${exprTop[0]}` : ''}`
+      badge: '🎯 自然表达', badgeCls: 'bg-amber-50 text-amber-600', type: 'expression', icon: 'message-square-text', empty: exprList.length === 0,
+      insight: ci ? ci.expression : '',
+      fallback: exprList.length
+        ? `不地道的表达 ${exprList.length} 句${exprTop ? ` · 主要问题：${exprTop[0]}` : ''}`
         : `${dayLabel}无自然表达记录`,
-      example: firstExpr ? `${String(firstExpr.original || '').trim()} → ${String(firstExpr.better || '').trim()}` : '',
-      exampleLabel: '举例', btn: `${dayLabel}自然表达`, type: 'expression'
+      body: (() => {
+        const e = exprList.find(x => x && x.better) || exprList[0];
+        if (!e) return '';
+        const better = String(e.better || '').trim();
+        const orig = String(e.original || '').trim();
+        return bodyBox(origLine('原句', orig) + targetLine('地道', better));
+      })()
     },
     {
-      badge: '💎 核心句型', badgeCls: 'bg-blue-50 text-[var(--c-blue)]',
-      summary: coreList.length
-        ? `<strong>${coreList.length}</strong> 句高阶金句已收录`
-        : `${dayLabel}无核心句型记录`,
-      example: firstCore ? String(firstCore.pattern || firstCore.targetSentence || firstCore.text || '').trim() : '',
-      exampleLabel: '金句', btn: `${dayLabel}核心句型`, type: 'core'
+      badge: '💎 核心句型', badgeCls: 'bg-blue-50 text-[var(--c-blue)]', type: 'core', icon: 'gem', empty: coreList.length === 0,
+      insight: ci ? ci.core_patterns : '',
+      fallback: coreList.length ? `${coreList.length} 句高阶金句已收录` : `${dayLabel}无核心句型记录`,
+      body: (() => {
+        const c = coreList[0];
+        const t = c ? String(c.pattern || c.targetSentence || c.text || '').trim() : '';
+        return bodyBox(targetLine('金句', t));
+      })()
     }
   ];
   html += `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2 px-1">${icon('alert-circle','w-3.5 h-3.5 text-amber-500')} ${dayLabel}需要提升</div>`;
   html += improveBlocks.map((b, i) => card(0.12 + i * 0.02, `
-    <div class="flex items-start justify-between gap-3">
-      <div class="flex flex-col gap-1.5 flex-1 min-w-0">
-        <span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.badgeCls}">${b.badge}</span>
-        <p class="text-sm text-[var(--c-text-dim)]">${b.summary}</p>
-        ${b.example ? `<p class="text-xs text-[var(--c-text-ultradim)]">${b.exampleLabel}：${h(b.example)}</p>` : ''}
-      </div>
-      <button class="shrink-0 px-3 py-1.5 bg-[var(--c-bg)] hover:bg-[var(--c-border-light)] text-xs text-[var(--c-text-dim)] rounded-full flex items-center gap-1 transition-colors border-0 cursor-pointer mt-1" onclick="goImprove('${b.type}')">
-        ${b.btn} ${icon('arrow-right','w-3 h-3')}
-      </button>
+    <div class="flex items-center justify-between gap-3">
+      <span class="inline-flex w-fit items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${b.badgeCls}">${b.badge}</span>
+      <button data-improve-jump="${b.type}" class="shrink-0 text-xs font-medium text-[var(--c-primary)] bg-transparent border-0 cursor-pointer px-0.5 py-0.5 hover:opacity-70 transition-opacity disabled:opacity-40 disabled:cursor-default disabled:hover:opacity-40" onclick="goImprove('${b.type}')" ${b.empty ? 'disabled' : ''}>查看全部</button>
+    </div>
+    <div class="mt-2 min-w-0">
+      ${b.insight ? insightLine(b.icon, '洞察：' + b.insight) : insightLine(b.icon, b.fallback)}
+      ${b.body}
     </div>
   `)).join('');
   // v82：Card E「今日私教对战 Prompt」胶囊模块已彻底移除 —— 首页洞察区终止于 Card D（需要提升），
@@ -1533,6 +1581,9 @@ function normalizeJsonReport(j, raw) {
   const speakingRatio = (isFinite(ratioNum) && ratioNum > 0 && ratioNum <= 100)
     ? { user: Math.round(ratioNum), ai: 100 - Math.round(ratioNum), pct: true }
     : null;
+  // v105 私教洞察透传（用户指令）：四维诊断评语由 GPT 生成日报时直接产出，前端零提取；
+  // 旧版日报无该字段 → null（渲染层一行降级提示，绝不开天窗）
+  const ciRaw = (j && typeof j.coach_insights === 'object' && j.coach_insights) || null;
   return {
     meta: { type: 'daily-report', topic: s.topic || '', date: getLocalToday(), duration: (dur > 0 ? dur : 0) },
     grammar,
@@ -1561,6 +1612,13 @@ function normalizeJsonReport(j, raw) {
       // v97 对话占比（新版 JSON：百分比形态 {user,ai,pct:true}；旧版/无该字段 → null，首页优雅降级）
       speakingRatio
     },
+    // v105 私教洞察四句（中文诊断评语，渲染层直接展示；键名与 Prompt 契约一字不差）
+    coach_insights: ciRaw ? {
+      vocabulary: String(ciRaw.vocabulary || '').trim(),
+      grammar: String(ciRaw.grammar || '').trim(),
+      expression: String(ciRaw.expression || '').trim(),
+      core_patterns: String(ciRaw.core_patterns || '').trim()
+    } : null,
     raw
   };
 }
@@ -1927,6 +1985,457 @@ function renderAuditModal(results, error) {
 function hideAuditDialog() {
   const dialog = document.getElementById('audit-dialog');
   if (dialog) dialog.classList.add('hidden');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// v105 全局体检 runGlobalAudit（用户指令）：浏览器 Console 一键触发（runGlobalAudit()），
+// 7 模块顺序巡检，后台静默运行，Console 输出 ✅/❌ 结构化体检报告 + 成功/失败统计汇总。
+// 设计铁律：
+//  ① 巡检绝不写库——所有「模拟点击」只走导航/渲染/队列构建链路，绝不触发 SM-2 反馈与导入；
+//     每个模块结束时全局状态与 URL 100% 还原，体检本身零副作用；
+//  ② 断言一律消费现有 SSOT 函数（getDayCounts / getDueSentencesQueue / buildDueDeck /
+//     dueErrorCards / getTodayMissionState / parsedReportFor / allGrammarErrors），
+//     审计结论 = 用户实际操作时的同一条代码路径，绝不自造第二套计数；
+//  ③ 模块间严格串行（await），单模块抛错只记该模块失败，不中断后续巡检；
+//  ④ 未登录/数据未加载 → 该模块显式 ⚠️ SKIP，绝不伪造 ✅。
+// ═══════════════════════════════════════════════════════════════
+let _auditStats = { total: 0, pass: 0, fail: 0, skip: 0, fails: [] };
+function _auditSection(title) { console.log('%c\n━━━━━━ ' + title + ' ━━━━━━', 'font-weight:bold;color:#8a6d3b'); }
+function _auditPass(label) { _auditStats.total++; _auditStats.pass++; console.log('%c✅ PASS%c ' + label, 'color:#2e7d32;font-weight:bold', 'color:inherit'); }
+function _auditFail(label, detail) {
+  _auditStats.total++; _auditStats.fail++; _auditStats.fails.push({ label: label, detail: detail || '' });
+  console.log('%c❌ FAIL%c ' + label + (detail ? ' —— ' + detail : ''), 'color:#c62828;font-weight:bold', 'color:#c62828');
+}
+function _auditSkip(label, reason) { _auditStats.total++; _auditStats.skip++; console.log('%c⚠️ SKIP%c ' + label + (reason ? '（' + reason + '）' : ''), 'color:#b26a00;font-weight:bold', 'color:inherit'); }
+const _auditSettle = (ms) => new Promise(r => setTimeout(r, ms || 300));
+async function _auditWaitFor(cond, tries, step) {
+  for (let i = 0; i < (tries || 15); i++) { if (cond()) return true; await _auditSettle(step || 200); }
+  return !!cond();
+}
+// 全局状态快照/还原：体检期间被触碰的所有路由与视图状态，结束后逐项复位
+function _auditSnapshot() {
+  return {
+    url: location.pathname + location.search,
+    viewDate: _viewDate, historyParsed: _historyParsed, ctxDate: _ctxDate, speakView: _speakView,
+    reportParsed: _reportParsed, wordsFilter: _wordsFilter,
+    srsQueue: _srsQueue, srsIdx: _srsIdx, srsReviewed: _srsReviewed, srsTotal: _srsTotal, srsResults: _srsResults,
+    streakScrollCache: _streakScrollCache, streakAnchored: _streakAnchored,
+    activeFilter: _activeFilter, activeFilterLabel: _activeFilterLabel
+  };
+}
+function _auditRestore(snap) {
+  _viewDate = snap.viewDate; _historyParsed = snap.historyParsed; _ctxDate = snap.ctxDate;
+  _speakView = snap.speakView; _reportParsed = snap.reportParsed; _wordsFilter = snap.wordsFilter;
+  _srsQueue = snap.srsQueue; _srsIdx = snap.srsIdx; _srsReviewed = snap.srsReviewed;
+  _srsTotal = snap.srsTotal; _srsResults = snap.srsResults;
+  _streakScrollCache = snap.streakScrollCache; _streakAnchored = snap.streakAnchored;
+  _activeFilter = snap.activeFilter; _activeFilterLabel = snap.activeFilterLabel;
+  if (snap.url !== location.pathname + location.search) window.history.replaceState({}, '', snap.url);
+}
+// 回到首页并等待渲染落定（体检模块间的归位锚点）
+async function _auditGoHome() {
+  if (location.pathname + location.search !== '/') window.history.replaceState({}, '', '/');
+  document.querySelector('.tab[data-tab=home]').click();
+  await _auditWaitFor(() => !_homeLoading && !!document.getElementById('home-quests') && document.getElementById('home-quests').innerHTML.length > 0, 20, 250);
+}
+
+// ── 模块一：交互链路与路由精确度（首页指标区 / 提升区四卡 / To-Do List 全链路）──
+async function auditModule1() {
+  await _auditGoHome();
+  // 1.1 首页指标区四子块渲染
+  const metricsEl = document.getElementById('home-metrics');
+  const mText = metricsEl ? (metricsEl.textContent || '') : '';
+  const fourLabels = ['个当日新词', '项语法纠正', '个自然表达', '个核心句型'];
+  if (fourLabels.every(t => mText.includes(t))) _auditPass('首页指标区：四子块（当日新词/语法纠正/自然表达/核心句型）全部渲染');
+  else _auditFail('首页指标区：四子块渲染缺失', (mText || '（home-metrics 为空）').slice(0, 80));
+  // 1.2 提升区四卡按钮与四子块 1:1 映射
+  const jumpBtns = [...document.querySelectorAll('#home-insights [data-improve-jump]')].map(b => b.dataset.improveJump);
+  if (jumpBtns.length === 4 && ['vocab', 'grammar', 'expression', 'core'].every(t => jumpBtns.includes(t)))
+    _auditPass('提升区四卡：vocab/grammar/expression/core 四个跳转按钮与打分面板四子块 1:1 映射');
+  else _auditFail('提升区四卡：跳转按钮缺失或映射错乱', '实际 ' + JSON.stringify(jumpBtns));
+  // 1.3 四跳转链路由精确度（真实点击按钮 → URL/内部状态精确切换）
+  const routes = [
+    { type: 'vocab', label: '词汇', path: '/review', search: 'filter=today', state: () => _wordsFilter === 'today' && _ctxDate === null, tab: 'tab-words', desc: '/review?filter=today · 今日新词过滤态' },
+    { type: 'grammar', label: '语法纠正', path: '/review', search: 'tab=grammar', state: () => _wordsFilter === 'grammar' && _ctxDate === null, tab: 'tab-words', desc: '/review?tab=grammar' },
+    { type: 'expression', label: '自然表达', path: '/shadowing', search: 'view=expressions', state: () => _speakView === 'expressions' && _ctxDate === null, tab: 'tab-speak', desc: '/shadowing?view=expressions' },
+    { type: 'core', label: '核心句型', path: '/shadowing', search: 'view=core', state: () => _speakView === 'core' && _ctxDate === null, tab: 'tab-speak', desc: '/shadowing?view=core' }
+  ];
+  for (const r of routes) {
+    const btn = document.querySelector(`#home-insights [data-improve-jump="${r.type}"]`);
+    if (!btn) continue;
+    if (btn.disabled) { _auditPass(`「${r.label}」按钮防御态 disabled —— 该维度无数据时点击零响应（拦截正确，非死链）`); continue; }
+    try { btn.click(); } catch (e) { _auditFail(`「${r.label}」跳转抛异常`, String((e && e.message) || e)); continue; }
+    await _auditWaitFor(() => location.pathname === r.path, 8, 250);
+    if (location.pathname !== r.path) { _auditFail(`「${r.label}」跳转：路径未切换`, `当前 ${location.pathname + location.search}，期望 ${r.desc}`); continue; }
+    await _auditWaitFor(r.state, 20, 300);
+    const activeTab = document.querySelector('.tab-content.active');
+    const ok = r.state() && location.search.includes(r.search) && activeTab && activeTab.id === r.tab;
+    if (ok) _auditPass(`「${r.label}」→ ${r.desc}：URL 与内部状态精确切换`);
+    else _auditFail(`「${r.label}」→ ${r.desc}：状态断言失败`, `URL=${location.pathname + location.search} _wordsFilter=${_wordsFilter} _speakView=${_speakView} _ctxDate=${_ctxDate} 激活Tab=${activeTab ? activeTab.id : '无'}`);
+    await _auditGoHome();
+  }
+  // 1.4 To-Do List 三条链路
+  const todoEls = () => document.querySelectorAll('#home-quests [data-todo-idx]');
+  if (!todoEls().length) { _auditFail('To-Do List 未渲染', 'home-quests 无任务行'); return; }
+  const t0 = todoEls()[0];
+  if (t0) {
+    if (/已导入/.test(t0.textContent || '')) _auditPass('任务 1（对练打卡）：今日已导入 → 完成态，点击零响应（非死链）');
+    else {
+      t0.click(); await _auditSettle(200);
+      const dlg = document.getElementById('import-dialog');
+      if (dlg && !dlg.classList.contains('hidden')) { _auditPass('任务 1（对练打卡）：点击 → 导入日报弹窗正常唤起'); hideImportDialog(); }
+      else _auditFail('任务 1（对练打卡）：点击后导入弹窗未唤起');
+    }
+  }
+  const t1 = todoEls()[1];
+  if (t1) {
+    if (/暂无复习任务/.test(t1.textContent || '')) _auditPass('任务 2（句型复习）：防御态 disabled —— 队列 0 时点击零响应（非死链）');
+    else {
+      t1.click();
+      await _auditWaitFor(() => location.pathname === '/shadowing', 8, 250);
+      await _auditWaitFor(() => {
+        const sp = document.getElementById('speak-player');
+        return !!sp && (!!sp.querySelector('.srs-flip-scene') || /暂无待复习句型/.test(sp.textContent || ''));
+      }, 20, 300);
+      if (location.pathname === '/shadowing' && _speakView === '') _auditPass('任务 2（句型复习）：点击 → /shadowing SRS 翻卡页，_speakView 正确为空');
+      else _auditFail('任务 2（句型复习）：路由未正确切换', `URL=${location.pathname + location.search} _speakView=${_speakView}`);
+    }
+  }
+  await _auditGoHome();
+  const t2 = todoEls()[2];
+  if (t2) {
+    t2.click();
+    await _auditWaitFor(() => location.pathname === '/review' && _wordsFilter === 'due', 20, 300);
+    const dueTab = location.search.includes('tab=due');
+    if (location.pathname === '/review' && dueTab && _ctxDate === null && _wordsFilter === 'due') _auditPass('任务 3（复习打卡）：点击 → /review?tab=due，_ctxDate 今日链路');
+    else _auditFail('任务 3（复习打卡）：路由未正确切换', `URL=${location.pathname + location.search} _wordsFilter=${_wordsFilter} _ctxDate=${_ctxDate}`);
+  }
+  await _auditGoHome();
+}
+
+// ── 模块二：待办系统与 SM-2 的数据钩稽（面板数字 vs 点击后实际队列/卡组长度）──
+async function auditModule2() {
+  await _auditGoHome();
+  // 2.1 任务 2（句型）：面板数字 === getDueSentencesQueue 队列长度（同源断言）
+  if (!_patternLibrary.length) { try { await loadSpeak(); await _auditGoHome(); } catch (e) { /* 网络失败交由下方 SKIP */ } }
+  const t1 = document.querySelectorAll('#home-quests [data-todo-idx]')[1];
+  if (!t1) { _auditSkip('任务 2 数字钩稽', 'To-Do List 未渲染'); }
+  else {
+    const dom1 = t1.textContent || '';
+    const m1 = dom1.match(/（(\d+)句）/);
+    const queueLen = getDueSentencesQueue(_patternLibrary).length;
+    if (m1 && parseInt(m1[1], 10) === queueLen) _auditPass(`任务 2 数字一致：面板显示 ${queueLen} 句 === getDueSentencesQueue(_patternLibrary).length = ${queueLen}`);
+    else if (/暂无复习任务/.test(dom1) && queueLen === 0) _auditPass('任务 2 数字一致：队列 0 → 防御态文案（0 = 0）');
+    else if (!m1 && !queueLen) _auditSkip('任务 2 数字钩稽', '面板无数字且队列为 0，无可比对样本');
+    else _auditFail('任务 2 数字分裂', `面板显示「${m1 ? m1[1] : '无数字'}」，实际 queue.length = ${queueLen}`);
+    // 2.2 模拟点击进入 SM-2 调度队列：点击后 _srsQueue.length 必须与面板数字 100% 相等
+    if (m1 && parseInt(m1[1], 10) > 0) {
+      const before = _srsQueue;
+      t1.click();
+      await _auditWaitFor(() => location.pathname === '/shadowing' && _srsQueue !== before && _srsQueue.length > 0, 25, 300);
+      if (_srsQueue.length === queueLen) _auditPass(`任务 2 点击后进入 SM-2 调度队列：实际 _srsQueue.length = ${_srsQueue.length} === 面板 ${queueLen}`);
+      else _auditFail('任务 2 点击后队列与面板数字不一致', `_srsQueue.length = ${_srsQueue.length}，面板 = ${queueLen}`);
+    }
+    await _auditGoHome();
+  }
+  // 2.3 任务 3（复习）：面板数字 === 到期词 + 错题；点击后 buildDueDeck 实际卡组长度一致
+  if (!_wordsAll.length) { try { await loadWords(); await _auditGoHome(); } catch (e) { /* 网络失败交由 SKIP */ } }
+  const t2 = document.querySelectorAll('#home-quests [data-todo-idx]')[2];
+  if (!t2) { _auditSkip('任务 3 数字钩稽', 'To-Do List 未渲染'); return; }
+  const dom2 = t2.textContent || '';
+  const m2 = dom2.match(/（(\d+)张）/);
+  const ms = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds);
+  const deckTotal = ms.totalDueVocabCount + dueErrorCards().length;
+  if (m2 && parseInt(m2[1], 10) === deckTotal) _auditPass(`任务 3 数字一致：面板显示 ${deckTotal} 张 === 到期词 ${ms.totalDueVocabCount} + 到期错题 ${deckTotal - ms.totalDueVocabCount}`);
+  else if (!m2) _auditSkip('任务 3 数字钩稽', '面板未渲染数字');
+  else _auditFail('任务 3 数字分裂', `面板显示「${m2[1]}」，实际 deckTotal = ${deckTotal}`);
+  if (m2 && t2) {
+    t2.click();
+    await _auditWaitFor(() => location.pathname === '/review' && _wordsFilter === 'due', 25, 300);
+    if (_wordsFilter === 'due') {
+      const real = buildDueDeck().length;
+      if (real === deckTotal) _auditPass(`任务 3 点击后 due 混合卡组生成：buildDueDeck().length = ${real} === 面板 ${deckTotal}`);
+      else _auditFail('任务 3 点击后卡组与面板数字不一致', `buildDueDeck().length = ${real}，面板 = ${deckTotal}`);
+    } else _auditFail('任务 3 点击后未进入 due 卡组页', `_wordsFilter = ${_wordsFilter}`);
+  }
+  await _auditGoHome();
+}
+
+// ── 模块三：历史时光机与数据隔离（面板 vs 列表 / 静态视图 / 零泄漏）──
+async function auditModule3() {
+  const today = getLocalToday();
+  if (!_reportsCache.length) {
+    try {
+      const { data } = await sb.from('reports').select('*').order('date', { ascending: false }).limit(1000);
+      _reportsCache = data || [];
+    } catch (e) { _auditSkip('历史时光机', 'reports 拉取失败：' + String((e && e.message) || e)); return; }
+  }
+  const cand = _reportsCache.filter(r => r.date && r.date !== today && isDailyReport(r));
+  if (!cand.length) { _auditSkip('历史时光机', '无历史日报可巡检'); return; }
+  for (const r of cand.slice(0, 3)) { if (!r.content) { try { await ensureReportContent(r.date); } catch (e) { /* 单日补水失败跳过该日 */ } } }
+  const sample = cand.slice(0, 3).filter(r => r.content);
+  if (!sample.length) { _auditSkip('历史时光机', '历史日报 content 补水失败'); return; }
+  // 3.1 历史 Dashboard 面板数字 vs 点开列表数组长度（四维钩稽）
+  for (const r of sample) {
+    const parsed = parseSmartReport(r.content);
+    if (!parsed) { _auditFail(`历史 ${r.date}：JSON 解析失败`, '该日报无法被面板与列表消费'); continue; }
+    const panel = getDayCounts(parsed);
+    const saved = _ctxDate;
+    _ctxDate = r.date;
+    const dp = parsedReportFor(r.date) || {};
+    const list = {
+      vocab: getFilteredVocab(_wordsAll, 'today').length,
+      grammar: allGrammarErrors().length,
+      expressions: (dp.patterns || []).length,
+      core: (dp.sentence_patterns || []).length
+    };
+    _ctxDate = saved;
+    const dims = [['当日新词', panel.vocab, list.vocab], ['语法纠正', panel.grammar, list.grammar], ['自然表达', panel.expressions, list.expressions], ['核心句型', panel.core, list.core]];
+    const badDims = dims.filter(d => d[1] !== d[2]);
+    if (!badDims.length) _auditPass(`历史 ${r.date}：面板四维数字与列表数组长度 100% 一致（${dims.map(d => d[0] + ' ' + d[1]).join(' / ')}）`);
+    else _auditFail(`历史 ${r.date}：面板 ≠ 列表`, badDims.map(d => `${d[0]} 面板 ${d[1]} ≠ 列表 ${d[2]}`).join('；'));
+  }
+  // 3.2 历史详情页 = 静态对比列表，绝无 SRS 翻卡 / 队列零触碰
+  const d = sample[0].date;
+  const dp = parsedReportFor(d);
+  const baselineQueue = _srsQueue;
+  const staticViews = [
+    { view: 'expressions', expect: (dp && dp.patterns) || [] },
+    { view: 'core', expect: (dp && dp.sentence_patterns) || [] }
+  ];
+  for (const v of staticViews) {
+    navigateShadowing(undefined, undefined, d, v.view);
+    await _auditWaitFor(() => {
+      const sp = document.getElementById('speak-player');
+      if (!sp) return false;
+      const cards = sp.querySelectorAll('.err-card').length;
+      return cards === v.expect.length || (v.expect.length === 0 && /暂无/.test(sp.textContent || ''));
+    }, 25, 300);
+    const sp = document.getElementById('speak-player');
+    const rendered = sp ? sp.querySelectorAll('.err-card').length : -1;
+    const hasFlip = sp ? !!sp.querySelector('.srs-flip-scene') : true;
+    const qTouched = _srsQueue !== baselineQueue;
+    if (!hasFlip && !qTouched && rendered === v.expect.length)
+      _auditPass(`历史 ${d} · view=${v.view}：静态对比列表（${rendered} 条），无 SRS 翻卡、SRS 队列未被触碰`);
+    else _auditFail(`历史 ${d} · view=${v.view}：静态视图断言失败`, `翻卡=${hasFlip} 队列被触碰=${qTouched} 渲染 ${rendered} ≠ 期望 ${v.expect.length}`);
+  }
+  // 3.3 语法列表 DOM 实测（点击历史日「语法纠正」按钮的真实落地页）
+  navigateReview('grammar', null, d);
+  await _auditWaitFor(() => location.pathname === '/review' && _wordsFilter === 'grammar' && _ctxDate === d, 25, 300);
+  if (_ctxDate === d && _wordsFilter === 'grammar') {
+    const domCount = (document.getElementById('words-content') || { querySelectorAll: () => [] }).querySelectorAll('.err-card').length;
+    const panelCount = getDayCounts(parsedReportFor(d) || {}).grammar;
+    if (domCount === panelCount) _auditPass(`历史 ${d} · 语法纠正落地页：DOM 实测 ${domCount} 张错题卡 === 面板 ${panelCount}`);
+    else _auditFail(`历史 ${d} · 语法纠正落地页数字分裂`, `DOM ${domCount} ≠ 面板 ${panelCount}`);
+  }
+  // 3.4 无报日期零泄漏（绝不回退全局错题本 / 今日数据）
+  const noDate = '2000-01-01';
+  navigateShadowing(undefined, undefined, noDate, 'expressions');
+  await _auditWaitFor(() => location.pathname === '/shadowing' && _speakView === 'expressions' && _ctxDate === noDate, 25, 300);
+  const sp2 = document.getElementById('speak-player');
+  const zeroRender = sp2 ? sp2.querySelectorAll('.err-card').length === 0 : false;
+  const saved2 = _ctxDate;
+  _ctxDate = noDate;
+  const leakedGrammar = allGrammarErrors().length;
+  const leakedVocab = getFilteredVocab(_wordsAll, 'today').length;
+  _ctxDate = saved2;
+  if (zeroRender && leakedGrammar === 0 && leakedVocab === 0) _auditPass(`历史 ${noDate}（无日报）：表达列表 0 条、语法 0 条、词汇 0 条 —— 无全局错题本/今日数据泄漏`);
+  else _auditFail(`历史 ${noDate}（无日报）：存在数据泄漏`, `列表渲染 ${sp2 ? sp2.querySelectorAll('.err-card').length : '?'} 条，语法 ${leakedGrammar}，词汇 ${leakedVocab}`);
+  await _auditGoHome();
+}
+
+// ── 模块四：JSON 数据源健康度（脏数据拦截扫描：类型/键值/结构损毁）──
+async function auditModule4() {
+  const sources = [];
+  const push = (date, content, src) => { if (content) sources.push({ date: date, content: content, src: src }); };
+  _reportsCache.forEach(r => push(r.date, r.content, 'reports 表'));
+  if (!_reportsCache.some(r => r.content)) {
+    try {
+      const { data } = await sb.from('reports').select('*').order('date', { ascending: false }).limit(1000);
+      (data || []).forEach(r => push(r.date, r.content, 'reports 表'));
+    } catch (e) { /* 拉取失败只扫 localStorage */ }
+  }
+  ['voco-daily-cache', 'voco-reports', 'voco-speak-sentences', 'lingotrace-report'].forEach(k => {
+    try { const raw = localStorage.getItem(k); if (raw) push(k, raw, 'localStorage:' + k); } catch (e) { /* 隐私模式 localStorage 不可用 */ }
+  });
+  const daily = sources.filter(s => isDailyReport(s));
+  if (!daily.length) { _auditSkip('JSON 数据源健康度', '无任何日报数据源（reports 表与 localStorage 均空）'); return; }
+  const isFinNum = n => typeof n === 'number' && isFinite(n);
+  const arrItemOk = (arr, key, keys) => Array.isArray(arr) && arr.every(x => x && typeof x === 'object' && keys.some(k => String(x[k] || '').trim()));
+  let okCount = 0; const damaged = [];
+  for (const s of daily) {
+    const parsed = parseSmartReport(s.content);
+    if (!parsed) { damaged.push(`${s.date}（解析失败）`); continue; }
+    const issues = [];
+    const sum = parsed.summary;
+    if (sum !== undefined && (typeof sum !== 'object' || sum === null)) issues.push('summary 非对象');
+    if (sum && typeof sum === 'object') {
+      ['fluency', 'accuracy', 'naturalness', 'vocabulary'].forEach(k => {
+        if (sum[k] !== undefined && !isFinNum(sum[k])) issues.push(`summary.${k} 非有限数字`);
+        else if (isFinNum(sum[k]) && (sum[k] < 0 || sum[k] > 10)) issues.push(`summary.${k} 越界 ${sum[k]}`);
+      });
+    }
+    if (parsed.grammar !== undefined && !Array.isArray(parsed.grammar)) issues.push('grammar 非数组');
+    else if (Array.isArray(parsed.grammar) && !arrItemOk(parsed.grammar, 'grammar', ['original', 'correction'])) issues.push('grammar 数组内存在结构损毁项（缺 original/correction）');
+    if (parsed.patterns !== undefined && !Array.isArray(parsed.patterns)) issues.push('patterns 非数组');
+    else if (Array.isArray(parsed.patterns) && !arrItemOk(parsed.patterns, 'patterns', ['original', 'better'])) issues.push('patterns 数组内存在结构损毁项（缺 original/better）');
+    if (parsed.sentence_patterns !== undefined && !Array.isArray(parsed.sentence_patterns)) issues.push('sentence_patterns 非数组');
+    else if (Array.isArray(parsed.sentence_patterns) && !arrItemOk(parsed.sentence_patterns, 'sentence_patterns', ['pattern', 'targetSentence', 'text'])) issues.push('sentence_patterns 数组内存在结构损毁项');
+    if (parsed.vocabulary !== undefined && !Array.isArray(parsed.vocabulary)) issues.push('vocabulary 非数组');
+    else if (Array.isArray(parsed.vocabulary) && !arrItemOk(parsed.vocabulary, 'vocabulary', ['word'])) issues.push('vocabulary 数组内存在缺 word 项');
+    if (parsed.coach_insights !== undefined && parsed.coach_insights !== null) {
+      const ci = parsed.coach_insights;
+      if (typeof ci !== 'object') issues.push('coach_insights 非对象');
+      else ['vocabulary', 'grammar', 'expression', 'core_patterns'].forEach(k => { if (typeof ci[k] !== 'string') issues.push(`coach_insights.${k} 非字符串`); });
+    }
+    if (issues.length) damaged.push(`${s.date}（${issues.slice(0, 3).join('；')}${issues.length > 3 ? '…' : ''}）`);
+    else okCount++;
+  }
+  if (!damaged.length) _auditPass(`JSON 健康度：${daily.length} 份日报全部结构完整（数组/键值/类型无损毁，评分 0-10 无越界）`);
+  else _auditFail(`JSON 健康度：${damaged.length}/${daily.length} 份损毁`, damaged.slice(0, 5).join(' · ') + (damaged.length > 5 ? ` 等 ${damaged.length} 份` : ''));
+  if (damaged.length && okCount) _auditPass(`JSON 健康度：${okCount} 份完好（对照参考）`);
+}
+
+// ── 模块五：极限空态拦截（全 0 完美假报告注入渲染：零异常 / 空态文案 / 四按钮 disabled）──
+async function auditModule5() {
+  const fake = {
+    meta: { date: getLocalToday(), topic: '', duration: 0 },
+    summary: { topic: '', dailyThought: { en: '', zh: '' }, strengths: [], nextSteps: [], fluency: 0, accuracy: 0, naturalness: 0, vocabulary: 0, weak_areas: '' },
+    mistakes: [], coreSentences: [], newWords: [],
+    vocabulary: [], grammar: [], patterns: [], sentence_patterns: [], coach_insights: null
+  };
+  const saved = { reportParsed: _reportParsed, viewDate: _viewDate, historyParsed: _historyParsed, ctxDate: _ctxDate };
+  _viewDate = null; _historyParsed = null; _ctxDate = null; _reportParsed = fake;
+  let threw = null;
+  try {
+    renderMetricsOverview();
+    renderInsightsSection(null, []);
+    renderTodoList(false);
+  } catch (e) { threw = e; }
+  if (threw) { _auditFail('完美假报告（全 0）：渲染抛异常', String((threw && threw.message) || threw)); }
+  else {
+    const mEl = document.getElementById('home-metrics');
+    const mHtml = mEl ? mEl.innerHTML : '';
+    if (mHtml.includes('--') || mHtml.includes('/100')) _auditPass('完美假报告（全 0）：打分面板正常渲染空态（-- 占位 / 0/100 刻度，无 NaN、无除零异常）');
+    else _auditFail('完美假报告：打分面板空态断言失败', (mHtml || '（home-metrics 为空）').slice(0, 100));
+    const iEl = document.getElementById('home-insights');
+    const jumps = iEl ? [...iEl.querySelectorAll('[data-improve-jump]')] : [];
+    if (jumps.length === 4 && jumps.every(b => b.disabled)) _auditPass('完美假报告：提升区 4 个跳转按钮全部 disabled 拦截（无法点击进入白板页）');
+    else _auditFail('完美假报告：提升区按钮未正确 disabled', `按钮数 ${jumps.length}，disabled 数 ${jumps.filter(b => b.disabled).length}`);
+    const iText = iEl ? (iEl.textContent || '') : '';
+    if (/无词汇记录/.test(iText) && /无语法纠错/.test(iText) && /无自然表达记录/.test(iText) && /无核心句型记录/.test(iText))
+      _auditPass('完美假报告：提升区四卡静默回落中性空态文案（三行排版结构不变，绝不开天窗）');
+    else _auditFail('完美假报告：四卡空态文案缺失', iText.slice(0, 120));
+    const ms = getTodayMissionState(_wordsAll, fake, _reviewedVocabTodayIds);
+    if (ms.hasRealTodayReport) _auditPass('完美假报告：时间网关正确放行（meta.date = 今日，Dashboard 走全量渲染路径）');
+    else _auditFail('完美假报告：时间网关误拦截', 'hasRealTodayReport = false');
+  }
+  // 状态与 DOM 100% 还原
+  _reportParsed = saved.reportParsed; _viewDate = saved.viewDate; _historyParsed = saved.historyParsed; _ctxDate = saved.ctxDate;
+  try { renderHomeSections(); } catch (e) { _auditFail('完美假报告：状态还原后重渲染抛异常', String((e && e.message) || e)); }
+}
+
+// ── 模块六：状态清理与防泄漏（历史日报 → 中途退出 → 回到今日打卡）──
+async function auditModule6() {
+  const today = getLocalToday();
+  const rows = _reportsCache.filter(r => r.date && r.date !== today && isDailyReport(r));
+  if (!rows.length) { _auditSkip('状态清理与防泄漏', '无历史日报可模拟历史动线'); return; }
+  const d = rows[0].date;
+  if (!rows[0].content) { try { await ensureReportContent(d); } catch (e) { /* 补水失败走下方断言 */ } }
+  await _auditGoHome();
+  const base = { streakCache: _streakScrollCache, wordsFilter: _wordsFilter };
+  // 进入历史日报（真实入口 showBearDay 同路径）
+  showBearDay(d, true);
+  await _auditWaitFor(() => _viewDate === d && _historyParsed !== null, 25, 300);
+  if (!(_viewDate === d && _historyParsed)) { _auditFail('历史动线：进入历史日报失败', `_viewDate=${_viewDate} _historyParsed=${!!_historyParsed}`); await _auditGoHome(); return; }
+  _auditPass(`历史动线：进入 ${d} 视图（_viewDate / _historyParsed 就位）`);
+  // 中途退出 → 回到今日打卡（与 To-Do 任务 2/3 完全相同的清理代码路径）
+  _viewDate = null; _historyParsed = null; _ctxDate = null;
+  navigateShadowing();
+  await _auditWaitFor(() => {
+    const sp = document.getElementById('speak-player');
+    return location.pathname === '/shadowing' && !!sp && (!!sp.querySelector('.srs-flip-scene') || /暂无待复习句型/.test(sp.textContent || ''));
+  }, 25, 300);
+  const clean = _viewDate === null && _historyParsed === null && _ctxDate === null && _speakView === '';
+  if (clean) _auditPass('历史动线：退出后 _viewDate / _historyParsed / _ctxDate / _speakView 全部恢复今日初始化状态');
+  else _auditFail('历史动线：退出后状态残留', `_viewDate=${_viewDate} _historyParsed=${!!_historyParsed} _ctxDate=${_ctxDate} _speakView=${_speakView}`);
+  const expectToday = getDueSentencesQueue(_speakAll).map(x => x.id);
+  const got = _srsQueue.map(x => x.id);
+  if (JSON.stringify(expectToday) === JSON.stringify(got)) _auditPass(`历史动线：回到今日打卡后 SRS 队列 = 今日纯库捞队列（${got.length} 项），零历史题库残留`);
+  else _auditFail('历史动线：回到今日后队列被污染', `实际 ${got.length} 项 ≠ 今日应得 ${expectToday.length} 项`);
+  if (_streakScrollCache === base.streakCache) _auditPass('历史动线：熊条滚动位置缓存不受历史切换扰动');
+  else _auditFail('历史动线：熊条滚动缓存被意外重置', `${base.streakCache} → ${_streakScrollCache}`);
+  await _auditGoHome();
+}
+
+// ── 模块七：SM-2 记忆库防腐化（EF≥1.3 / 间隔≥0 / 无 NaN·null·负数·坏日期）──
+async function auditModule7() {
+  if (!_patternLibrary.length && !_wordsAll.length && !_errorsAll.length) { try { await loadSpeak(); } catch (e) { /* 网络失败交由 SKIP */ } }
+  const libs = [
+    { name: '句型库 _patternLibrary', rows: _patternLibrary },
+    { name: '词汇库 _wordsAll', rows: _wordsAll },
+    { name: '错题库 _errorsAll', rows: _errorsAll }
+  ];
+  const isFinNum = n => typeof n === 'number' && isFinite(n);
+  let total = 0, reviewed = 0, bad = 0; const badSamples = [];
+  for (const lib of libs) {
+    for (const row of (lib.rows || [])) {
+      total++;
+      // 有复习记录（曲线已开启）→ SM-2 字段必须存在且合法；新卡 → 字段必须为空或合法（绝不允许 NaN/负数）
+      const hasCurve = (row.review_count > 0) || row.next_review_date || row.last_reviewed_at;
+      if (hasCurve) reviewed++;
+      const ef = Number(row.ease_factor);
+      const ivl = Number(row.sm2_interval);
+      const reps = Number(row.sm2_repetitions);
+      const nullOk = (v) => v === null || v === undefined;
+      const efOk = nullOk(row.ease_factor) ? !hasCurve : (isFinite(ef) && ef >= 1.3);
+      const ivlOk = nullOk(row.sm2_interval) ? !hasCurve : (isFinite(ivl) && ivl >= 0);
+      const repsOk = nullOk(row.sm2_repetitions) ? !hasCurve : (isFinite(reps) && reps >= 0);
+      const dateOk = !row.next_review_date || /^\d{4}-\d{2}-\d{2}$/.test(String(row.next_review_date));
+      if (!(efOk && ivlOk && repsOk && dateOk)) {
+        bad++;
+        if (badSamples.length < 5) badSamples.push(`${lib.name} id=${row.id}（EF=${row.ease_factor} 间隔=${row.sm2_interval} 重复=${row.sm2_repetitions} 下次=${row.next_review_date}）`);
+      }
+    }
+  }
+  if (!total) { _auditSkip('SM-2 记忆库防腐化', '三大记忆库全部为空（无任何卡片可巡检）'); return; }
+  if (!bad) _auditPass(`SM-2 防腐化：${total} 张卡全部健康（有曲线 ${reviewed} 张：EF≥1.3、间隔≥0、重复≥0、日期格式合法；新卡空字段合法）`);
+  else _auditFail(`SM-2 防腐化：${bad}/${total} 张卡数据腐化（NaN/null/负数/坏日期）`, badSamples.join(' · '));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 体检总入口：Console 输入 runGlobalAudit() 一键执行（async 链式顺序巡检）
+// ═══════════════════════════════════════════════════════════════
+async function runGlobalAudit() {
+  _auditStats = { total: 0, pass: 0, fail: 0, skip: 0, fails: [] };
+  console.log('%c\n🧭 Voco 全局体检（v105 · 7 模块巡检）', 'font-weight:bold;font-size:15px;color:#3E3535');
+  console.log('%c巡检日期：' + getLocalToday() + ' · 巡检过程零写库、零反馈推进，结束后页面状态 100% 还原', 'color:#8C7C7C;font-size:11px');
+  const snap = _auditSnapshot();
+  // 今日语境锚定：清历史视图残留，保证各模块断言确定（结束统一还原）
+  _viewDate = null; _historyParsed = null; _ctxDate = null; _speakView = '';
+  await _auditGoHome();
+  const module = async (title, fn) => {
+    _auditSection(title);
+    try { await fn(); } catch (e) { _auditFail('模块执行抛异常（该模块后续断言未运行）', String((e && e.message) || e)); }
+  };
+  await module('模块一：交互链路与路由精确度', auditModule1);
+  await module('模块二：待办系统与 SM-2 数据钩稽', auditModule2);
+  await module('模块三：历史时光机与数据隔离', auditModule3);
+  await module('模块四：JSON 数据源健康度', auditModule4);
+  await module('模块五：极限空态拦截', auditModule5);
+  await module('模块六：状态清理与防泄漏', auditModule6);
+  await module('模块七：SM-2 记忆库防腐化', auditModule7);
+  _auditRestore(snap);
+  await _auditGoHome().catch(() => {});
+  const s = _auditStats;
+  console.log('%c\n━━━━━━ 🧭 体检报告汇总 ━━━━━━', 'font-weight:bold;font-size:13px;color:#3E3535');
+  console.log('%c通过 ' + s.pass + ' · 失败 ' + s.fail + ' · 跳过 ' + s.skip + ' · 共 ' + s.total + ' 项检查', 'font-weight:bold;color:' + (s.fail ? '#c62828' : '#2e7d32'));
+  if (s.fails.length) {
+    console.log('%c失败清单：', 'color:#c62828;font-weight:bold');
+    s.fails.forEach(f => console.log('%c❌ ' + f.label + (f.detail ? ' —— ' + f.detail : ''), 'color:#c62828'));
+  }
+  console.log(s.fail ? '%c⚠️ 存在 ' + s.fail + ' 项失败，请逐项排查后重跑' : '%c🎉 全部通过 —— 七模块健康度 100%', 'font-weight:bold;color:' + (s.fail ? '#c62828' : '#2e7d32'));
+  return _auditStats;
 }
 
 async function loadWords() {
@@ -3383,7 +3892,7 @@ async function renderTrendChart() {
     borderColor: color, backgroundColor: color,
     pointBackgroundColor: color, pointBorderColor: '#FFFDF9',
     pointBorderWidth: 1.2, pointRadius: 3, pointHoverRadius: 5,
-    borderWidth: 2, fill: false, tension: 0.4, spanGaps: false  // 平滑曲线；缺日留空不造假连线
+    borderWidth: 2, fill: false, tension: 0.4, spanGaps: true, clip: false  // v105：spanGaps 跨缺卡日连线（修复断点孤岛）；clip:false 满分圆点/线可溢出绘图区绘制，绝不被容器裁切
   });
   if (_trendChart) _trendChart.destroy();
   _trendChart = new Chart(canvas.getContext('2d'), {
@@ -3402,6 +3911,7 @@ async function renderTrendChart() {
       maintainAspectRatio: false,
       // v103：顶部留白 16px——满分（100）线此前画在绘图区最顶行，线/点上半被图表裁剪区切掉（词汇维度旧公式极易满 100）；
       // 左右 6px 同理防首/末日数据点半裁。容器同步加高 16px（index.html h-[180px]→h-[196px]），绘图区高度不变
+      // v105 削顶双保险：dataset 级 clip:false（圆点即使顶格绘制也不被裁切）；Y 轴 max:100 保持不变
       layout: { padding: { top: 16, left: 6, right: 6, bottom: 0 } },
       scales: {
         y: {
@@ -3674,11 +4184,17 @@ const TEMPLATES = {
   ],
   "newWords": [
     { "word": "单词", "phonetic": "/音标/", "meaning": "中文释义", "example": "包含该词的例句" }
-  ]
+  ],
+  "coach_insights": {
+    "vocabulary": "总结今日词汇痛点。例如：在描述抽象概念时词汇受限，过度依赖基础词汇。",
+    "grammar": "总结今日最高频的语法错误模式。例如：频繁在从句时态和介词搭配上出错。",
+    "expression": "点出不够地道的思维原因。例如：习惯中文主谓直译，缺乏地道的物称主语思维。",
+    "core_patterns": "总结今日金句的交际场景。例如：适合用于职场深度探讨和表达个人复盘的复杂句式。"
+  }
 }
 
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
-1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords 这 5 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
+1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords、coach_insights 这 6 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
 2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 62。这是从对话内容推导出的客观统计，严禁凭空编造或照抄示例值 62。
 3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
@@ -3692,6 +4208,7 @@ const TEMPLATES = {
 5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
 7. coreSentences 与 newWords 不设数量上限：只把今天对话中真实出现、值得收录的内容整理出来——coreSentences 收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）；newWords 只收录「你不会的生词」：对话中你不认识、说不出、卡壳、查过、用错或被纠正过的词。严禁收录你本来就认识的常用词。宁缺毋滥：今天没有就输出空数组 []，绝不允许为了凑数量编造内容，也不允许因为觉得太少而凑词。
+8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。
 
 【评分与点评铁律】（专业口语私教评审）：
 - 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）；vocabulary 词汇丰富度（用词是否丰富准确：是否反复依赖简单词、是否用上对话中学到的新表达）。
@@ -3709,12 +4226,13 @@ const TEMPLATES = {
 【输出前自检】——必须逐条确认，全部通过才允许输出：
 □ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
-□ 顶层 5 个键齐全，summary 的 9 个键齐全，空内容用 [] 不用 null；
+□ 顶层 6 个键齐全（含 coach_insights），summary 的 9 个键齐全，空内容用 [] 不用 null；
 □ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
 □ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是示例值 62；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 无任何以 ” 开头的字符串——开闭引号必须同为半角直引号 "（逐字段检查 phonetic 音标字段）；
 □ newWords 的每个词都是我今天不会/卡壳/被纠正的生词，没有一个是我本来就认识的常用词；
+□ coach_insights 四句诊断都基于今日对话的具体表现，严厉专业、直接指出问题，无空泛套话；
 □ 所有键名与上面示例结构一字不差。`
 };
 // v97：TEMPLATES.topic / TEMPLATES.insight 已物理删除——话题卡与弱点分析模板功能彻底下线，TEMPLATES 只保留 report。
@@ -4422,5 +4940,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=104');
+  navigator.serviceWorker.register('/sw.js?v=105');
 }

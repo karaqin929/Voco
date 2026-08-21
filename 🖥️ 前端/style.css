@@ -192,11 +192,16 @@ body {
 /* ═══════════════════════════════════════════════════════
    SPEAK Tab — 模块四：句型复习卡片模式（单卡片翻转视口）
    ═══════════════════════════════════════════════════════ */
-/* 满屏高、禁滚动：卡片垂直居中，反馈双键固定在视口底部 */
+/* v104.1 Bug 修复：满屏高、容器内滚动 —— SRS 卡片垂直居中不受影响；
+   表达/核心列表（?view=expressions|core）超一屏时在 #speak-player 内部滚动，
+   绝不再被 overflow:hidden 截断（原「禁滚动」只服务旧单卡布局，列表页共用此容器后即成滚动阻断） */
 #speak-player {
   height: calc(100dvh - 92px);
   min-height: 420px;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* 移动端惯性滑动 */
+  overscroll-behavior: contain;      /* 列表滚到底不穿透带动整页 */
+  padding-bottom: 96px;              /* 最后一张卡片滚到底也不藏进固定 TabBar（同 body 的 v76 补偿值） */
 }
 
 /* ── 3D 卡片翻转（v77 认知重塑：正面=情境提示+完形填空，背面=绿色地道句+解析）── */
