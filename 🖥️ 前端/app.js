@@ -2889,16 +2889,15 @@ function switchWordsView(mode) {
 // v82 日期路由横幅：复习页正处历史日期上下文 → 列表顶部提示「正在查看该日数据」（今日链路零侵入）
 // v104 扩展：横幅追加「共 N 条」计数行 —— N 与打分面板子块同源（同一 parsed 桶 / 同一标准化函数），
 //     调用方传入列表实际渲染长度（grammar=allGrammarErrors()、vocab=getFilteredVocab('today')），面板/列表永不分叉
-// v109 上下文标签统一（用户 Bug 报告「点四模块后页面顶部不再显示 今日X月X日新词（N个） 类标签」）：
-//     今日与历史同格式常显 —— 「📅 今日 8月21日 · 新词（4个）」/「📅 正在查看 2026-08-19 · 语法纠正（7条）」，
-//     取代旧「仅历史横幅 + 共 N 条」双行结构（今日链路零侵入的 v82 设计被用户明确否决）
+// v109 横幅全段常显（用户 Bug 报告 + 二次确认「还是喜欢之前的横幅模式，但四个 section 都要有」）：
+//     恢复旧双行胶囊框视觉（主行日期 + 副行计数），今日与历史同格式 ——
+//     今日：「📅 今日 8月21日 的当日数据 / 共 4 个新词」；历史：「📅 正在查看 2026-08-19 的当日数据 / 共 7 条语法纠正」
 function prependCtxDateBanner(count, dim, unit) {
   const container = document.getElementById('words-content');
   const banner = document.createElement('div');
-  banner.className = 'mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)] text-[0.875rem] font-semibold text-[var(--c-primary)]';
-  banner.textContent = _ctxDate
-    ? `📅 正在查看 ${_ctxDate} · ${dim}（${count}${unit}）`
-    : `📅 今日 ${fmtCnShortDate(getLocalToday())} · ${dim}（${count}${unit}）`;
+  banner.className = 'mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)]';
+  banner.innerHTML = `<div class="text-[0.875rem] font-semibold text-[var(--c-primary)]">📅 ${_ctxDate ? `正在查看 ${_ctxDate} 的当日数据` : `今日 ${fmtCnShortDate(getLocalToday())} 的当日数据`}</div>`
+    + `<div class="text-xs font-semibold text-[var(--c-text-dim)] mt-1">共 ${count} ${unit}${dim}</div>`;
   container.insertBefore(banner, container.firstChild);
 }
 
@@ -3545,13 +3544,15 @@ function comparisonCardHTML(main, original, note) {
 }
 
 // v104 列表头部：历史日期横幅（今日零侵入）+ 计数行（N 与打分面板子块数字同源 —— 同一 parsed 桶）
-// v109 上下文标签统一（用户 Bug 报告驱动）：今日/历史同格式常显 ——
-//     「📅 今日 8月21日 · 自然表达（8条）」/「📅 正在查看 2026-08-19 · 核心句型（13句）」
+// v109 横幅全段常显（用户 Bug 报告 + 二次确认「还是喜欢之前的横幅模式，但四个 section 都要有」）：
+//     旧双行胶囊框视觉（主行日期 + 副行计数），今日/历史同格式 ——
+//     「📅 今日 8月21日 的当日数据 / 共 8 条自然表达」·「📅 正在查看 2026-08-19 的当日数据 / 共 13 句核心句型」
 function speakListHeader(count, dim, unit) {
-  const label = _ctxDate
-    ? `📅 正在查看 ${_ctxDate} · ${dim}（${count}${unit}）`
-    : `📅 今日 ${fmtCnShortDate(getLocalToday())} · ${dim}（${count}${unit}）`;
-  return `<div class="mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)] text-[0.875rem] font-semibold text-[var(--c-primary)]">${label}</div>`;
+  const line1 = _ctxDate ? `正在查看 ${_ctxDate} 的当日数据` : `今日 ${fmtCnShortDate(getLocalToday())} 的当日数据`;
+  return `<div class="mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)]">
+    <div class="text-[0.875rem] font-semibold text-[var(--c-primary)]">📅 ${line1}</div>
+    <div class="text-xs font-semibold text-[var(--c-text-dim)] mt-1">共 ${count} ${unit}${dim}</div>
+  </div>`;
 }
 
 // 列表空状态：历史日期无记录 → 纯提示；今日无日报 → 导入引导
