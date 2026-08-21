@@ -1036,9 +1036,12 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // 例证盒（bg 底衬圆角 = 与语法错题卡解析盒同语言的结构性分组，洞察/证据两层分离）：原句 12px 浅灰 / 地道·修改 14px 绿加粗；
   // 盒内行距 6px；目标行前缀标签常态字重、正文加粗，强调落在内容本身；
   // v105：各卡 empty 标记 → 「查看全部」disabled 拦截（该维度无数据时禁止进入白板页；全局体检模块五断言此行为）
-  const insightLine = (iconName, text) => `<p class="text-sm text-[var(--c-text-dim)] font-normal flex items-center gap-1.5 min-w-0">
-    ${icon(iconName, 'w-3.5 h-3.5 shrink-0 text-[var(--c-primary)]')}
-    <span class="flex-1 min-w-0 truncate">${h(text)}</span>
+  // v109 洞察行多行显示（用户 Bug 报告「私教点评被单行截断成省略号」）：truncate 单行截断废除 →
+  //     内联 -webkit-line-clamp:3 多行截断（内联样式不依赖 Tailwind CDN 时序，极端长文本最多 3 行，短文本自然折行），
+  //     图标 items-start + mt-0.5 随首行顶部对齐；例证区（原句/修改/地道/金句）保持单行截断不变（克制感）
+  const insightLine = (iconName, text) => `<p class="text-sm text-[var(--c-text-dim)] font-normal flex items-start gap-1.5 min-w-0">
+    ${icon(iconName, 'w-3.5 h-3.5 shrink-0 mt-0.5 text-[var(--c-primary)]')}
+    <span class="flex-1 min-w-0" style="display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden">${h(text)}</span>
   </p>`;
   const origLine = (label, text) => text ? `<p class="text-xs text-[var(--c-text-ultradim)] truncate">${label}：${h(text)}</p>` : '';
   const targetLine = (label, text) => text ? `<p class="text-sm text-[var(--c-green)] truncate"><span class="font-normal opacity-75">${label}：</span><span class="font-bold">${h(text)}</span></p>` : '';
