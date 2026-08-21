@@ -1012,8 +1012,8 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   html += card(0.09, `<div class="flex items-center gap-1.5 text-xs font-semibold text-[var(--c-text-dim)] mb-2.5">${icon('thumbs-up','w-3.5 h-3.5 text-emerald-500')} ${dayLabel}做得好的地方</div>${d.strengths.length ? d.strengths.map(s=>`<div class="flex items-start gap-2 text-[0.875rem] text-[var(--c-text)] py-1.5">${icon('check-circle-2','w-4 h-4 text-emerald-500 shrink-0 mt-px')}<span>${h(s)}</span></div>`).join('') : '<div class="text-sm text-[var(--c-text-ultradim)]">当日无数据</div>'}`);
   // Card D: 需要提升 —— v104 固定四块（与打分面板四子块 1:1 对应）：词汇 / 语法纠正 / 自然表达 / 核心句型
   // v105 重构（用户指令：洞察注入四卡内部 + 无图标极简纯文本行结构）：
-  // 第 1 行 洞察 —— coach_insights 对应句（深灰、正常字重、单行截断）；旧日报无该字段 → 同一行静默回落基础统计文案（排版完全一致，绝无「旧版模板」报错字样）；
-  // 第 2 行 原句 —— items[0].original（浅灰、小字号、单行截断）；第 3 行 地道/修改 —— 品牌绿加粗、单行截断（与语法错题卡绿色正确句同源）；
+  // 第 1 行 洞察 —— coach_insights 对应句（深灰、正常字重、v111 起完整折行）；旧日报无该字段 → 同一行静默回落基础统计文案（排版完全一致，绝无「旧版模板」报错字样）；
+  // 第 2 行 原句 —— items[0].original（浅灰、小字号、v111 起完整折行）；第 3 行 地道/修改 —— 品牌绿加粗、完整折行（与语法错题卡绿色正确句同源）；
   // 词汇卡 = 洞察 + 平铺 3 词；核心句型卡 = 洞察 + 金句 两行；卡片内零 emoji 零图标；「查看全部」无图标文字键保留 goImprove 四跳转链
   const vocabList = (p && p.vocabulary) || [];
   const grammarList = standardizeErrorCards(p ? (p.grammar || []) : []); // 与语法错题列表/面板计数同函数
@@ -1032,15 +1032,16 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
   // 例证盒（bg 底衬圆角 = 与语法错题卡解析盒同语言的结构性分组，洞察/证据两层分离）：原句 12px 浅灰 / 地道·修改 14px 绿加粗；
   // 盒内行距 6px；目标行前缀标签常态字重、正文加粗，强调落在内容本身；
   // v105：各卡 empty 标记 → 「查看全部」disabled 拦截（该维度无数据时禁止进入白板页；全局体检模块五断言此行为）
-  // v109 洞察行多行显示（用户 Bug 报告「私教点评被单行截断成省略号」）：truncate 单行截断废除 →
-  //     内联 -webkit-line-clamp:3 多行截断（内联样式不依赖 Tailwind CDN 时序，极端长文本最多 3 行，短文本自然折行），
-  //     图标 items-start + mt-0.5 随首行顶部对齐；例证区（原句/修改/地道/金句）保持单行截断不变（克制感）
+  // v111 全局解除截断（用户产品逻辑反转指令：宁可卡片变长，绝不吞掉一个标点）：
+  //     洞察行 line-clamp:3 彻底废除 → 块级自然折行 + break-words 长词兜底，三四行全文完整展示；
+  //     例证区（原句/修改/地道/金句）同步废除 truncate 单行截断 → break-words 自然折行，绝无省略号；
+  //     图标 items-start + mt-0.5 随首行顶部对齐；容器（bodyBox 灰底盒 / card 白卡）无固定高度，随内容垂直自适应
   const insightLine = (iconName, text) => `<p class="text-sm text-[var(--c-text-dim)] font-normal flex items-start gap-1.5 min-w-0">
     ${icon(iconName, 'w-3.5 h-3.5 shrink-0 mt-0.5 text-[var(--c-primary)]')}
-    <span class="flex-1 min-w-0" style="display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden">${h(text)}</span>
+    <span class="flex-1 min-w-0 break-words">${h(text)}</span>
   </p>`;
-  const origLine = (label, text) => text ? `<p class="text-xs text-[var(--c-text-ultradim)] truncate">${label}：${h(text)}</p>` : '';
-  const targetLine = (label, text) => text ? `<p class="text-sm text-[var(--c-green)] truncate"><span class="font-normal opacity-75">${label}：</span><span class="font-bold">${h(text)}</span></p>` : '';
+  const origLine = (label, text) => text ? `<p class="text-xs text-[var(--c-text-ultradim)] break-words leading-relaxed">${label}：${h(text)}</p>` : '';
+  const targetLine = (label, text) => text ? `<p class="text-sm text-[var(--c-green)] break-words leading-relaxed"><span class="font-normal opacity-75">${label}：</span><span class="font-bold">${h(text)}</span></p>` : '';
   const bodyBox = (inner) => inner ? `<div class="bg-[var(--c-bg)] rounded-xl px-3 py-2.5 mt-2 space-y-1.5 min-w-0">${inner}</div>` : '';
   const improveBlocks = [
     {
@@ -1049,7 +1050,7 @@ function renderInsightsSection(displayThoughts, displayGoodPoints) {
       fallback: vocabList.length ? `${dayLabel}新词 ${vocabList.length} 个待巩固` : `${dayLabel}无词汇记录`,
       body: (() => {
         const words = vocabList.slice(0, 3).map(v => String(v.word || '').trim()).filter(Boolean);
-        return bodyBox(words.length ? `<p class="text-sm font-bold text-[var(--c-green)] truncate">${h(words.join(' · '))}</p>` : '');
+        return bodyBox(words.length ? `<p class="text-sm font-bold text-[var(--c-green)] break-words">${h(words.join(' · '))}</p>` : '');
       })()
     },
     {
@@ -2956,7 +2957,7 @@ async function renderTopicLibrary() {
       </div>
       ${t.description ? `<div class="text-xs text-[var(--c-text-dim)] mb-2 leading-relaxed">${h(t.description)}</div>` : ''}
       ${previewWords.length ? `
-      <div class="flex items-center gap-1.5 mb-3 overflow-hidden whitespace-nowrap">
+      <div class="flex flex-wrap items-center gap-1.5 mb-3">
         ${previewWords.map(w => `<span class="inline-flex shrink-0 text-[0.6875rem] px-2 py-0.5 rounded-full bg-[var(--c-bg)] text-[var(--c-text-dim)] border border-[var(--c-border-light)]">${h(w)}</span>`).join('')}
         ${(t.words.length > 5) ? `<span class="text-[0.6875rem] text-[var(--c-text-ultradim)] shrink-0">+${t.words.length - 5}</span>` : ''}
       </div>` : ''}
@@ -4978,5 +4979,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=110');
+  navigator.serviceWorker.register('/sw.js?v=111');
 }

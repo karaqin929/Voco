@@ -278,7 +278,7 @@ body {
 .badge-status.mastered { background: var(--green-light); color: var(--green); }
 .badge-status.learning { background: var(--orange-light); color: var(--orange); }
 .badge-status.new { background: var(--blue-light); color: var(--blue); }
-.badge-source { font-size: 0.6875rem; padding: 2px 8px; background: var(--bg); color: var(--text-ultradim); border-radius: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge-source { font-size: 0.6875rem; padding: 2px 8px; background: var(--bg); color: var(--text-ultradim); border-radius: 12px; white-space: normal; overflow-wrap: break-word; }
 .badge-done { font-size: 0.6875rem; padding: 3px 8px; background: var(--green-light); color: var(--green); border-radius: 20px; }
 
 /* SRS dots */
