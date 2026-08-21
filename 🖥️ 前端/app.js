@@ -615,12 +615,13 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
          v98：pt-2/pl-1 为 scale-110 放大熊 + 光圈预留空间（overflow-x-auto 会强制垂直裁剪，无 padding 熊头被切）
          v104.1：滚动定位改为 JS 状态单点（_streakScrollCache/_streakAnchored）——首次渲染锚定最右，重渲染只恢复
          v106：overflow-x:auto 改为内联样式（滚动盒恒成立，不依赖 Tailwind CDN 时序——根治「首帧 CSS 未就绪 → scrollLeft 设置无效 → 打开停在最左」）
-         v108：pl-1 追加 -ml-1 负外边距补偿——首个熊卡左缘与上方「打卡日历」图标左缘严格同一条垂直参考线；pl-1 仍保留（光圈/放大裁切缓冲不丢），-ml-1 恰好抵消其 4px 左缩：容器左缘 = 图标左缘 - 4px + 4px = 图标左缘，scrollport 左侧多出的 4px 缓冲带让最左选中熊的光圈完整可见 -->
+         v108：pl-1 追加 -ml-1 负外边距补偿——首个熊卡左缘与上方「打卡日历」图标左缘严格同一条垂直参考线；pl-1 仍保留（光圈/放大裁切缓冲不丢），-ml-1 恰好抵消其 4px 左缩：容器左缘 = 图标左缘 - 4px + 4px = 图标左缘，scrollport 左侧多出的 4px 缓冲带让最左选中熊的光圈完整可见
+         v110：首熊格内容改左对齐（items-start / text-left）——v108 只把「格子」左缘对齐图标，但小熊图 w-6（24px）在 14.28% 宽格（~48px）内被 items-center 居中，熊脸左缘仍比图标缩进约半格宽（~12px）。首格左对齐后熊脸左缘 === 图标左缘同一条垂直线；其余格保持居中，锚定/恢复逻辑零改动 -->
     <div class="grid overflow-x-auto hide-scrollbar gap-1 pt-2 pb-1 pl-1 -ml-1" id="streak-strip" style="overflow-x:auto;grid-auto-flow:column;grid-auto-columns:14.28%">
-      ${days.map(d => `
-        <div class="flex flex-col items-center gap-px cursor-pointer" onclick="showBearDay('${d.date}',${d.active})">
+      ${days.map((d, i) => `
+        <div class="flex flex-col gap-px cursor-pointer ${i===0 ? 'items-start' : 'items-center'}" onclick="showBearDay('${d.date}',${d.active})">
           <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===selected?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
-          <span class="text-[0.6875rem] whitespace-nowrap text-center ${d.date===selected ? 'text-[var(--c-primary)] font-bold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
+          <span class="text-[0.6875rem] whitespace-nowrap ${i===0 ? 'text-left' : 'text-center'} ${d.date===selected ? 'text-[var(--c-primary)] font-bold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
         </div>
       `).join('')}
     </div>`;
@@ -4977,5 +4978,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=109');
+  navigator.serviceWorker.register('/sw.js?v=110');
 }
