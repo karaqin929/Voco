@@ -2055,30 +2055,41 @@ async function auditModule1() {
   if (fourLabels.every(t => mText.includes(t))) _auditPass('首页指标区：四子块（当日新词/语法纠正/自然表达/核心句型）全部渲染');
   else _auditFail('首页指标区：四子块渲染缺失', (mText || '（home-metrics 为空）').slice(0, 80));
   // 1.2 提升区四卡按钮与四子块 1:1 映射
-  const jumpBtns = [...document.querySelectorAll('#home-insights [data-improve-jump]')].map(b => b.dataset.improveJump);
-  if (jumpBtns.length === 4 && ['vocab', 'grammar', 'expression', 'core'].every(t => jumpBtns.includes(t)))
-    _auditPass('提升区四卡：vocab/grammar/expression/core 四个跳转按钮与打分面板四子块 1:1 映射');
-  else _auditFail('提升区四卡：跳转按钮缺失或映射错乱', '实际 ' + JSON.stringify(jumpBtns));
-  // 1.3 四跳转链路由精确度（真实点击按钮 → URL/内部状态精确切换）
-  const routes = [
-    { type: 'vocab', label: '词汇', path: '/review', search: 'filter=today', state: () => _wordsFilter === 'today' && _ctxDate === null, tab: 'tab-words', desc: '/review?filter=today · 今日新词过滤态' },
-    { type: 'grammar', label: '语法纠正', path: '/review', search: 'tab=grammar', state: () => _wordsFilter === 'grammar' && _ctxDate === null, tab: 'tab-words', desc: '/review?tab=grammar' },
-    { type: 'expression', label: '自然表达', path: '/shadowing', search: 'view=expressions', state: () => _speakView === 'expressions' && _ctxDate === null, tab: 'tab-speak', desc: '/shadowing?view=expressions' },
-    { type: 'core', label: '核心句型', path: '/shadowing', search: 'view=core', state: () => _speakView === 'core' && _ctxDate === null, tab: 'tab-speak', desc: '/shadowing?view=core' }
-  ];
-  for (const r of routes) {
-    const btn = document.querySelector(`#home-insights [data-improve-jump="${r.type}"]`);
-    if (!btn) continue;
-    if (btn.disabled) { _auditPass(`「${r.label}」按钮防御态 disabled —— 该维度无数据时点击零响应（拦截正确，非死链）`); continue; }
-    try { btn.click(); } catch (e) { _auditFail(`「${r.label}」跳转抛异常`, String((e && e.message) || e)); continue; }
-    await _auditWaitFor(() => location.pathname === r.path, 8, 250);
-    if (location.pathname !== r.path) { _auditFail(`「${r.label}」跳转：路径未切换`, `当前 ${location.pathname + location.search}，期望 ${r.desc}`); continue; }
-    await _auditWaitFor(r.state, 20, 300);
-    const activeTab = document.querySelector('.tab-content.active');
-    const ok = r.state() && location.search.includes(r.search) && activeTab && activeTab.id === r.tab;
-    if (ok) _auditPass(`「${r.label}」→ ${r.desc}：URL 与内部状态精确切换`);
-    else _auditFail(`「${r.label}」→ ${r.desc}：状态断言失败`, `URL=${location.pathname + location.search} _wordsFilter=${_wordsFilter} _speakView=${_speakView} _ctxDate=${_ctxDate} 激活Tab=${activeTab ? activeTab.id : '无'}`);
-    await _auditGoHome();
+  // v107 空态折叠感知：今日无日报 → renderHomeSections 折叠 #home-insights（四卡按设计不渲染）→ 属正常态非死链；
+  // 有今日日报时四卡必须渲染且与打分面板四子块 1:1 映射，四条跳转链路逐一真实点击断言
+  const insightsEl = document.getElementById('home-insights');
+  if (insightsEl && insightsEl.classList.contains('hidden')) {
+    const hero = document.getElementById('home-empty-hero');
+    if (hero && !hero.classList.contains('hidden'))
+      _auditPass('提升区四卡：今日无日报 → 空态折叠（#home-insights 隐藏 + Hero 引导卡顶上，四卡按设计不渲染，非死链）');
+    else _auditFail('提升区四卡：空态折叠不完整', '#home-insights 隐藏但 #home-empty-hero 未显示');
+    _auditSkip('提升区四卡跳转链路', '今日无日报、四卡未渲染——导入今日日报后重跑即可覆盖路由断言');
+  } else {
+    const jumpBtns = [...document.querySelectorAll('#home-insights [data-improve-jump]')].map(b => b.dataset.improveJump);
+    if (jumpBtns.length === 4 && ['vocab', 'grammar', 'expression', 'core'].every(t => jumpBtns.includes(t)))
+      _auditPass('提升区四卡：vocab/grammar/expression/core 四个跳转按钮与打分面板四子块 1:1 映射');
+    else _auditFail('提升区四卡：跳转按钮缺失或映射错乱', '实际 ' + JSON.stringify(jumpBtns));
+    // 1.3 四跳转链路由精确度（真实点击按钮 → URL/内部状态精确切换）
+    const routes = [
+      { type: 'vocab', label: '词汇', path: '/review', search: 'filter=today', state: () => _wordsFilter === 'today' && _ctxDate === null, tab: 'tab-words', desc: '/review?filter=today · 今日新词过滤态' },
+      { type: 'grammar', label: '语法纠正', path: '/review', search: 'tab=grammar', state: () => _wordsFilter === 'grammar' && _ctxDate === null, tab: 'tab-words', desc: '/review?tab=grammar' },
+      { type: 'expression', label: '自然表达', path: '/shadowing', search: 'view=expressions', state: () => _speakView === 'expressions' && _ctxDate === null, tab: 'tab-speak', desc: '/shadowing?view=expressions' },
+      { type: 'core', label: '核心句型', path: '/shadowing', search: 'view=core', state: () => _speakView === 'core' && _ctxDate === null, tab: 'tab-speak', desc: '/shadowing?view=core' }
+    ];
+    for (const r of routes) {
+      const btn = document.querySelector(`#home-insights [data-improve-jump="${r.type}"]`);
+      if (!btn) { _auditFail(`「${r.label}」按钮缺失（四卡已渲染但无 [data-improve-jump=${r.type}]）`); continue; }
+      if (btn.disabled) { _auditPass(`「${r.label}」按钮防御态 disabled —— 该维度无数据时点击零响应（拦截正确，非死链）`); continue; }
+      try { btn.click(); } catch (e) { _auditFail(`「${r.label}」跳转抛异常`, String((e && e.message) || e)); continue; }
+      await _auditWaitFor(() => location.pathname === r.path, 8, 250);
+      if (location.pathname !== r.path) { _auditFail(`「${r.label}」跳转：路径未切换`, `当前 ${location.pathname + location.search}，期望 ${r.desc}`); continue; }
+      await _auditWaitFor(r.state, 20, 300);
+      const activeTab = document.querySelector('.tab-content.active');
+      const ok = r.state() && location.search.includes(r.search) && activeTab && activeTab.id === r.tab;
+      if (ok) _auditPass(`「${r.label}」→ ${r.desc}：URL 与内部状态精确切换`);
+      else _auditFail(`「${r.label}」→ ${r.desc}：状态断言失败`, `URL=${location.pathname + location.search} _wordsFilter=${_wordsFilter} _speakView=${_speakView} _ctxDate=${_ctxDate} 激活Tab=${activeTab ? activeTab.id : '无'}`);
+      await _auditGoHome();
+    }
   }
   // 1.4 To-Do List 三条链路
   const todoEls = () => document.querySelectorAll('#home-quests [data-todo-idx]');
@@ -2128,7 +2139,7 @@ async function auditModule2() {
   if (!t1) { _auditSkip('任务 2 数字钩稽', 'To-Do List 未渲染'); }
   else {
     const dom1 = t1.textContent || '';
-    const m1 = dom1.match(/（(\d+)句）/);
+    const m1 = dom1.match(/[（(](\d+)句[)）]/);   // v107：半/全角括号双兼容（实际渲染为半角 `(N句)`，全角为正则盲区）
     const queueLen = getDueSentencesQueue(_patternLibrary).length;
     if (m1 && parseInt(m1[1], 10) === queueLen) _auditPass(`任务 2 数字一致：面板显示 ${queueLen} 句 === getDueSentencesQueue(_patternLibrary).length = ${queueLen}`);
     else if (/暂无复习任务/.test(dom1) && queueLen === 0) _auditPass('任务 2 数字一致：队列 0 → 防御态文案（0 = 0）');
@@ -2149,7 +2160,7 @@ async function auditModule2() {
   const t2 = document.querySelectorAll('#home-quests [data-todo-idx]')[2];
   if (!t2) { _auditSkip('任务 3 数字钩稽', 'To-Do List 未渲染'); return; }
   const dom2 = t2.textContent || '';
-  const m2 = dom2.match(/（(\d+)张）/);
+  const m2 = dom2.match(/[（(](\d+)张[)）]/);   // v107：同上，半/全角括号双兼容
   const ms = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds);
   const deckTotal = ms.totalDueVocabCount + dueErrorCards().length;
   if (m2 && parseInt(m2[1], 10) === deckTotal) _auditPass(`任务 3 数字一致：面板显示 ${deckTotal} 张 === 到期词 ${ms.totalDueVocabCount} + 到期错题 ${deckTotal - ms.totalDueVocabCount}`);
@@ -2178,9 +2189,21 @@ async function auditModule3() {
   }
   const cand = _reportsCache.filter(r => r.date && r.date !== today && isDailyReport(r));
   if (!cand.length) { _auditSkip('历史时光机', '无历史日报可巡检'); return; }
-  for (const r of cand.slice(0, 3)) { if (!r.content) { try { await ensureReportContent(r.date); } catch (e) { /* 单日补水失败跳过该日 */ } } }
+  // v107：补水三重试 + 直连兜底（绕过补水去重标记），防瞬时网络失败导致整模块误跳
+  for (const r of cand.slice(0, 3)) {
+    for (let attempt = 0; attempt < 3 && !r.content; attempt++) {
+      try { await ensureReportContent(r.date); } catch (e) { /* ensureReportContent 内部吞错不抛 */ }
+      if (!r.content) {
+        try {
+          const { data } = await sb.from('reports').select('content').eq('user_id', _uid).eq('date', r.date).maybeSingle();
+          if (data && typeof data.content === 'string' && data.content) r.content = data.content;
+        } catch (e2) { /* 直连失败进入下一轮重试 */ }
+      }
+      if (!r.content) await _auditSettle(500);
+    }
+  }
   const sample = cand.slice(0, 3).filter(r => r.content);
-  if (!sample.length) { _auditSkip('历史时光机', '历史日报 content 补水失败'); return; }
+  if (!sample.length) { _auditSkip('历史时光机', '历史日报 content 三重试 + 直连兜底后仍不可用（网络/数据库侧问题，非前端逻辑）'); return; }
   // 3.1 历史 Dashboard 面板数字 vs 点开列表数组长度（四维钩稽）
   for (const r of sample) {
     const parsed = parseSmartReport(r.content);
@@ -2414,7 +2437,7 @@ async function auditModule7() {
 // ═══════════════════════════════════════════════════════════════
 async function runGlobalAudit() {
   _auditStats = { total: 0, pass: 0, fail: 0, skip: 0, fails: [] };
-  console.log('%c\n🧭 Voco 全局体检（v105 · 7 模块巡检）', 'font-weight:bold;font-size:15px;color:#3E3535');
+  console.log('%c\n🧭 Voco 全局体检（v107 · 7 模块巡检）', 'font-weight:bold;font-size:15px;color:#3E3535');
   console.log('%c巡检日期：' + getLocalToday() + ' · 巡检过程零写库、零反馈推进，结束后页面状态 100% 还原', 'color:#8C7C7C;font-size:11px');
   const snap = _auditSnapshot();
   // 今日语境锚定：清历史视图残留，保证各模块断言确定（结束统一还原）
@@ -4946,5 +4969,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=106');
+  navigator.serviceWorker.register('/sw.js?v=107');
 }
