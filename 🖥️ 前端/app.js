@@ -117,11 +117,6 @@ const fmtLocalDate = (d) => {
   dd.setMinutes(dd.getMinutes() - dd.getTimezoneOffset());
   return dd.toISOString().slice(0, 10);
 };
-// v109：'YYYY-MM-DD' → 「M月D日」短格式（四模块页顶部上下文标签专用，与熊条 month/day 同源直观）
-const fmtCnShortDate = (dateStr) => {
-  const p = String(dateStr || '').split('-');
-  return p.length === 3 ? `${Number(p[1])}月${Number(p[2])}日` : String(dateStr || '');
-};
 // 'YYYY-MM-DD' → 本地 Date（严禁 new Date(str) —— UTC 午夜解析在 0-8 点时区会偏移一天；v89 日历序列专用）
 function parseLocalDate(s) {
   const p = String(s).split('-');
@@ -2889,14 +2884,14 @@ function switchWordsView(mode) {
 // v82 日期路由横幅：复习页正处历史日期上下文 → 列表顶部提示「正在查看该日数据」（今日链路零侵入）
 // v104 扩展：横幅追加「共 N 条」计数行 —— N 与打分面板子块同源（同一 parsed 桶 / 同一标准化函数），
 //     调用方传入列表实际渲染长度（grammar=allGrammarErrors()、vocab=getFilteredVocab('today')），面板/列表永不分叉
-// v109 横幅全段常显（用户 Bug 报告 + 二次确认「还是喜欢之前的横幅模式，但四个 section 都要有」）：
-//     恢复旧双行胶囊框视觉（主行日期 + 副行计数），今日与历史同格式 ——
-//     今日：「📅 今日 8月21日 的当日数据 / 共 4 个新词」；历史：「📅 正在查看 2026-08-19 的当日数据 / 共 7 条语法纠正」
+// v109 横幅全段常显（用户 Bug 报告 + 三次确认最终样式）：双行居中胶囊框，今日/历史统一日期格式 ——
+//     「📅 正在查看 2026-08-21 的当日数据」主行 + 「共 4 个新词」副行，四段（新词/语法纠正/自然表达/核心句型）同构
 function prependCtxDateBanner(count, dim, unit) {
   const container = document.getElementById('words-content');
   const banner = document.createElement('div');
-  banner.className = 'mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)]';
-  banner.innerHTML = `<div class="text-[0.875rem] font-semibold text-[var(--c-primary)]">📅 ${_ctxDate ? `正在查看 ${_ctxDate} 的当日数据` : `今日 ${fmtCnShortDate(getLocalToday())} 的当日数据`}</div>`
+  banner.className = 'mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)] text-center';
+  const date = _ctxDate || getLocalToday();
+  banner.innerHTML = `<div class="text-[0.875rem] font-semibold text-[var(--c-primary)]">📅 正在查看 ${date} 的当日数据</div>`
     + `<div class="text-xs font-semibold text-[var(--c-text-dim)] mt-1">共 ${count} ${unit}${dim}</div>`;
   container.insertBefore(banner, container.firstChild);
 }
@@ -3544,13 +3539,12 @@ function comparisonCardHTML(main, original, note) {
 }
 
 // v104 列表头部：历史日期横幅（今日零侵入）+ 计数行（N 与打分面板子块数字同源 —— 同一 parsed 桶）
-// v109 横幅全段常显（用户 Bug 报告 + 二次确认「还是喜欢之前的横幅模式，但四个 section 都要有」）：
-//     旧双行胶囊框视觉（主行日期 + 副行计数），今日/历史同格式 ——
-//     「📅 今日 8月21日 的当日数据 / 共 8 条自然表达」·「📅 正在查看 2026-08-19 的当日数据 / 共 13 句核心句型」
+// v109 横幅全段常显（用户 Bug 报告 + 三次确认最终样式）：双行居中胶囊框，今日/历史统一日期格式 ——
+//     「📅 正在查看 2026-08-21 的当日数据」主行 + 「共 8 条自然表达」副行（核心句型段同构）
 function speakListHeader(count, dim, unit) {
-  const line1 = _ctxDate ? `正在查看 ${_ctxDate} 的当日数据` : `今日 ${fmtCnShortDate(getLocalToday())} 的当日数据`;
-  return `<div class="mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)]">
-    <div class="text-[0.875rem] font-semibold text-[var(--c-primary)]">📅 ${line1}</div>
+  const date = _ctxDate || getLocalToday();
+  return `<div class="mb-3 px-4 py-2.5 rounded-xl bg-[var(--c-primary-light)] border border-[var(--c-border-light)] text-center">
+    <div class="text-[0.875rem] font-semibold text-[var(--c-primary)]">📅 正在查看 ${date} 的当日数据</div>
     <div class="text-xs font-semibold text-[var(--c-text-dim)] mt-1">共 ${count} ${unit}${dim}</div>
   </div>`;
 }
