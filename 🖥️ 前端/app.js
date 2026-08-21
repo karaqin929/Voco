@@ -367,8 +367,9 @@ let _errorsRaw = [];
 let _patternsRaw = [];
 const _reportContentFetched = new Set();
 let _lastStreakArgs = null;
-// v104.1 熊条滚动状态（JS 单点，不依赖 DOM 存活）：_streakScrollCache 跨重渲染存活；
-// _streakAnchored 本次页面加载首次渲染已锚定最右——此后一切重渲染（历史日切换/后台补水/切页返回）只恢复不重锚定
+// v106 熊条滚动状态（JS 单点，不依赖 DOM 存活）：_streakScrollCache 跨重渲染存活；
+// _streakAnchored 本次页面加载首次渲染已锚定最右（今天）——此后一切重渲染（历史日切换/后台补水/切页返回/手动滑动）只恢复、绝不重锚定；
+// 锚定 = 同步兜底 + rAF 布局落定后按溢出量精确落锚 + clientWidth>0 可测量判定（隐藏态首渲自动顺延重试，绝不死锁左端）
 let _streakScrollCache = null;
 let _streakAnchored = false;
 async function loadHome() {
@@ -591,7 +592,7 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
   // v97：选中日期 = _viewDate（历史视图）或今天——日期加粗与熊圈严格跟随选中项，不再死锁今天
   const selected = _viewDate || today;
 
-  // v98/v104.1：滚动位置保持 —— 渲染前从 DOM 读当前位置并存入 JS 缓存（跨重渲染存活，防「DOM 值被时序竞态清零后盲恢复 0」）；
+  // v98/v106：滚动位置保持 —— 渲染前从 DOM 读当前位置（含用户手动左右滑动）并存入 JS 缓存（跨重渲染存活，防「DOM 值被时序竞态清零后盲恢复 0」）；
   // 本次页面加载的首次渲染锚定最右（今天）；此后一切重渲染（历史日切换/后台补水/切页返回）只恢复、绝不重锚定
   const prevStrip = document.getElementById('streak-strip');
   const savedScroll = prevStrip ? prevStrip.scrollLeft : null;
@@ -612,8 +613,9 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
     <!-- v89 横向无限回溯滑条：向右滑 = 回看更早历史；小熊点亮 = 该日有词/日报（与数据库状态精准匹配）
          v97：单屏最多 7 格（grid auto-cols 14.28%，左右拖动查看更多）；选中日期加粗 + 熊圈
          v98：pt-2/pl-1 为 scale-110 放大熊 + 光圈预留空间（overflow-x-auto 会强制垂直裁剪，无 padding 熊头被切）
-         v104.1：滚动定位改为 JS 状态单点（_streakScrollCache/_streakAnchored）——首次渲染锚定最右，重渲染只恢复 -->
-    <div class="grid overflow-x-auto hide-scrollbar gap-1 pt-2 pb-1 pl-1" id="streak-strip" style="grid-auto-flow:column;grid-auto-columns:14.28%">
+         v104.1：滚动定位改为 JS 状态单点（_streakScrollCache/_streakAnchored）——首次渲染锚定最右，重渲染只恢复
+         v106：overflow-x:auto 改为内联样式（滚动盒恒成立，不依赖 Tailwind CDN 时序——根治「首帧 CSS 未就绪 → scrollLeft 设置无效 → 打开停在最左」） -->
+    <div class="grid overflow-x-auto hide-scrollbar gap-1 pt-2 pb-1 pl-1" id="streak-strip" style="overflow-x:auto;grid-auto-flow:column;grid-auto-columns:14.28%">
       ${days.map(d => `
         <div class="flex flex-col items-center gap-px cursor-pointer" onclick="showBearDay('${d.date}',${d.active})">
           <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===selected?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
@@ -624,17 +626,21 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
   const strip = document.getElementById('streak-strip');
   if (strip) {
     if (!_streakAnchored) {
-      // 首次渲染：锚定最右（今天）。scrollWidth 读取触发同步布局，值可靠；写缓存供后续一切重渲染恢复
-      _streakAnchored = true;
+      // 首次渲染：锚定最右（今天）。①同步兜底（inline overflow 保证滚动盒恒成立，布局就绪即生效）；
+      // ②rAF 布局落定后按溢出量精确落锚；③clientWidth>0（可测量）才判定落锚成功——隐藏态首渲顺延到下一轮渲染重试，绝不死锁最左
       strip.scrollLeft = strip.scrollWidth;
-      _streakScrollCache = strip.scrollLeft;
-      // 双保险：若后续异步布局把 scrollLeft 意外归零，下一帧按缓存再断言一次锚定值
       requestAnimationFrame(() => {
         const s = document.getElementById('streak-strip');
-        if (s && _streakAnchored && _streakScrollCache !== null) s.scrollLeft = _streakScrollCache;
+        if (!s || _streakAnchored) return;
+        if (s.clientWidth > 0) {
+          _streakAnchored = true;
+          const overflow = s.scrollWidth - s.clientWidth;
+          s.scrollLeft = overflow > 1 ? overflow : 0;
+          _streakScrollCache = s.scrollLeft;
+        }
       });
     } else {
-      // 重渲染：只恢复（历史日切换/后台补水/切页返回，熊条位置保持不动）
+      // 重渲染：只恢复（历史日切换/后台补水/切页返回/手动左右滑动后，熊条位置保持不动）
       strip.scrollLeft = (_streakScrollCache !== null) ? _streakScrollCache : strip.scrollWidth;
       _streakScrollCache = strip.scrollLeft;
     }
@@ -4940,5 +4946,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=105');
+  navigator.serviceWorker.register('/sw.js?v=106');
 }
