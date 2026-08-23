@@ -3569,7 +3569,7 @@ function speakListEmpty(label) {
         📥 导入今日日报 <i data-lucide="arrow-right" class="w-4 h-4"></i>
       </button>`
     : '';
-  return `<div class="flex h-full items-center justify-center">
+  return `<div class="flex items-center justify-center" style="min-height:calc(100dvh - 92px)">
     <div class="w-full max-w-[320px] rounded-3xl px-6 pt-9 pb-8 text-center border border-[var(--c-border-light)]"
          style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 65%);box-shadow:var(--c-shadow)">
       <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--c-primary-light)] flex items-center justify-center" style="box-shadow:inset 0 0 0 1px var(--c-primary)">
@@ -3714,7 +3714,7 @@ function renderSentenceReview(sentences, startIndex) {
   // 边界处理：没有数据 → 句型 SRS 空状态（温润极简：微圆底块 + 克制线性图标，绝不出现「(0句)」计数）
   if (_srsQueue.length === 0) {
     container.innerHTML = `
-      <div class="flex h-full items-center justify-center">
+      <div class="flex items-center justify-center" style="min-height:calc(100dvh - 92px)">
         <div class="w-full max-w-[320px] rounded-3xl px-6 pt-9 pb-8 text-center border border-[var(--c-border-light)]"
              style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 65%);box-shadow:var(--c-shadow)">
           <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--c-primary-light)] flex items-center justify-center" style="box-shadow:inset 0 0 0 1px var(--c-primary)">
@@ -3740,12 +3740,19 @@ function renderSentenceReview(sentences, startIndex) {
         <div class="flex-1 h-1.5 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div id="srs-progress-fill" class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-300" style="width:0%"></div></div>
       </div>
       <!-- v104 翻转卡片（换皮不换骨）：正面 = 💡 情境提示（挖空完形已物理删除，零填空）；
-           背面 = 居中放大绿色地道句（主视觉）+ 原句小字（辅助视觉，无则整行隐藏）+ 解析（底部）-->
+           背面 = 居中放大绿色地道句（主视觉）+ 原句小字（辅助视觉，无则整行隐藏）+ 解析（底部）
+           v114 正面认知重构定案（用户六轮收敛：元描述 ✗ → 句型框架 ✗ → 词数指令 ✗ → 纯锚点 ✗ → 设备指令 ✗
+           → 「设备+习语片段+意图」两行教练指令定案；范围=仅每日打卡 15 句句型复习翻卡，对比阅读卡片零改动）：
+           ① 错误原句（锚点）② 尝试用「设备」（习语/结构片段，覆盖目标句 >60% 词数时自动隐藏）：意图，升级原句表达
+           ⚠ 地道核心在翻面前绝不展示——它正是训练目标本身；解析类 explanation 只在翻面 🎬 展示
+           → 卡住才点「首字母骨架」（每词仅首字母）→ 翻面核对（自评制零判定）-->
       <div class="srs-flip-scene mb-4 cursor-pointer" onclick="flipSrsCard()">
         <div class="srs-flip-inner" id="srs-flip-inner">
           <div class="srs-flip-face srs-flip-front flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:var(--c-surface);box-shadow:var(--c-shadow)">
-            <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-4 tracking-widest">情境提示 · 回忆地道表达</div>
-            <div id="srs-card-clue" class="font-sans text-[0.875rem] text-[var(--c-text-dim)] mb-5 leading-relaxed"></div>
+            <div id="srs-card-clue" class="font-sans text-[0.9375rem] text-[var(--c-text)] mb-3 leading-relaxed"></div>
+            <div id="srs-card-hint" class="text-[0.8125rem] font-semibold text-[var(--c-primary)] mb-3 leading-relaxed"></div>
+            <button id="srs-hint-btn" onclick="event.stopPropagation();toggleSrsHint()" class="px-3 py-1 rounded-full text-[0.6875rem] font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 cursor-pointer mb-2 active:opacity-70 transition-opacity">💡 首字母骨架</button>
+            <div id="srs-card-skeleton" class="font-sans text-[0.875rem] text-[var(--c-text-dim)] tracking-wider leading-loose mb-3" style="display:none"></div>
             <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-4">点击卡片查看完整地道句</div>
           </div>
           <div class="srs-flip-face srs-flip-back flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 70%);box-shadow:var(--c-shadow)">
@@ -3770,6 +3777,8 @@ function renderSentenceReview(sentences, startIndex) {
 }
 
 // v104 状态驱动渲染（换皮不换骨）：正面 = 仅 💡 情境提示（零挖空）；背面 = 绿色地道句 + 原句小字 + 解析
+// v114 正面认知重构定案：两行教练指令 = 错误原句锚点 + 「设备（习语片段）：意图」指令行 + 骨架按钮兜底
+// （六轮收敛全程记录于 renderSrsCard 内注释；范围=仅每日打卡 15 句句型复习翻卡，对比阅读卡片零改动）
 function renderSrsCard() {
   const item = _srsQueue[_srsIdx];
   if (!item) return;
@@ -3778,8 +3787,51 @@ function renderSrsCard() {
   const target = String(item.targetSentence || '').trim();
   const original = String(item.replacedSentence || '').trim();
   const expl = String(item.explanation || '').trim();
-  // 正面：💡 想要表达：[中文情境]（挖空完形已物理删除 —— 不再展示目标句任何遮挡形态）
-  document.getElementById('srs-card-clue').textContent = expl ? `💡 想要表达：${expl}` : '💡 想要表达：完成下面的地道表达';
+  const explOK = expl && !/历史导入/.test(expl);
+  // v114 认知重构定案（用户六轮收敛：元描述 ✗ → 句型框架 ✗ → 词数指令 ✗ → 纯锚点 ✗ → 设备指令 ✗
+  //   → 「设备+习语片段+意图」定案；范围=仅每日打卡 15 句句型复习翻卡，对比阅读卡片零改动）：
+  //   ① 第一行 = 你自己的错误原句（纠错记忆的最强提取线索；无原句时退化为 想表达：真场景）
+  //   ② 第二行 = 设备指令：尝试用「设备」（习语/结构片段，覆盖目标句 >60% 词数时自动隐藏）：意图，升级原句表达
+  //      ——设备名/片段/意图均从解析或目标句形状抽取，每卡不同；片段=习语本身（应用层产出训练：
+  //        拿习语组装完整地道句），隐藏阈值防「习语≈整句答案」卡（如 fascinating）无物可练
+  //   ⚠ 教训（用户纠错）：① 句型框架不可用——地道句的「地道核心」正是功能词构式+搭配，框架把训练
+  //     目标整体给出，检索强度归零；② 词数指令无用——旁观者度量，回忆时的大脑不按词数检索
+  //   ③ 渐进兜底 = 首字母骨架（每词仅首字母，连功能词都不给全文），卡住才点按钮；解析类 explanation 只在翻面 🎬 展示
+  //   无原句无真场景（历史迁移卡）→ 骨架自动展开，卡片永不空白
+  const sceneOK = explOK && !isAnalysisExpl(expl, target);
+  const clueEl = document.getElementById('srs-card-clue');
+  if (clueEl) clueEl.textContent = original ? `你上次是这样说的：“${original}”` : (sceneOK ? `想表达：${expl}` : '回忆这条地道的表达');
+  const hintEl = document.getElementById('srs-card-hint');
+  if (hintEl) {
+    if (target) {
+      const dm = deviceMatch(expl);
+      const dCtx = explOK ? deviceContext(expl, target, dm ? dm.key : '') : '';
+      const dFrag = deviceFragment(expl, original, target);
+      const d = `尝试用「${deviceHint(expl, target)}」${dFrag ? `（${dFrag}）` : ''}`;
+      hintEl.textContent = dCtx ? `${d}：${dCtx}，升级原句表达` : `${d}，升级原句表达`;
+    } else {
+      hintEl.textContent = '';
+    }
+    hintEl.style.display = target ? '' : 'none';
+  }
+  const skelEl = document.getElementById('srs-card-skeleton');
+  const hintBtn = document.getElementById('srs-hint-btn');
+  const autoShow = !original && !sceneOK && !!target;
+  if (skelEl) {
+    skelEl.dataset.filled = '';
+    if (autoShow) {
+      skelEl.dataset.filled = '1';
+      skelEl.textContent = letterSkeleton(target);
+      skelEl.style.display = 'block';
+    } else {
+      skelEl.textContent = '';
+      skelEl.style.display = 'none';
+    }
+  }
+  if (hintBtn) {
+    hintBtn.style.display = (target && !autoShow) ? '' : 'none';
+    hintBtn.textContent = '💡 首字母骨架';
+  }
   // 背面三件套：主视觉正确句（绿）+ 辅助视觉原句（灰小字，无则清空隐藏）+ 解析
   document.getElementById('srs-card-back-correct').textContent = target || '（暂无句子）';
   const origEl = document.getElementById('srs-card-back-original');
@@ -3801,6 +3853,177 @@ function flipSrsCard() {
   if (actions) actions.style.display = _srsFlipped ? 'flex' : 'none';
 }
 
+// v114 解析/场景分流：旧 JSON 日报的 explanation 是「解析」（语法术语、长句、或复述目标句词组），
+// 解析往往直接点破答案结构 → 正面放它就是泄底，只有真场景（短、无术语）才上正面；解析一律只在翻面 🎬 展示。
+// 判定从宽（宁藏勿泄）：含语法术语 / 超长 / 含目标句连续词组 任一即视为解析
+const _EXPL_ANALYSIS_HINTS = /(句型|句式|从句|宾语|主语|谓语|状语|定语|时态|语态|主谓|同位|倒装|虚拟|强调|结构|搭配|引导|固定表达|地道说法|用法|呼应|主题|形态|缩写|简称|概念|方法论)/;
+function isAnalysisExpl(expl, target) {
+  const e = String(expl || '').trim();
+  if (!e) return false;
+  if (_EXPL_ANALYSIS_HINTS.test(e)) return true;
+  if (e.length > 24) return true;
+  const tw = String(target || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const el = e.toLowerCase();
+  for (let i = 0; i + 1 < tw.length; i++) {
+    const bigram = (tw[i].replace(/[^a-z0-9']/g, '') + ' ' + tw[i + 1].replace(/[^a-z0-9']/g, '')).trim();
+    if (bigram.length > 3 && el.includes(bigram)) return true;
+  }
+  return false;
+}
+
+// v114 设备词典（正面第二行教练指令）：从 explanation 抽取「升级手段」名称 → 展示文案。
+// 词典本身只给手段类型；习语/结构词片段由 deviceFragment 另路抽取（括号内展示，覆盖 >60% 目标句词数时隐藏）
+// ——「废话追问」与「句型框架泄底」之间的中间态：给手柄、给片段，但整句翻面前绝不完整展示。
+// 顺序敏感：更具体的术语在前（虚拟语气>虚拟、宾语从句>从句），首个命中即止
+const _DEVICE_HINTS = [
+  ['虚拟语气', '虚拟语气结构'], ['同位语', '同位语结构'], ['插入语', '插入语结构'], ['倒装', '倒装结构'],
+  ['强调句', '强调句型'], ['省略', '省略结构'], ['被动语态', '被动语态结构'], ['被动', '被动结构'],
+  ['比较级', '比较级结构'], ['最高级', '最高级结构'], ['情态动词', '情态动词结构'],
+  ['现在完成时', '现在完成时态'], ['过去完成时', '过去完成时态'],
+  ['宾语从句', '宾语从句句型'], ['定语从句', '定语从句句型'], ['状语从句', '状语从句句型'],
+  ['主语从句', '主语从句句型'], ['表语从句', '表语从句句型'], ['从句', '从句句型'],
+  ['分词', '分词结构'], ['动名词', '动名词结构'], ['不定式', '不定式结构'], ['条件句', '条件句型'],
+  ['地道习语', '地道习语'], ['习语', '地道习语'], ['地道说法', '地道习语'],
+  ['固定表达', '固定表达'], ['固定搭配', '固定搭配'], ['搭配', '地道搭配'],
+  ['更高级', '更高级的词汇'], ['更精准', '更精准的词汇'], ['同义词', '同义词汇'], ['词汇', '精准词汇'],
+];
+function deviceMatch(expl) {
+  const e = String(expl || '').trim();
+  if (!e) return null;
+  for (const [key, display] of _DEVICE_HINTS) if (e.includes(key)) return { key, display };
+  return null;
+}
+function deviceHint(expl, target) {
+  const m = deviceMatch(expl);
+  if (m) return m.display;
+  const t = String(target || '').trim();
+  if (!t) return '更地道的表达';
+  if (!/\s/.test(t)) return '更精准的词汇'; // 单词目标 → 词汇升级卡
+  if (/—|–/.test(t)) return '同位语结构';   // 破折号 → 同位语/插入语
+  return '更地道的表达';
+}
+
+// v114 设备上下文抽取（冒号后片段）：「想表达什么」的中文意图描述——来自 explanation 的功能段，
+// 非答案词、非整句直译（意图级中文提示，用户定案要求）。管道：
+// A 设备前最后一个「用」→ 功能段（「推荐电影用地道说法」→ 推荐电影）；
+// B 设备在句首 → 其后首个中文短句（「同位语 a trick... 补充评价，」→ 补充评价）；
+// C 设备前最后一段（剥英文后 ≥2 字且非停用词；「…兴趣先行。what 引导宾语从句」→ 兴趣先行）；
+// 无设备词命中：场景类整体作为上下文；解析类仍尝试「用」前功能段（「总结根本原因时用 it comes down to...」）
+const _CTX_STOP = new Set(['引导', '时', '用', '表达', '说', '写', '来', '是', '请', '要', '想', '这个', '那个']);
+function stripEnglish(s) {
+  return String(s || '').replace(/[A-Za-z]+[^，。；：]*/g, ' ').replace(/[（(][^（）()]*[）)]/g, ' ').replace(/[+\-—…·]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function deviceContext(expl, target, deviceKey) {
+  const e = String(expl || '').trim();
+  if (!e) return '';
+  if (deviceKey) {
+    const pos = e.indexOf(deviceKey);
+    if (pos >= 0) {
+      const yong = e.lastIndexOf('用', pos); // A：设备前最后一个「用」→ 功能段
+      if (yong > 0) {
+        const before = e.slice(0, yong);
+        const m = before.match(/[。；：，]([^。；：，]*)$/);
+        const c = stripEnglish(m ? m[1] : before).replace(/时$/, '');
+        if (c && c.length >= 2) return c;
+      }
+      const lead = stripEnglish(e.slice(0, pos));
+      if (!lead) { // B：设备在句首 → 其后首个中文短句
+        const tail = stripEnglish(e.slice(pos + deviceKey.length));
+        const m = tail.match(/^([^，。；]*)/);
+        if (m && m[1].trim().length >= 2) return m[1].trim();
+      } else { // C：设备前最后一段（≥2 字且非停用词）
+        const segs = lead.split(/[。：；，]/).map(s => s.trim()).filter(Boolean);
+        for (let i = segs.length - 1; i >= 0; i--) {
+          if (segs[i].length >= 2 && !_CTX_STOP.has(segs[i])) return segs[i];
+        }
+      }
+    }
+  }
+  if (!isAnalysisExpl(e, target)) return e; // 场景类整体作为上下文
+  const yong = e.lastIndexOf('用'); // 解析类兜底：「用」前功能段——要求「用」后紧跟英文（习语引用），
+  if (yong > 0 && /[A-Za-z]/.test(e.slice(yong + 1, yong + 8))) { // 否则是惯用法/用于 之类的构词用，跳过
+    const before = e.slice(0, yong);
+    const m = before.match(/[。；：，]([^。；：，]*)$/);
+    const c = stripEnglish(m ? m[1] : before).replace(/时$/, '').replace(/^地道[：:]/, '').replace(/^表达/, '');
+    if (c && c.length >= 2) return c;
+  }
+  return '';
+}
+
+// v114 设备片段抽取（「设备」后括号内的提示词 = 习语/结构词本身）：explanation 引用了习语——抽取与
+// 目标句连续重合（前缀归一匹配 knock↔knocked）、且非原句已有序列的英文片段；多个散落片段以「 … 」连接
+// （结构卡的连接骨架，如 what … until）。⚠ 防泄底阈值：片段覆盖目标句词数 >60% 时隐藏——
+// 习语≈整句答案的卡（fascinating / slipped my mind）括号不放，否则卡片无物可练
+function deviceFragment(expl, original, target) {
+  const e = String(expl || '').trim();
+  const t = String(target || '').trim();
+  if (!e || !t) return '';
+  const norm = w => w.toLowerCase().replace(/[^a-z']/g, '');
+  const tw = t.split(/\s+/).filter(Boolean).map(norm).filter(Boolean);
+  const ow = String(original || '').split(/\s+/).filter(Boolean).map(norm).filter(Boolean);
+  const matchW = (w, t2) => t2 === w || t2.startsWith(w) || w.startsWith(t2);
+  const runs = e.split(/([^A-Za-z'-]+)/).filter(s => /[A-Za-z]/.test(s)).map(s => {
+    const raw = s.trim().split(/\s+/).filter(w => /[A-Za-z]/.test(w));
+    return { raw, norm: raw.map(norm) };
+  });
+  const frags = [];
+  for (const run of runs) {
+    if (!run.norm.length) continue;
+    for (let i = 0; i + run.norm.length <= tw.length; i++) { // 目标句内找 run 的连续出现
+      let ok = true;
+      for (let j = 0; j < run.norm.length; j++) if (!matchW(run.norm[j], tw[i + j])) { ok = false; break; }
+      if (!ok) continue;
+      let inOrig = false; // 原句已有序列排除（如解析里复述的 very good to watch）
+      for (let k = 0; k + run.norm.length <= ow.length; k++) {
+        let ok2 = true;
+        for (let j = 0; j < run.norm.length; j++) if (!matchW(run.norm[j], ow[k + j])) { ok2 = false; break; }
+        if (ok2) { inOrig = true; break; }
+      }
+      if (!inOrig) { frags.push({ run, start: i }); break; }
+    }
+  }
+  if (!frags.length) return '';
+  frags.sort((a, b) => a.start - b.start); // 合并相邻片段，散落片段以「 … 」连接
+  const merged = [];
+  for (const f of frags) {
+    const last = merged[merged.length - 1];
+    if (last && last.start + last.run.norm.length === f.start) last.run = { raw: last.run.raw.concat(f.run.raw), norm: last.run.norm.concat(f.run.norm) };
+    else merged.push({ run: { raw: f.run.raw.slice(), norm: f.run.norm.slice() }, start: f.start });
+  }
+  const words = merged.reduce((n, m) => n + m.run.norm.length, 0);
+  if (tw.length && words / tw.length > 0.6) return ''; // 防泄底：片段≈整句答案
+  return merged.map(m => m.run.raw.join(' ')).join(' … ');
+}
+
+// v114 首字母骨架（渐进兜底）：整句结构提示——每词只露首字母、其余以 ＿ 遮蔽，标点/撇号/数字原样保留。
+// 与「随机挖空」本质不同：零输入、零判定（本卡自评制），同义词陷阱在结构上不存在；练的是整句组织而非单词补全。
+// ⚠ 特意不做「功能词全文」版：功能词构式（couldn't … more / been meaning to 之类）正是地道核心=训练目标，
+// 全文展示=提前给答案。每词只给首字母是兜底的最大限度，层级：锚点+词数 ⊂ 骨架（+首字母）⊂ 翻面（完整句）
+function letterSkeleton(text) {
+  return String(text || '').trim().split(/\s+/).map(w => {
+    const m = w.match(/^([^A-Za-z]*)([A-Za-z])(.*)$/);
+    if (!m) return w; // 纯标点/数字词原样
+    return m[1] + m[2] + m[3].replace(/[A-Za-z]/g, '＿');
+  }).join(' ');
+}
+
+// v114 渐进提示开关：点「首字母骨架」才展开（stopPropagation 阻止冒泡翻卡），再点收起
+function toggleSrsHint() {
+  const el = document.getElementById('srs-card-skeleton');
+  const btn = document.getElementById('srs-hint-btn');
+  const item = _srsQueue[_srsIdx];
+  if (!el || !item) return;
+  const target = String(item.targetSentence || '').trim();
+  if (!target) return;
+  if (!el.dataset.filled) {
+    el.dataset.filled = '1';
+    el.textContent = letterSkeleton(target);
+  }
+  const show = el.style.display !== 'block';
+  el.style.display = show ? 'block' : 'none';
+  if (btn) btn.textContent = show ? '收起骨架' : '💡 首字母骨架';
+}
+
 // 反馈闭环：ReviewButton → handleReviewFeedback（SM-2 统一服务）→ 当前句出队 → 进度即时更新
 // 队列清空 → 精致 Done 卡 + 点亮首页【句型复习打卡】（voco-speak-done 当日戳）
 function rateSentenceCard(status) {
@@ -3819,7 +4042,7 @@ function showSrsDone() {
   try { localStorage.setItem('voco-speak-done', getLocalToday()); } catch (e) {} // 点亮首页【句型复习打卡】
   const container = document.getElementById('speak-player');
   container.innerHTML = `
-    <div class="flex h-full items-center justify-center">
+    <div class="flex items-center justify-center" style="min-height:calc(100dvh - 92px)">
       <div class="w-full max-w-[320px] rounded-3xl px-6 pt-9 pb-8 text-center border border-[var(--c-border-light)]"
            style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 65%);box-shadow:var(--c-shadow)">
         <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--c-green-light)] flex items-center justify-center" style="box-shadow:inset 0 0 0 1px var(--c-green)">

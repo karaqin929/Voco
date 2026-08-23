@@ -192,16 +192,15 @@ body {
 /* ═══════════════════════════════════════════════════════
    SPEAK Tab — 模块四：句型复习卡片模式（单卡片翻转视口）
    ═══════════════════════════════════════════════════════ */
-/* v104.1 Bug 修复：满屏高、容器内滚动 —— SRS 卡片垂直居中不受影响；
-   表达/核心列表（?view=expressions|core）超一屏时在 #speak-player 内部滚动，
-   绝不再被 overflow:hidden 截断（原「禁滚动」只服务旧单卡布局，列表页共用此容器后即成滚动阻断） */
+/* v114 嵌套滚动根治（用户 Bug 报告 + 截图）：旧架构 = #speak-player 定高内滚（页级）+ .srs-flip-back
+   卡片内滚（absolute 钉死在正面面积里，背面超长只能内部滚动）→ 双重滚动条 + 移动端滑动冲突。
+   架构反转：滚动全部交还 Body 最外层滚动条 —— #speak-player 去定高、去内滚（height→min-height、
+   overflow-y:auto→visible），内容自然生长撑开页面；空态居中改由内层 min-height 承担（见 app.js 三处
+   calc(100dvh - 92px)）；body 既有 v76 pb-96 补偿固定 TabBar，此处 padding 冗余删除；
+   列表页零回归（无 overflow:hidden 祖先，无裁剪） */
 #speak-player {
-  height: calc(100dvh - 92px);
-  min-height: 420px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch; /* 移动端惯性滑动 */
-  overscroll-behavior: contain;      /* 列表滚到底不穿透带动整页 */
-  padding-bottom: 96px;              /* 最后一张卡片滚到底也不藏进固定 TabBar（同 body 的 v76 补偿值） */
+  min-height: calc(100dvh - 92px);
+  overflow: visible;
 }
 
 /* ── 3D 卡片翻转（v77 认知重塑：正面=情境提示+完形填空，背面=绿色地道句+解析）── */
@@ -210,17 +209,22 @@ body {
   position: relative;
   width: 100%;
   min-height: 250px; /* v77：自适应内容高度 + 合理最小高度，不再撑满全屏 */
+  display: grid;      /* v114 嵌套滚动根治：正背两面同格堆叠，行高 = max(正面, 背面) 随内容生长 */
   transition: transform .5s cubic-bezier(.4, 0, .2, 1);
   transform-style: preserve-3d;
 }
 .srs-flip-inner.flipped { transform: rotateY(180deg); }
 .srs-flip-face {
+  grid-area: 1 / 1;   /* v114：两面对齐同一格（替代旧 absolute 钉死）；默认 stretch 填满行高，可见面背景盖满卡片 */
+  min-width: 0;       /* 防长词/长句撑破格宽 */
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-/* 正面（情境+完形）以正常文档流定义卡片高度；背面绝对覆盖同一区域（长解析可滚动兜底） */
+/* 正面（情境）以正常文档流定义卡片高度；背面同格堆叠（v114：不再 absolute 钉死，内容自然生长撑开卡片） */
 .srs-flip-front { min-height: 250px; }
-.srs-flip-back { position: absolute; inset: 0; transform: rotateY(180deg); overflow-y: auto; }
+/* v114 嵌套滚动根治：背面零内滚 —— overflow:visible + height:auto（auto 是 grid item 默认值，
+   align-self:stretch 依然生效 → 两面同高填满格），长解析直接撑长卡片，页面滚动由 Body 接管 */
+.srs-flip-back { transform: rotateY(180deg); overflow: visible !important; height: auto !important; }
 
 /* 卡片切入动画：下一句时重触发（JS reflow 手法）。v77 去衬线：全局无衬线体，禁 Georgia 报纸体 */
 #srs-card-front { font-family: inherit; animation: playerSwitch 0.28s ease-out; }
