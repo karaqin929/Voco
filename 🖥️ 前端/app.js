@@ -618,8 +618,9 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
          v108：pl-1 追加 -ml-1 负外边距补偿——首个熊卡左缘与上方「打卡日历」图标左缘严格同一条垂直参考线；pl-1 仍保留（光圈/放大裁切缓冲不丢），-ml-1 恰好抵消其 4px 左缩：容器左缘 = 图标左缘 - 4px + 4px = 图标左缘，scrollport 左侧多出的 4px 缓冲带让最左选中熊的光圈完整可见
          v110：首熊格内容改左对齐（items-start / text-left）——v108 只把「格子」左缘对齐图标，但小熊图 w-6（24px）在 14.28% 宽格（~48px）内被 items-center 居中，熊脸左缘仍比图标缩进约半格宽（~12px）。首格左对齐后熊脸左缘 === 图标左缘同一条垂直线；其余格保持居中，锚定/恢复逻辑零改动
          v112：全格统一 items-start/text-left（用户报「首熊与第二熊间隔巨远」）——v110 只左对齐首格，第二熊仍格内居中 → 1→2 间距 ≈41px vs 其余 ≈25px 严重不齐。全格左对齐后：熊 i 左缘 = 图标线 + i×(格宽+gap)，相邻间距恒等 ≈29px；每屏正好 7 只（第 7 熊右缘 ≈ 视口右缘，第 8 熊全出屏）；首熊仍与图标同线；锚定/恢复逻辑零改动
-         v113：列模板精确化（用户报「滑到最右时最新熊未对齐去打卡右缘、一屏只有 6 个多」）——v112 最后一格仍残留 (格宽−熊宽)≈28px 右空档。修复：grid-template-columns = repeat(n-1, calc((100% - 24px)/6 - 4px)) + 末列 28px——间距 p=(P−24)/6 使 6p+24=P 恒成立：任意屏幕恰 7 只、左视图第 7 熊右缘与右视图最新熊右缘都精确落在卡片内容右缘（去打卡右缘）；末列 28px = 熊 24 + 4px 光圈缓冲；pr-1 + -mr-1 与左侧 pl-1/-ml-1 完全镜像（右锚定时选中熊光圈不被裁）；锚定/恢复逻辑零改动 -->
-    <div class="grid overflow-x-auto hide-scrollbar gap-1 pt-2 pb-1 pl-1 pr-1 -ml-1 -mr-1" id="streak-strip" style="overflow-x:auto;grid-auto-flow:column;${days.length ? `grid-template-columns:repeat(${days.length-1},calc((100% - 24px)/6 - 4px)) 28px` : 'grid-auto-columns:14.28%'}">
+         v113：列模板精确化（用户报「滑到最右时最新熊未对齐去打卡右缘、一屏只有 6 个多」）——v112 最后一格仍残留 (格宽−熊宽)≈28px 右空档。修复：grid-template-columns = repeat(n-1, calc((100% - 24px)/6 - 4px)) + 末列 28px——间距 p=(P−24)/6 使 6p+24=P 恒成立：任意屏幕恰 7 只、左视图第 7 熊右缘与右视图最新熊右缘都精确落在卡片内容右缘（去打卡右缘）；末列 28px = 熊 24 + 4px 光圈缓冲；pr-1 + -mr-1 与左侧 pl-1/-ml-1 完全镜像（右锚定时选中熊光圈不被裁）；锚定/恢复逻辑零改动
+         v114：末列 28px → 24px（用户报「右锚定时左边第 7 只熊未与图标对齐、间距不等」）——末列多出的 4px 加在内容末尾，把右锚定窗口下的 7 熊块整体左推 4px：块左缘贴窗口左（=图标−4px）越线、块右缘距去打卡差 4px，左右边距 0 vs 8 不称。末列=熊宽 24px 后 7 熊块 = [窗口左+4, 窗口右−4] 严格对称：左第 7 只左缘 === 图标线、最新熊右缘 === 去打卡右缘；右端光圈保护由 pr-1 单独承担（光圈 3.2px < 4px 缓冲） -->
+    <div class="grid overflow-x-auto hide-scrollbar gap-1 pt-2 pb-1 pl-1 pr-1 -ml-1 -mr-1" id="streak-strip" style="overflow-x:auto;grid-auto-flow:column;${days.length ? `grid-template-columns:repeat(${days.length-1},calc((100% - 24px)/6 - 4px)) 24px` : 'grid-auto-columns:14.28%'}">
       ${days.map(d => `
         <div class="flex flex-col items-start gap-px cursor-pointer" onclick="showBearDay('${d.date}',${d.active})">
           <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===selected?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
@@ -4981,5 +4982,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=113');
+  navigator.serviceWorker.register('/sw.js?v=114');
 }
