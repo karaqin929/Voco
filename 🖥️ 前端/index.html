@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=114">
+  <link rel="stylesheet" href="/style.css?v=115">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -267,7 +267,7 @@
         <div class="flex justify-between items-center px-4 py-3.5 cursor-pointer transition-colors active:bg-[var(--c-border-light)]" onclick="openInspirationDialog()">
           <div class="flex flex-col gap-0.5">
             <span class="text-sm text-[var(--c-text)]"><i data-lucide="sparkles" class="w-4 h-4"></i> ✨ 开启今日私教对话灵感</span>
-            <span class="text-[0.6875rem] text-[var(--c-text-ultradim)]">输入 URL / 灵感 / 选话题</span>
+            <span class="text-[0.6875rem] text-[var(--c-text-ultradim)]">教练纠错契约 + 话题 / URL / 灵感定制</span>
           </div>
           <span class="text-[var(--c-text-ultradim)]"><i data-lucide="chevron-right" class="w-5 h-5"></i></span>
         </div>
@@ -465,6 +465,8 @@
           </div>
           <!-- 话题池：横向滚动槽 7 个固定 Pill（JS 渲染 renderTopicPills，单选可取消；右缘 pr-4 防切断） -->
           <div id="topic-pill-slot" class="flex overflow-x-auto whitespace-nowrap hide-scrollbar gap-2 mt-3 -ml-1 pl-1 pr-4 pb-0.5"></div>
+          <!-- v115 契约说明行：告知生成内容 = 专业私教契约（纠错融入交流 + 引导深挖）+ 定制内容 -->
+          <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-2.5 leading-relaxed">生成内容 = 专业私教契约（纠错融入交流 · 引导深挖 · 点破错误规律）+ 你的话题定制，粘贴给 GPT 开启对练</div>
           <!-- 生成按钮：全宽主色调（复制成功后 900ms 自动关闭弹窗） -->
           <button id="btn-topic-generate" onclick="fireTopicGeneratorPrompt(this)" class="w-full flex items-center justify-center gap-2 px-4 py-3.5 mt-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]" style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
             ✨ 生成专属对话 Prompt <i data-lucide="sparkles" class="w-4 h-4"></i>
@@ -485,8 +487,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=114"></script>
-<script src="/parser.js?v=114"></script>
-<script src="/app.js?v=114"></script>
+<script src="/supabase-client.js?v=115"></script>
+<script src="/parser.js?v=115"></script>
+<script src="/app.js?v=115"></script>
 </body>
 </html>

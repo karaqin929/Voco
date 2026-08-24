@@ -1166,7 +1166,10 @@ function renderTodoList(speakDoneToday) {
   // deckTotal===0 且今日确有复习记录 → 完成；deckTotal===0 且今日无记录（今天本来就没有到期）→ 保持未完成，防默认值误判
   const errReviewedToday = (_errorsAll || []).filter(e => e.last_reviewed_at && localDateOf(e.last_reviewed_at) === getLocalToday()).length;
   const deckReviewed = reviewedToday + errReviewedToday;
-  const deckDone = deckTotal === 0 ? deckReviewed > 0 : false;
+  // v115 完成判定兜底：本地完成戳（endDueReview 写入）——云端写回偶发延迟/失败时不吞掉用户的完成事实
+  let vocabDoneStamp = '';
+  try { vocabDoneStamp = localStorage.getItem('voco-vocab-done') === getLocalToday() ? getLocalToday() : ''; } catch (e) { vocabDoneStamp = ''; }
+  const deckDone = deckTotal === 0 ? deckReviewed > 0 : !!vocabDoneStamp;
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
     { text: '对练打卡 · 导入今日日报', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
@@ -1174,7 +1177,7 @@ function renderTodoList(speakDoneToday) {
     patternTask,
     // 任务 3（复习打卡）：完成今日到期复习 —— v88 数字 = due tab 混合卡组真实长度（到期词 + 错题），
     // v103 完成判定 = deckDone（见上：DB 持久化复习记录，清空到期后仍可判定完成）
-    { text: `复习打卡 · 完成今日到期复习 (${deckTotal}张)`, sub: deckTotal === 0 ? (deckDone ? `已复习 ${deckReviewed} 张 · 今日全部完成` : '今日无到期词') : `已复习 ${deckReviewed} 张 · 还剩 ${deckTotal} 张 · 词+错题混合卡组`, done: deckDone, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
+    { text: `复习打卡 · 完成今日到期复习 (${deckTotal}张)`, sub: deckTotal === 0 ? (deckDone ? `已复习 ${deckReviewed} 张 · 今日全部完成` : '今日无到期词') : (deckDone ? `已复习 ${deckReviewed} 张 · 本地已记录完成 · 云端剩余 ${deckTotal} 张同步中` : `已复习 ${deckReviewed} 张 · 还剩 ${deckTotal} 张 · 词+错题混合卡组`), done: deckDone, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -2638,18 +2641,35 @@ function hideInspirationDialog() {
   if (dlg) dlg.classList.add('hidden');
 }
 
+// v115 课前教练契约（用户指令）：替换原弱指令「注意纠正」。定位 = 专业私教人设 + 自然交流（全程英文）：
+// 纠错融入对话（有错就纠、没错不纠、绝不编造）、引导与深挖（点破错误规律/根因、适时小结 pattern），
+// 而非机械打卡流水线——分类记账等结构化工作全部留给课后日报 prompt，课上只要求「自然记住」
+const _PRE_COACH_CONTRACT = `作为我的英语口语私教，请开启今天的对话。你不是陪聊，也不是纠错机器，而是一位专业、敏锐的口语教练：我们像日常对话一样自然交流，你全程以教练的视角观察我的表现。
+全程使用英文：你的每一句话——对话、纠错、解释、引导、小结——都用英文说，不要用中文。
+
+【纠错是交流的一部分】
+1. 我每说完一句，你先用一两句话自然点出我上一句的问题（没有明显问题就说「这句没问题」然后继续），再顺着话题接下去——纠错融入对话，不生硬、不破坏交流氛围。
+2. 纠错时给出地道的说法、一句话说清原因，然后让我把正确版本重说一遍。
+3. 有错就纠、没错不纠：绝不编造错误，也绝不为了显得尽责而挑刺。
+
+【引导与深挖】
+4. 你是引导者，不是答案机：我卡壳时先给提示词，引导我自己说出来；发现我反复用简单词、回避复杂表达时，主动抛出升级挑战（例如："You just said 'very interesting' — try a more advanced word and say it again"）。
+5. 对我反复出现的错误，不要每次报完就走——要察觉背后的规律：是中式思维直译？时态意识缺失？还是词汇库存不够？适时点破根因（例如："I notice you keep translating word for word from Chinese — a native speaker would say ..."），帮我建立语感，而不是背一条条规则。
+6. 当某个错误再次出现、或课程进行到自然节点时，适时帮我小结当下的错误 pattern，让我带着觉察继续练。
+
+【自然衔接课后】
+7. 课堂上留意并记住值得沉淀的内容：我的典型错误、值得升级成金句的表达、我不会说的词。课后我会请你整理成学习日报——课堂上不需要你做任何记录动作，专注陪练即可。
+
+【节奏与语气】
+8. 像真人私教一样说话：回应简短自然，一次不要说太多。`;
+
 // 组装并复制 Prompt（【我的】页 · 灵感舱居中模态调用）
 async function fireTopicGeneratorPrompt(btn) {
   const urlInput = document.getElementById('input-topic-url').value.trim();
   const thoughtsInput = document.getElementById('input-topic-thoughts').value.trim();
 
-  // 防空判断
-  if (!urlInput && !thoughtsInput && !_selectedTopicTag) {
-    alert('请至少提供一个链接、一点想法，或选择一个话题！');
-    return;
-  }
-
-  let prompt = "作为我的英语口语私教，请开启今天的对话。";
+  // v115：契约本身已是完整开场——三个输入全空也允许生成（纯契约版，自由开场对练）
+  let prompt = _PRE_COACH_CONTRACT;
 
   if (_selectedTopicTag) {
     prompt += `\n\n今天我们探讨的主题领域是：【${_selectedTopicTag}】。`;
@@ -2661,7 +2681,7 @@ async function fireTopicGeneratorPrompt(btn) {
     prompt += `\n\n这是我的一些初步想法和疑问，请结合这些引导我展开讨论：\n"${thoughtsInput}"`;
   }
 
-  prompt += "\n\n请用自然、引导式的语言回复我，一次不要说太多。并在交流中注意纠正我可能出现的发音和语法错误。";
+  prompt += "\n\n现在，请开始今天的对练。";
 
   // v97：「加入对练防御」功能已全面下线（用户指令：冗余功能彻底去除）——Prompt 不再注入任何防御内容
   const copied = await copyToClipboardWithFallback(prompt);
@@ -2761,21 +2781,37 @@ async function reviewErrorItem(card, quality) {
   src.ease_factor = result.ease_factor; src.sm2_interval = result.interval; src.sm2_repetitions = result.repetitions;
   src.status = status; src.mastered = (status === 'mastered');
   src.next_review_date = fmtLocalDate(nextDate); src.last_reviewed_at = new Date().toISOString();
-  try {
-    const { data: rows, error } = await sb.from('errors').select('id').eq('original', src.original).eq('correction', src.correction || '').limit(1);
-    if (error || !rows || !rows.length) return;
-    await sb.from('errors').update({
-      status, mastered: (status === 'mastered'),
-      ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
-      review_count: src.review_count, next_review_date: src.next_review_date, last_reviewed_at: src.last_reviewed_at
-    }).eq('id', rows[0].id);
-    const local = (_errorsAll || []).find(x => String(x.id) === String(rows[0].id));
-    if (local) Object.assign(local, {
+  // v115 写回加固：主键优先（数字 id 直击，不再依赖原句+正句文本匹配）+ 文本兜底 +
+  // 串行队列 + update error 检查 + 失败重试一次，失败留 console.warn
+  enqueueVocabWrite(async () => {
+    let targetId = null;
+    if (/^\d+$/.test(String(src.id))) {
+      try {
+        const { data: row, error } = await sb.from('errors').select('id').eq('id', src.id).limit(1);
+        if (!error && row && row.length) targetId = row[0].id;
+      } catch (e) { /* 落入文本兜底 */ }
+    }
+    if (targetId === null) {
+      try {
+        const { data: rows, error } = await sb.from('errors').select('id').eq('original', src.original).eq('correction', src.correction || '').limit(1);
+        if (!error && rows && rows.length) targetId = rows[0].id;
+      } catch (e) { /* 仅本地会话态 */ }
+    }
+    if (targetId === null) { console.warn('[voco] 错题写回：未找到库行', src.original); return; }
+    const ok = await updateRowWithRetry('errors', targetId, {
       status, mastered: (status === 'mastered'),
       ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
       review_count: src.review_count, next_review_date: src.next_review_date, last_reviewed_at: src.last_reviewed_at
     });
-  } catch (err) { /* 列未迁移/演示数据：仅本地会话态 */ }
+    if (ok) {
+      const local = (_errorsAll || []).find(x => String(x.id) === String(targetId));
+      if (local) Object.assign(local, {
+        status, mastered: (status === 'mastered'),
+        ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
+        review_count: src.review_count, next_review_date: src.next_review_date, last_reviewed_at: src.last_reviewed_at
+      });
+    }
+  });
 }
 
 // ── 错题标准化清洗层：任何数据源在进入渲染前收敛为 {id, issue, original, correction, rule, type} ──
@@ -3028,6 +3064,52 @@ function buildDueDeck() {
   return [...words, ...errs];
 }
 
+// ═══ v115 写回加固（due-review 50→24 复活根因修复）═══
+// 旧链路 = rateDueCard fire-and-forget × 快速连点 → N 路并发 select+update（2N 请求）→ 浏览器连接池风暴，
+// 部分 update 静默失败（catch 空块 + update error 从不检查）→ 本地态已变 needsReview=false、会话内看似完成，
+// 刷新后 needsReview 按 DB next_review_date 重算 → 写丢的卡复活。三件套：串行队列 + 失败重试 + 文本兜底定位。
+let _vocabWriteChain = Promise.resolve();
+function enqueueVocabWrite(task) {
+  _vocabWriteChain = _vocabWriteChain.then(task).catch(err => {
+    console.warn('[voco] 写回队列任务异常', err);
+  });
+  return _vocabWriteChain;
+}
+// update + 失败重试一次（500ms 退避）；失败留 console.warn 痕迹，绝不静默
+async function updateRowWithRetry(table, rowId, payload) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { error } = await sb.from(table).update(payload).eq('id', rowId);
+    if (!error) return true;
+    console.warn(`[voco] ${table} 写回失败（第 ${attempt} 次）id=${rowId}`, error);
+    if (attempt === 1) await new Promise(r => setTimeout(r, 500));
+  }
+  return false;
+}
+// v115 词汇行解析：① 数字主键直击；② 文本兜底（rep-N 临时 id / 主键未命中）——同词全行扫描，
+// 主行之外的历史重复行（盲插遗留，展示层按词去重时被隐藏）若到期则一并返回，由调用方统一推进防复活
+async function resolveVocabRows(v) {
+  const norm = s => String(s || '').toLowerCase().trim();
+  const want = norm(v.word);
+  if (!want) return [];
+  const hits = [];
+  if (/^\d+$/.test(String(v.id))) {
+    try {
+      const { data: row, error } = await sb.from('vocabulary').select('*').eq('id', v.id).single();
+      if (!error && row) hits.push(row);
+    } catch (e) { /* 落入文本兜底 */ }
+  }
+  try {
+    const esc = String(v.word).replace(/[\\%_]/g, m => '\\' + m);
+    const { data: cands, error } = await sb.from('vocabulary').select('*').ilike('word', `%${esc}%`);
+    if (!error && cands) {
+      for (const c of cands) {
+        if (norm(c.word) === want && !hits.some(h => String(h.id) === String(c.id))) hits.push(c);
+      }
+    }
+  } catch (e) { /* 文本兜底失败：以主键结果为准 */ }
+  return hits;
+}
+
 // ═══ SM-2 统一反馈服务（单词复习 + 句型复习卡片共用同一出口）═══
 // handleReviewFeedback(id, status, itemRef)：status 'again'（quality 0）/ 'good'（quality 3）
 // 调度顺序：句型库行（patterns 数字主键）→ 今日新句（core-N 队列 ref，INSERT 入库）→ 单词库行
@@ -3044,8 +3126,11 @@ async function handleReviewFeedback(id, status, itemRef) {
     return { kind: 'pattern', ok: true };
   }
   // ③ 单词库行：与词汇复习完全同一条写回路径
-  const word = (_wordsAll || []).find(w => String(w.id) === sid);
+  // v115 加固：按 id 查找未命中时直接采用卡组 ref 写回（防 _wordsAll 重建/去重保留行切换导致定位落空 → 整卡静默跳写）
+  const word = (_wordsAll || []).find(w => String(w.id) === sid)
+    || ((itemRef && !itemRef.targetSentence && !itemRef.better && !itemRef.pattern && itemRef.word) ? itemRef : null);
   if (word) { await reviewWordItem(word, quality); return { kind: 'word', ok: true }; }
+  console.warn('[voco] 写回：无法定位卡组条目', sid);
   return { kind: 'unknown', ok: false };
 }
 
@@ -3062,16 +3147,23 @@ async function reviewWordItem(v, quality) {
   // v103 统一「没记住」口径：again/good 都移出今日待复习队列——两种评分下 next_review_date 都已按 SM-2 推进到明天或更晚
   // （没记住 quality<3 → ivl=1 → 明天复习），与错题 reviewErrorItem 完全一致：按记忆曲线复习，不再当天循环出现
   v.needsReview = false;
-  try {
-    const { data: row, error } = await sb.from('vocabulary').select('*').eq('id', v.id).single();
-    if (!error && row) {
-      await sb.from('vocabulary').update({
+  // v115 写回加固：本地态同步即时生效（保留），DB 回写进串行队列 —— 主键定位 + 文本兜底 +
+  // 同词全部到期行一并推进（防去重隐藏行复活）+ update error 检查 + 失败重试一次，失败留 console.warn
+  enqueueVocabWrite(async () => {
+    const rows = await resolveVocabRows(v);
+    if (!rows.length) { console.warn('[voco] 词汇写回：未找到库行', v.word, 'id=', v.id); return; }
+    const today = getLocalToday();
+    for (const row of rows) {
+      const isMain = String(row.id) === String(v.id);
+      const isDue = !row.next_review_date || String(row.next_review_date) <= today;
+      if (!isMain && !isDue) continue; // 非主行且未到期：不动其曲线，等它自己的到期日
+      await updateRowWithRetry('vocabulary', row.id, {
         status, mastered: status === 'mastered',
         ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
         review_count: v.review_count, next_review_date: v.next_review_date, last_reviewed_at: v.last_reviewed_at
-      }).eq('id', v.id);
+      });
     }
-  } catch (e) { /* 演示数据：仅本地会话态 */ }
+  });
   return true;
 }
 
@@ -3106,16 +3198,21 @@ async function reviewPatternItem(p, quality) {
     p.next_review_date = fmtLocalDate(nextDate); p.last_reviewed_at = new Date().toISOString();
     // v104：与单词路径（reviewWordItem）统一口径 —— again/good 都移出今日队列（next_review_date 已推进，重载后 isDueBySrs 判到期）
     p.needsReview = false;
-    try {
-      const { data: row, error } = await sb.from('patterns').select('*').eq('id', p.id).single();
-      if (!error && row) {
-        await sb.from('patterns').update({
-          status, mastered: status === 'mastered',
-          ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
-          review_count: p.review_count, next_review_date: p.next_review_date, last_reviewed_at: p.last_reviewed_at
-        }).eq('id', p.id);
-      }
-    } catch (e) { /* 列缺失：仅本地会话态 */ }
+    // v115 写回加固：与单词/错题路径同构 —— DB 回写入串行队列 + update error 检查 + 失败重试一次 + console.warn 留痕
+    // （修复前：fire-and-forget + update error 从不检查 + 空 catch 静默 → 句型曲线同样可能丢写、到期池堆积）
+    const pid = p.id;
+    const payload = {
+      status, mastered: status === 'mastered',
+      ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
+      review_count: p.review_count, next_review_date: p.next_review_date, last_reviewed_at: p.last_reviewed_at
+    };
+    enqueueVocabWrite(async () => {
+      try {
+        const { data: row, error } = await sb.from('patterns').select('*').eq('id', pid).single();
+        if (!error && row) await updateRowWithRetry('patterns', pid, payload);
+        else console.warn('[voco] patterns 写回：主键未命中', pid, p.targetSentence);
+      } catch (e) { console.warn('[voco] patterns 写回异常', pid, e); }
+    });
   } else if (isTodayNew) {
     // 文本锚定未命中的新句（库中确无此行：sentence-anchor 全库反查也落空 / 历史 Markdown 核心句型从未入库）→ INSERT 入库
     // （user_id 必须显式注入，RLS 校验 auth.uid() = user_id）
@@ -3132,18 +3229,24 @@ async function reviewPatternItem(p, quality) {
       ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
       review_count: 1, next_review_date: fmtLocalDate(nextDate), last_reviewed_at: new Date().toISOString()
     };
-    try {
-      const { data: inserted, error } = await sb.from('patterns').insert(insertRow).select().single();
-      if (!error && inserted) {
-        // 本地挂新主键 + SM-2 快照，同会话不重复插入
-        p.id = inserted.id;
-        p.review_count = 1;
-        p.ease_factor = result.ease_factor; p.sm2_interval = result.interval; p.sm2_repetitions = result.repetitions;
-        p.status = status; p.mastered = status === 'mastered';
-        p.next_review_date = fmtLocalDate(nextDate); p.last_reviewed_at = insertRow.last_reviewed_at;
-        p.needsReview = false;
-      }
-    } catch (e) { /* 列缺失：仅本地会话态 */ }
+    // v115 写回加固：INSERT 入串行队列（不重试——防网络超时实际插入成功而重试产生双行；失败 console.warn 留痕，
+    // 下次复习文本锚定会找到已存在行走 UPDATE 自愈）
+    enqueueVocabWrite(async () => {
+      try {
+        const { data: inserted, error } = await sb.from('patterns').insert(insertRow).select().single();
+        if (!error && inserted) {
+          // 本地挂新主键 + SM-2 快照，同会话不重复插入
+          p.id = inserted.id;
+          p.review_count = 1;
+          p.ease_factor = result.ease_factor; p.sm2_interval = result.interval; p.sm2_repetitions = result.repetitions;
+          p.status = status; p.mastered = status === 'mastered';
+          p.next_review_date = fmtLocalDate(nextDate); p.last_reviewed_at = insertRow.last_reviewed_at;
+          p.needsReview = false;
+        } else if (error) {
+          console.warn('[voco] patterns 插入失败', p.targetSentence, error);
+        }
+      } catch (e) { console.warn('[voco] patterns 插入异常', p.targetSentence, e); }
+    });
   }
   return true;
 }
@@ -3239,7 +3342,7 @@ async function rateDueCard(rating) {
     // v103：统一反馈服务（与句型卡共用 SM-2 写回路径，deck item id 带 'w-' 前缀 → 传原始单词 id）
     // 改 fire-and-forget：旧实现 await 写库（select+update 两次网络往返），点击「记住了」后卡片冻结 2-3 秒才跳下一词；
     // 本地 SM-2 态同步在函数同步段立即生效，DB 回写后台进行 —— 与句型卡 rateSentenceCard 完全一致
-    handleReviewFeedback(String(item.ref.id), rating).catch(() => {});
+    handleReviewFeedback(String(item.ref.id), rating, item.ref).catch(() => {});
   } else {
     // v99 错题真 SM-2：again/good 均推进曲线并落库
     // v103 统一「没记住」口径：again 与 good 一样直接出队——next_review_date 已推进到明天，
@@ -3258,6 +3361,8 @@ async function rateDueCard(rating) {
 }
 
 function endDueReview() {
+  // v115 完成判定兜底：整副卡组清空时打本地完成戳（写回全部落库前的即时完成凭据，自过期=按日期比对）
+  try { localStorage.setItem('voco-vocab-done', getLocalToday()); } catch (e) { /* 隐私模式忽略 */ }
   const container = document.getElementById('words-content');
   container.innerHTML = `
     <div class="bg-[var(--c-surface)] rounded-2xl p-8 text-center border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
@@ -3386,11 +3491,14 @@ function sm2(easeFactor, interval, repetitions, quality) {
   else {
     if (reps === 0) ivl = 1;
     else if (reps === 1) ivl = 6;
-    else { ivl = Math.round(ivl * ef); if (quality === 5) ivl = Math.round(ivl * 1.3); }
+    else { ivl = Math.max(1, Math.round(ivl * ef)); if (quality === 5) ivl = Math.round(ivl * 1.3); }
     reps += 1;
   }
   ef = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
   if (ef < 1.3) ef = 1.3;
+  // v115 铁律：任何分支最短间隔 1 天。历史脏数据（reps≥2 且 interval=0/NULL）走 else 分支时
+  // Math.round(0*ef)=0 → next_review_date=今天 → 复习完刷新后仍到期，无限复活。
+  if (ivl < 1) ivl = 1;
   return { ease_factor: ef, interval: ivl, repetitions: reps };
 }
 
@@ -3400,12 +3508,13 @@ async function markMastered(id) {
   const result = sm2(v.ease_factor, v.sm2_interval, v.sm2_repetitions, 3);
   const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
   const status = result.repetitions >= 5 ? 'mastered' : 'learning';
-  await sb.from('vocabulary').update({
+  // v115 写回加固：与复习链路同口径 —— error 检查 + 失败重试一次 + console.warn 留痕
+  await updateRowWithRetry('vocabulary', id, {
     mastered: status === 'mastered', status,
     ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
     review_count: (v.review_count || 0) + 1, next_review_date: fmtLocalDate(nextDate),
     last_reviewed_at: new Date().toISOString()
-  }).eq('id', id);
+  });
   loadWords();
   showToast(status === 'mastered' ? '🎉 已掌握！' : '📖 已复习');
 }
@@ -3740,26 +3849,23 @@ function renderSentenceReview(sentences, startIndex) {
         <div class="flex-1 h-1.5 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div id="srs-progress-fill" class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-300" style="width:0%"></div></div>
       </div>
       <!-- v104 翻转卡片（换皮不换骨）：正面 = 💡 情境提示（挖空完形已物理删除，零填空）；
-           背面 = 居中放大绿色地道句（主视觉）+ 原句小字（辅助视觉，无则整行隐藏）+ 解析（底部）
-           v114 正面认知重构定案（用户六轮收敛：元描述 ✗ → 句型框架 ✗ → 词数指令 ✗ → 纯锚点 ✗ → 设备指令 ✗
-           → 「设备+习语片段+意图」两行教练指令定案；范围=仅每日打卡 15 句句型复习翻卡，对比阅读卡片零改动）：
-           ① 错误原句（锚点）② 尝试用「设备」（习语/结构片段，覆盖目标句 >60% 词数时自动隐藏）：意图，升级原句表达
-           ⚠ 地道核心在翻面前绝不展示——它正是训练目标本身；解析类 explanation 只在翻面 🎬 展示
-           → 卡住才点「首字母骨架」（每词仅首字母）→ 翻面核对（自评制零判定）-->
+           背面 = 居中放大绿色地道句（主视觉）+ 原句小字（辅助视觉，无则整行隐藏）
+           v115 正面简化定案（用户指令，推翻 v114 六轮抽取管线）：正面两行 = 错误原句锚点 + 总结直搬
+           （对比阅读卡片底部那句 📖 总结 = item.explanation，原样展示零加工）；💡 首字母骨架按钮整体删除；
+           背面 = 与当日复习对比阅读卡片同款三段（绿主句 + 原句小字 + 📖 解析框，与正面总结重复无妨）。
+           范围=仅每日打卡 15 句句型复习翻卡，对比阅读卡片零改动；自评制零判定不变 -->
       <div class="srs-flip-scene mb-4 cursor-pointer" onclick="flipSrsCard()">
         <div class="srs-flip-inner" id="srs-flip-inner">
           <div class="srs-flip-face srs-flip-front flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:var(--c-surface);box-shadow:var(--c-shadow)">
             <div id="srs-card-clue" class="font-sans text-[0.9375rem] text-[var(--c-text)] mb-3 leading-relaxed"></div>
-            <div id="srs-card-hint" class="text-[0.8125rem] font-semibold text-[var(--c-primary)] mb-3 leading-relaxed"></div>
-            <button id="srs-hint-btn" onclick="event.stopPropagation();toggleSrsHint()" class="px-3 py-1 rounded-full text-[0.6875rem] font-semibold text-[var(--c-primary)] bg-[var(--c-primary-light)] border-0 cursor-pointer mb-2 active:opacity-70 transition-opacity">💡 首字母骨架</button>
-            <div id="srs-card-skeleton" class="font-sans text-[0.875rem] text-[var(--c-text-dim)] tracking-wider leading-loose mb-3" style="display:none"></div>
+            <div id="srs-card-note" class="w-full text-left text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg leading-relaxed"></div>
             <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-4">点击卡片查看完整地道句</div>
           </div>
           <div class="srs-flip-face srs-flip-back flex flex-col items-center justify-center text-center rounded-[2rem] border border-[var(--c-border-light)] px-7 py-8" style="background:linear-gradient(160deg,var(--c-primary-light),var(--c-surface) 70%);box-shadow:var(--c-shadow)">
             <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-4 tracking-widest">点击卡片返回情境</div>
             <p id="srs-card-back-correct" class="font-sans font-bold text-[1.5rem] text-[var(--c-green)] leading-snug"></p>
             <div id="srs-card-back-original" class="font-sans text-[0.8125rem] text-[var(--c-text-ultradim)] mt-2 leading-relaxed"></div>
-            <div id="srs-card-back-explanation" class="font-sans text-[0.875rem] text-[var(--c-text-dim)] mt-4 leading-relaxed"></div>
+            <div id="srs-card-back-explanation" class="w-full text-left text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg mt-3 leading-relaxed"></div>
           </div>
         </div>
       </div>
@@ -3776,9 +3882,9 @@ function renderSentenceReview(sentences, startIndex) {
   refreshIcons(container);
 }
 
-// v104 状态驱动渲染（换皮不换骨）：正面 = 仅 💡 情境提示（零挖空）；背面 = 绿色地道句 + 原句小字 + 解析
-// v114 正面认知重构定案：两行教练指令 = 错误原句锚点 + 「设备（习语片段）：意图」指令行 + 骨架按钮兜底
-// （六轮收敛全程记录于 renderSrsCard 内注释；范围=仅每日打卡 15 句句型复习翻卡，对比阅读卡片零改动）
+// v104 状态驱动渲染（换皮不换骨）：正面 = 仅 💡 情境提示（零挖空）；背面 = 对比阅读卡片同款三段（绿主句 + 原句小字 + 📖 解析框）
+// v115 正面简化定案：两行 = 错误原句锚点 + 总结直搬（对比阅读卡片底部那句，零抽取零加工）；
+// 骨架按钮与 v114 抽取管线全部物理删除（范围=仅每日打卡 15 句句型复习翻卡，对比阅读卡片零改动）
 function renderSrsCard() {
   const item = _srsQueue[_srsIdx];
   if (!item) return;
@@ -3788,55 +3894,30 @@ function renderSrsCard() {
   const original = String(item.replacedSentence || '').trim();
   const expl = String(item.explanation || '').trim();
   const explOK = expl && !/历史导入/.test(expl);
-  // v114 认知重构定案（用户六轮收敛：元描述 ✗ → 句型框架 ✗ → 词数指令 ✗ → 纯锚点 ✗ → 设备指令 ✗
-  //   → 「设备+习语片段+意图」定案；范围=仅每日打卡 15 句句型复习翻卡，对比阅读卡片零改动）：
-  //   ① 第一行 = 你自己的错误原句（纠错记忆的最强提取线索；无原句时退化为 想表达：真场景）
-  //   ② 第二行 = 设备指令：尝试用「设备」（习语/结构片段，覆盖目标句 >60% 词数时自动隐藏）：意图，升级原句表达
-  //      ——设备名/片段/意图均从解析或目标句形状抽取，每卡不同；片段=习语本身（应用层产出训练：
-  //        拿习语组装完整地道句），隐藏阈值防「习语≈整句答案」卡（如 fascinating）无物可练
-  //   ⚠ 教训（用户纠错）：① 句型框架不可用——地道句的「地道核心」正是功能词构式+搭配，框架把训练
-  //     目标整体给出，检索强度归零；② 词数指令无用——旁观者度量，回忆时的大脑不按词数检索
-  //   ③ 渐进兜底 = 首字母骨架（每词仅首字母，连功能词都不给全文），卡住才点按钮；解析类 explanation 只在翻面 🎬 展示
-  //   无原句无真场景（历史迁移卡）→ 骨架自动展开，卡片永不空白
-  const sceneOK = explOK && !isAnalysisExpl(expl, target);
+  // v115 正面简化定案（用户指令，推翻 v114 六轮抽取管线）：
+  //   正面两行 = ① 错误原句锚点（无原句则整行隐藏）② 总结直搬——对比阅读卡片底部那句 📖 总结
+  //   （= item.explanation 原样展示，零抽取零加工）；💡 首字母骨架按钮与渐进提示逻辑已物理删除；
+  //   无原句且无总结（迁移空卡）→ 显示「回忆这条地道的表达」防空白。
+  //   背面 = 与当日复习对比阅读卡片同款三段（绿主句 + 原句小字 + 📖 解析框，与正面总结重复无妨——用户确认）
   const clueEl = document.getElementById('srs-card-clue');
-  if (clueEl) clueEl.textContent = original ? `你上次是这样说的：“${original}”` : (sceneOK ? `想表达：${expl}` : '回忆这条地道的表达');
-  const hintEl = document.getElementById('srs-card-hint');
-  if (hintEl) {
-    if (target) {
-      const dm = deviceMatch(expl);
-      const dCtx = explOK ? deviceContext(expl, target, dm ? dm.key : '') : '';
-      const dFrag = deviceFragment(expl, original, target);
-      const d = `尝试用「${deviceHint(expl, target)}」${dFrag ? `（${dFrag}）` : ''}`;
-      hintEl.textContent = dCtx ? `${d}：${dCtx}，升级原句表达` : `${d}，升级原句表达`;
-    } else {
-      hintEl.textContent = '';
-    }
-    hintEl.style.display = target ? '' : 'none';
+  if (clueEl) {
+    clueEl.textContent = original ? `你上次是这样说的：“${original}”` : (explOK ? '' : '回忆这条地道的表达');
+    clueEl.style.display = (original || !explOK) ? '' : 'none';
   }
-  const skelEl = document.getElementById('srs-card-skeleton');
-  const hintBtn = document.getElementById('srs-hint-btn');
-  const autoShow = !original && !sceneOK && !!target;
-  if (skelEl) {
-    skelEl.dataset.filled = '';
-    if (autoShow) {
-      skelEl.dataset.filled = '1';
-      skelEl.textContent = letterSkeleton(target);
-      skelEl.style.display = 'block';
-    } else {
-      skelEl.textContent = '';
-      skelEl.style.display = 'none';
-    }
+  const noteEl = document.getElementById('srs-card-note');
+  if (noteEl) {
+    noteEl.textContent = explOK ? `📖 ${expl}` : '';
+    noteEl.style.display = explOK ? '' : 'none';
   }
-  if (hintBtn) {
-    hintBtn.style.display = (target && !autoShow) ? '' : 'none';
-    hintBtn.textContent = '💡 首字母骨架';
-  }
-  // 背面三件套：主视觉正确句（绿）+ 辅助视觉原句（灰小字，无则清空隐藏）+ 解析
+  // 背面三段（对比阅读卡片同款）：主视觉正确句（绿）+ 原句小字 + 📖 解析框（空则整段隐藏）
   document.getElementById('srs-card-back-correct').textContent = target || '（暂无句子）';
   const origEl = document.getElementById('srs-card-back-original');
   if (origEl) origEl.textContent = original ? `原句：${original}` : '';
-  document.getElementById('srs-card-back-explanation').textContent = expl ? `🎬 ${expl}` : '（暂无解析）';
+  const explEl = document.getElementById('srs-card-back-explanation');
+  if (explEl) {
+    explEl.textContent = explOK ? `📖 ${expl}` : '';
+    explEl.style.display = explOK ? '' : 'none';
+  }
   // 翻卡态复位：回到正面 + 隐藏反馈按钮（标准 SRS：解析与按钮只在翻面后出现）
   _srsFlipped = false;
   document.getElementById('srs-flip-inner').classList.remove('flipped');
@@ -3851,177 +3932,6 @@ function flipSrsCard() {
   document.getElementById('srs-flip-inner').classList.toggle('flipped', _srsFlipped);
   const actions = document.getElementById('srs-actions');
   if (actions) actions.style.display = _srsFlipped ? 'flex' : 'none';
-}
-
-// v114 解析/场景分流：旧 JSON 日报的 explanation 是「解析」（语法术语、长句、或复述目标句词组），
-// 解析往往直接点破答案结构 → 正面放它就是泄底，只有真场景（短、无术语）才上正面；解析一律只在翻面 🎬 展示。
-// 判定从宽（宁藏勿泄）：含语法术语 / 超长 / 含目标句连续词组 任一即视为解析
-const _EXPL_ANALYSIS_HINTS = /(句型|句式|从句|宾语|主语|谓语|状语|定语|时态|语态|主谓|同位|倒装|虚拟|强调|结构|搭配|引导|固定表达|地道说法|用法|呼应|主题|形态|缩写|简称|概念|方法论)/;
-function isAnalysisExpl(expl, target) {
-  const e = String(expl || '').trim();
-  if (!e) return false;
-  if (_EXPL_ANALYSIS_HINTS.test(e)) return true;
-  if (e.length > 24) return true;
-  const tw = String(target || '').toLowerCase().split(/\s+/).filter(Boolean);
-  const el = e.toLowerCase();
-  for (let i = 0; i + 1 < tw.length; i++) {
-    const bigram = (tw[i].replace(/[^a-z0-9']/g, '') + ' ' + tw[i + 1].replace(/[^a-z0-9']/g, '')).trim();
-    if (bigram.length > 3 && el.includes(bigram)) return true;
-  }
-  return false;
-}
-
-// v114 设备词典（正面第二行教练指令）：从 explanation 抽取「升级手段」名称 → 展示文案。
-// 词典本身只给手段类型；习语/结构词片段由 deviceFragment 另路抽取（括号内展示，覆盖 >60% 目标句词数时隐藏）
-// ——「废话追问」与「句型框架泄底」之间的中间态：给手柄、给片段，但整句翻面前绝不完整展示。
-// 顺序敏感：更具体的术语在前（虚拟语气>虚拟、宾语从句>从句），首个命中即止
-const _DEVICE_HINTS = [
-  ['虚拟语气', '虚拟语气结构'], ['同位语', '同位语结构'], ['插入语', '插入语结构'], ['倒装', '倒装结构'],
-  ['强调句', '强调句型'], ['省略', '省略结构'], ['被动语态', '被动语态结构'], ['被动', '被动结构'],
-  ['比较级', '比较级结构'], ['最高级', '最高级结构'], ['情态动词', '情态动词结构'],
-  ['现在完成时', '现在完成时态'], ['过去完成时', '过去完成时态'],
-  ['宾语从句', '宾语从句句型'], ['定语从句', '定语从句句型'], ['状语从句', '状语从句句型'],
-  ['主语从句', '主语从句句型'], ['表语从句', '表语从句句型'], ['从句', '从句句型'],
-  ['分词', '分词结构'], ['动名词', '动名词结构'], ['不定式', '不定式结构'], ['条件句', '条件句型'],
-  ['地道习语', '地道习语'], ['习语', '地道习语'], ['地道说法', '地道习语'],
-  ['固定表达', '固定表达'], ['固定搭配', '固定搭配'], ['搭配', '地道搭配'],
-  ['更高级', '更高级的词汇'], ['更精准', '更精准的词汇'], ['同义词', '同义词汇'], ['词汇', '精准词汇'],
-];
-function deviceMatch(expl) {
-  const e = String(expl || '').trim();
-  if (!e) return null;
-  for (const [key, display] of _DEVICE_HINTS) if (e.includes(key)) return { key, display };
-  return null;
-}
-function deviceHint(expl, target) {
-  const m = deviceMatch(expl);
-  if (m) return m.display;
-  const t = String(target || '').trim();
-  if (!t) return '更地道的表达';
-  if (!/\s/.test(t)) return '更精准的词汇'; // 单词目标 → 词汇升级卡
-  if (/—|–/.test(t)) return '同位语结构';   // 破折号 → 同位语/插入语
-  return '更地道的表达';
-}
-
-// v114 设备上下文抽取（冒号后片段）：「想表达什么」的中文意图描述——来自 explanation 的功能段，
-// 非答案词、非整句直译（意图级中文提示，用户定案要求）。管道：
-// A 设备前最后一个「用」→ 功能段（「推荐电影用地道说法」→ 推荐电影）；
-// B 设备在句首 → 其后首个中文短句（「同位语 a trick... 补充评价，」→ 补充评价）；
-// C 设备前最后一段（剥英文后 ≥2 字且非停用词；「…兴趣先行。what 引导宾语从句」→ 兴趣先行）；
-// 无设备词命中：场景类整体作为上下文；解析类仍尝试「用」前功能段（「总结根本原因时用 it comes down to...」）
-const _CTX_STOP = new Set(['引导', '时', '用', '表达', '说', '写', '来', '是', '请', '要', '想', '这个', '那个']);
-function stripEnglish(s) {
-  return String(s || '').replace(/[A-Za-z]+[^，。；：]*/g, ' ').replace(/[（(][^（）()]*[）)]/g, ' ').replace(/[+\-—…·]+/g, ' ').replace(/\s+/g, ' ').trim();
-}
-function deviceContext(expl, target, deviceKey) {
-  const e = String(expl || '').trim();
-  if (!e) return '';
-  if (deviceKey) {
-    const pos = e.indexOf(deviceKey);
-    if (pos >= 0) {
-      const yong = e.lastIndexOf('用', pos); // A：设备前最后一个「用」→ 功能段
-      if (yong > 0) {
-        const before = e.slice(0, yong);
-        const m = before.match(/[。；：，]([^。；：，]*)$/);
-        const c = stripEnglish(m ? m[1] : before).replace(/时$/, '');
-        if (c && c.length >= 2) return c;
-      }
-      const lead = stripEnglish(e.slice(0, pos));
-      if (!lead) { // B：设备在句首 → 其后首个中文短句
-        const tail = stripEnglish(e.slice(pos + deviceKey.length));
-        const m = tail.match(/^([^，。；]*)/);
-        if (m && m[1].trim().length >= 2) return m[1].trim();
-      } else { // C：设备前最后一段（≥2 字且非停用词）
-        const segs = lead.split(/[。：；，]/).map(s => s.trim()).filter(Boolean);
-        for (let i = segs.length - 1; i >= 0; i--) {
-          if (segs[i].length >= 2 && !_CTX_STOP.has(segs[i])) return segs[i];
-        }
-      }
-    }
-  }
-  if (!isAnalysisExpl(e, target)) return e; // 场景类整体作为上下文
-  const yong = e.lastIndexOf('用'); // 解析类兜底：「用」前功能段——要求「用」后紧跟英文（习语引用），
-  if (yong > 0 && /[A-Za-z]/.test(e.slice(yong + 1, yong + 8))) { // 否则是惯用法/用于 之类的构词用，跳过
-    const before = e.slice(0, yong);
-    const m = before.match(/[。；：，]([^。；：，]*)$/);
-    const c = stripEnglish(m ? m[1] : before).replace(/时$/, '').replace(/^地道[：:]/, '').replace(/^表达/, '');
-    if (c && c.length >= 2) return c;
-  }
-  return '';
-}
-
-// v114 设备片段抽取（「设备」后括号内的提示词 = 习语/结构词本身）：explanation 引用了习语——抽取与
-// 目标句连续重合（前缀归一匹配 knock↔knocked）、且非原句已有序列的英文片段；多个散落片段以「 … 」连接
-// （结构卡的连接骨架，如 what … until）。⚠ 防泄底阈值：片段覆盖目标句词数 >60% 时隐藏——
-// 习语≈整句答案的卡（fascinating / slipped my mind）括号不放，否则卡片无物可练
-function deviceFragment(expl, original, target) {
-  const e = String(expl || '').trim();
-  const t = String(target || '').trim();
-  if (!e || !t) return '';
-  const norm = w => w.toLowerCase().replace(/[^a-z']/g, '');
-  const tw = t.split(/\s+/).filter(Boolean).map(norm).filter(Boolean);
-  const ow = String(original || '').split(/\s+/).filter(Boolean).map(norm).filter(Boolean);
-  const matchW = (w, t2) => t2 === w || t2.startsWith(w) || w.startsWith(t2);
-  const runs = e.split(/([^A-Za-z'-]+)/).filter(s => /[A-Za-z]/.test(s)).map(s => {
-    const raw = s.trim().split(/\s+/).filter(w => /[A-Za-z]/.test(w));
-    return { raw, norm: raw.map(norm) };
-  });
-  const frags = [];
-  for (const run of runs) {
-    if (!run.norm.length) continue;
-    for (let i = 0; i + run.norm.length <= tw.length; i++) { // 目标句内找 run 的连续出现
-      let ok = true;
-      for (let j = 0; j < run.norm.length; j++) if (!matchW(run.norm[j], tw[i + j])) { ok = false; break; }
-      if (!ok) continue;
-      let inOrig = false; // 原句已有序列排除（如解析里复述的 very good to watch）
-      for (let k = 0; k + run.norm.length <= ow.length; k++) {
-        let ok2 = true;
-        for (let j = 0; j < run.norm.length; j++) if (!matchW(run.norm[j], ow[k + j])) { ok2 = false; break; }
-        if (ok2) { inOrig = true; break; }
-      }
-      if (!inOrig) { frags.push({ run, start: i }); break; }
-    }
-  }
-  if (!frags.length) return '';
-  frags.sort((a, b) => a.start - b.start); // 合并相邻片段，散落片段以「 … 」连接
-  const merged = [];
-  for (const f of frags) {
-    const last = merged[merged.length - 1];
-    if (last && last.start + last.run.norm.length === f.start) last.run = { raw: last.run.raw.concat(f.run.raw), norm: last.run.norm.concat(f.run.norm) };
-    else merged.push({ run: { raw: f.run.raw.slice(), norm: f.run.norm.slice() }, start: f.start });
-  }
-  const words = merged.reduce((n, m) => n + m.run.norm.length, 0);
-  if (tw.length && words / tw.length > 0.6) return ''; // 防泄底：片段≈整句答案
-  return merged.map(m => m.run.raw.join(' ')).join(' … ');
-}
-
-// v114 首字母骨架（渐进兜底）：整句结构提示——每词只露首字母、其余以 ＿ 遮蔽，标点/撇号/数字原样保留。
-// 与「随机挖空」本质不同：零输入、零判定（本卡自评制），同义词陷阱在结构上不存在；练的是整句组织而非单词补全。
-// ⚠ 特意不做「功能词全文」版：功能词构式（couldn't … more / been meaning to 之类）正是地道核心=训练目标，
-// 全文展示=提前给答案。每词只给首字母是兜底的最大限度，层级：锚点+词数 ⊂ 骨架（+首字母）⊂ 翻面（完整句）
-function letterSkeleton(text) {
-  return String(text || '').trim().split(/\s+/).map(w => {
-    const m = w.match(/^([^A-Za-z]*)([A-Za-z])(.*)$/);
-    if (!m) return w; // 纯标点/数字词原样
-    return m[1] + m[2] + m[3].replace(/[A-Za-z]/g, '＿');
-  }).join(' ');
-}
-
-// v114 渐进提示开关：点「首字母骨架」才展开（stopPropagation 阻止冒泡翻卡），再点收起
-function toggleSrsHint() {
-  const el = document.getElementById('srs-card-skeleton');
-  const btn = document.getElementById('srs-hint-btn');
-  const item = _srsQueue[_srsIdx];
-  if (!el || !item) return;
-  const target = String(item.targetSentence || '').trim();
-  if (!target) return;
-  if (!el.dataset.filled) {
-    el.dataset.filled = '1';
-    el.textContent = letterSkeleton(target);
-  }
-  const show = el.style.display !== 'block';
-  el.style.display = show ? 'block' : 'none';
-  if (btn) btn.textContent = show ? '收起骨架' : '💡 首字母骨架';
 }
 
 // 反馈闭环：ReviewButton → handleReviewFeedback（SM-2 统一服务）→ 当前句出队 → 进度即时更新
@@ -5205,5 +5115,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=114');
+  navigator.serviceWorker.register('/sw.js?v=115');
 }
