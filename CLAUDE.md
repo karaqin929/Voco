@@ -47,12 +47,16 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v114）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v124）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v115）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v125）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
 - **版本号更新铁律（2026-08-18 用户指令）**：代码改完后**先问用户是否还有其他更新统一提交，得到确认后才 +1 版本号并 push**——禁止改完代码直接自推版本。（v98 批次为已部署 v97 的用户反馈 Bug 紧急修复，用户报 Bug 即隐含「修复并上线」授权。）
-- 当前线上：**v114 / voco-v124**（v114 三合一：熊条对称修复 + SRS 翻卡正面认知重构 + 嵌套滚动根治；此前 v105-v107 三连批 + v108/v110/v112/v113 熊条对齐四级修复 + v109 横幅/洞察双修复 + v111 全局解除截断，详见下）。
+- 当前线上：**v115 / voco-v125**（v115 三合一：SRS 翻卡正面简化 + 课前教练契约 + 复习写回加固·50→24 复活根治；此前 v114 熊条对称/SRS 认知重构/嵌套滚动根治 + v105-v113 各批，详见下）。
 - **铁律：内容完整 > 排版克制（2026-08-22 用户产品逻辑反转指令）**：口语复盘卡片的私教洞察与例证句（原句/修改/地道/金句）**永远不允许任何截断**（truncate / line-clamp / ellipsis / nowrap 截断一律禁止）——宁可卡片垂直变长，也绝不吞掉一个标点。容器高度必须 auto 自适应。此规则覆盖用户历史指令（v105 单行截断、v109 例证区保持截断），新指令优先。
+- **v115 三合一（已部署 v115/voco-v125，2026-08-24，commit f70db34）**：
+  - **① SRS 翻卡正面简化（用户指令：正面 = 逐字使用对比卡片底部说明行）**：正面两行 = 错误原句锚点 + explanation 总结直搬（📖 灰底框）；v114 设备指令/首字母骨架/解析类锁屏整套抽取管线**物理删除**（isAnalysisExpl/_EXPL_ANALYSIS_HINTS/_DEVICE_HINTS/deviceMatch/deviceContext/deviceFragment/letterSkeleton/toggleSrsHint + srs-card-hint/srs-hint-btn/srs-card-skeleton 元素，grep 零残留）；背面恢复为与对比卡片一致的段落三段式（绿字主句 → 原句小字 → 📖 灰底解析框），提示词重复可接受（用户明确）。
+  - **② 课前教练契约 prompt（升级现有灵感舱）**：`_PRE_COACH_CONTRACT` 8 条**全英文**契约——纠错融入交流（有错就纠、没错不纠，绝不编造/挑刺）、引导深挖（提示词引导 → 升级挑战 → 点破错误根因 pattern，建立语感而非背规则）、自然衔接课后日报（课上只陪练，沉淀课后做）、真人私教节奏；组装顺序 = 契约 → 可选话题 → URL → 灵感，三输入全空也允许生成（纯契约自由开场，防空 guard 删除）。
+  - **③ 复习写回加固（50→24 复活根治，用户 Bug 报告 + SQL 实锤驱动）**：**实锤取证链**——50 张复习完成后刷新复活 24 张、全是词卡；SQL 查 `last_reviewed_at` 停在 8.16/NULL → **写回从未落库**（fire-and-forget 并发 + catch 空块 + update error 从不检查；本地态先行变异 → 会话内假完成）。**七件套**：① 串行写队列 `enqueueVocabWrite`（N 路并发 → 按序执行）；② `updateRowWithRetry`（error 检查 + 500ms 退避重试一次 + console.warn 留痕）；③ `resolveVocabRows`（数字主键直击 + ilike 文本兜底 + **同词全部到期行一并推进**，防去重隐藏重复行复活）；④ `handleReviewFeedback` ③ find 未命中 → 卡组 ref 直接写回；⑤ **sm2 全分支钳制最短间隔 1 天**（历史脏数据 reps≥2 & interval=0 → ivl=0 → next=今天 → 无限复活）；⑥ 错题/句型写回同构加固（错题主键优先；句型 UPDATE 入队重试、INSERT 入队不重试防双行）；⑦ `voco-vocab-done` 本地完成戳 + 首页任务 3 兜底判定；`markMastered` 同口径换 `updateRowWithRetry`。**考古**：existential 双行 = 旧版「复习 INSERT 行」遗留（素行无日期永久到期）；pivot = v103 查重前跨天盲插；现行导入链（按词查重 + 按钮防重入）不再造新重复行。**教训**：写回可靠性是 SM-2 曲线存活的必要条件——「显示完成」≠「曲线落库」，静默吞错 = 现场零证据，修复必须留痕。
 - **v105–v107 三连批次（已部署 v107/voco-v117，2026-08-21）**：
   - **v105**：① **coach_insights 私教洞察四维诊断**（vocabulary/grammar/expression/core_patterns 四键）——Prompt 双模板同步（TEMPLATES.report 与 `📋 日报模板/ChatGPT日报Prompt.md` 一字不差：JSON 示例 + 铁律第 1/8 条 + 自检行三处锁定）、normalizeJsonReport 透传、首页「需要提升」四卡第 1 行洞察（旧日报无字段 → 同排静默回落基础统计文案，三行排版不变绝不开天窗）；② **Card D 四卡终版**：洞察行 14px + 行首维度图标（与打分面板四子块图标 1:1 呼应——用户否决「冗余论」后恢复）+ 例证盒 bg 底衬圆角（与语法错题卡解析盒同语言的结构分组——同样恢复），盒内原句 12px 浅灰 / 地道·修改 14px 绿加粗；③ **趋势图削顶/断点孤岛修复**：layout.padding.top:16 保留（≥15 铁律）+ dataset `clip:false`（Y=100 圆点线绝不被容器裁切）+ `spanGaps:true`（缺卡日跨点连线，杜绝漂浮孤岛）；Y 轴 max:100 不动；④ **runGlobalAudit 七模块全局体检**（Console 一键）：模块一交互链路/路由精确度、模块二待办与 SM-2 数据钩稽、模块三历史时光机与数据隔离、模块四 JSON 数据源健康度、模块五极限空态拦截、模块六状态清理与防泄漏、模块七 SM-2 记忆库防腐化——async 串行 + 每模块独立 try/catch + 状态快照/还原零副作用 + ✅/❌/⚠️ 结构化报告与通过/失败统计；前置条件：提升区四卡 `empty` 标志 → 「查看全部」disabled 拦截（模块五断言对象）。
   - **v106**：**熊条打开居右锚定硬化**（用户 Bug 报告「一进去显示 8.10-8.16，要永远固定到最右；选历史日/手动滑动后不回弹」）。真根因：滚动盒 `overflow-x-auto` 来自 Tailwind CDN（异步生效），首帧 CSS 未就绪时 `scrollLeft = scrollWidth` 被静默丢弃 → 打开停最左。修复：① overflow-x:auto 改为**内联样式**（滚动盒恒成立，不依赖 CDN 时序）；② 首次渲染 = 同步兜底 + rAF 布局落定后按溢出量精确落锚 + `clientWidth>0` 可测量判定才落锚（隐藏态首渲自动顺延下一轮重试，绝不死锁左端）；③ `_streakAnchored` 一次落锚后，一切重渲染（历史切换/后台补水/切页返回/手动滑动）只恢复 `_streakScrollCache` 绝不重锚定。
