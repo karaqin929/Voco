@@ -1678,8 +1678,6 @@ function normalizeJsonReport(j, raw) {
 const _importState = { status: 'idle', error: '', preview: null, payload: null };
 let _importDebounceTimer = null;
 const IMPORT_DEBOUNCE_MS = 350;
-// v116 历史日报补导：入库日期选择器状态（手动改过日期则不再被文内识别日期覆盖）
-let _importDateTouched = false;
 let _importing = false; // v117 审计修复：导入互斥锁（防 1 秒窗口并发二次导入）
 
 function getImportDate() {
@@ -1688,15 +1686,9 @@ function getImportDate() {
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : getLocalToday();
 }
 
-// 文内日期识别：Markdown 标题行（# 2026-08-17 …）/ JSON "date" 字段 → 历史日报补导自动落位
-// v117 审计修复：裸日期兜底仅 allowBare 时启用——JSON 内容值里的日期（想法/例句）会被误命中，
-// 导致今日日报被静默填成过去日期；JSON 意图只认 "date" 键
-function detectReportDate(text, allowBare) {
-  const s = String(text || '');
-  let m = s.match(/^\s*#+\s*(20\d{2}-\d{2}-\d{2})/m) || s.match(/"date"\s*:\s*"(20\d{2}-\d{2}-\d{2})"/i);
-  if (!m && allowBare) m = s.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
-  return m ? m[1] : null;
-}
+// v119（用户决定）：文内日期自动识别整体删除——用户原文不含任何日期信息，识别无素材可读；
+// 入库日期一律手动选择（getImportDate 直读日期选择器，预览卡明示入库日期）。
+// 原 detectReportDate / normalizeDateToken / _DATE_YMD / _DATE_MD / _importDateTouched 已物理删除。
 
 // ── 实时校验器（纯函数）：输入文本 → 校验结果 + 入库产物 ──
 function validateImportInput(text) {
@@ -1835,14 +1827,8 @@ function onImportInput() {
     _importState.error = result.error;
     _importState.preview = result.preview;
     _importState.payload = result.payload;
-    // v117 审计修复：JSON 意图禁用裸日期兜底（内容值日期不参与识别）；
-    // 识别不到日期时回落今天——防止上一篇自动填入的日期残留到下一篇（同一弹窗会话内粘贴多篇）
-    if (!_importDateTouched) {
-      const jsonIntent = String(text || '').trim().startsWith('{');
-      const found = detectReportDate(text, !jsonIntent);
-      const dateEl = document.getElementById('dialog-report-date');
-      if (dateEl) dateEl.value = found || getLocalToday();
-    }
+    // v119（用户决定）：日期自动识别已整体删除——入库日期由用户手动选择
+    // （弹窗打开默认今天 + max=今天，粘贴文本不再改写日期选择器）
     renderImportPreview();
   }, IMPORT_DEBOUNCE_MS);
 }
@@ -1852,10 +1838,10 @@ function showImportDialog() {
   dlg.classList.remove('hidden');
   const ta = document.getElementById('dialog-report-input');
   if (ta) { ta.value = ''; setTimeout(() => ta.focus(), 50); }
-  // v116 历史补导：日期选择器默认今天，打开即复位自动填入标记；v117：max=今天封死未来日期（熊条永远看不到未来行）
+  // v116 历史补导：日期选择器默认今天；v117：max=今天封死未来日期（熊条永远看不到未来行）
+  // v119（用户决定）：日期自动识别已删除，入库日期一律手动选择
   const dateEl = document.getElementById('dialog-report-date');
   if (dateEl) { dateEl.value = getLocalToday(); dateEl.max = getLocalToday(); }
-  _importDateTouched = false;
   clearTimeout(_importDebounceTimer);
   _importState.status = 'idle'; _importState.error = ''; _importState.preview = null; _importState.payload = null;
   renderImportPreview();
@@ -2142,8 +2128,10 @@ async function auditModule1() {
     const routes = [
       { type: 'vocab', label: '词汇', path: '/review', search: 'filter=today', state: () => _wordsFilter === 'today' && _ctxDate === null, tab: 'tab-words', desc: '/review?filter=today · 今日新词过滤态' },
       { type: 'grammar', label: '语法纠正', path: '/review', search: 'tab=grammar', state: () => _wordsFilter === 'grammar' && _ctxDate === null, tab: 'tab-words', desc: '/review?tab=grammar' },
-      { type: 'expression', label: '自然表达', path: '/shadowing', search: 'view=expressions', state: () => _speakView === 'expressions' && _ctxDate === null, tab: 'tab-speak', desc: '/shadowing?view=expressions' },
-      { type: 'core', label: '核心句型', path: '/shadowing', search: 'view=core', state: () => _speakView === 'core' && _ctxDate === null, tab: 'tab-speak', desc: '/shadowing?view=core' }
+      // v119 断言修正：/shadowing 按 v85 设计「今日也携带 date」（date=today → 该日日报卡组；无 date → SM-2 到期队列），
+      // 与 /review「今日省略」不同——四卡今日跳转 _ctxDate === 今日字符串 是设计内行为，断言接受 null 或今日
+      { type: 'expression', label: '自然表达', path: '/shadowing', search: 'view=expressions', state: () => _speakView === 'expressions' && (_ctxDate === null || _ctxDate === getLocalToday()), tab: 'tab-speak', desc: '/shadowing?view=expressions' },
+      { type: 'core', label: '核心句型', path: '/shadowing', search: 'view=core', state: () => _speakView === 'core' && (_ctxDate === null || _ctxDate === getLocalToday()), tab: 'tab-speak', desc: '/shadowing?view=core' }
     ];
     for (const r of routes) {
       const btn = document.querySelector(`#home-insights [data-improve-jump="${r.type}"]`);
@@ -2346,13 +2334,16 @@ async function auditModule3() {
 async function auditModule4() {
   const sources = [];
   const push = (date, content, src) => { if (content) sources.push({ date: date, content: content, src: src }); };
-  _reportsCache.forEach(r => push(r.date, r.content, 'reports 表'));
-  if (!_reportsCache.some(r => r.content)) {
-    try {
-      const { data } = await sb.from('reports').select('*').order('date', { ascending: false }).limit(1000);
-      (data || []).forEach(r => push(r.date, r.content, 'reports 表'));
-    } catch (e) { /* 拉取失败只扫 localStorage */ }
-  }
+  // v119 修正：_reportsCache 是元数据缓存（loadHome 只 select id,user_id,date，仅今日/浏览日补水 content）——
+  // 旧判断「有 content 即跳过补拉」在导入今日日报后会把扫描面静默缩水到 1 份（缓存恰有 1 行 content）。
+  // 改为直连全量拉库（审计零写库，≤10 行代价可忽略），失败才回退缓存行。
+  let fullRows = null;
+  try {
+    const { data } = await sb.from('reports').select('*').order('date', { ascending: false }).limit(1000);
+    fullRows = data || [];
+  } catch (e) { /* 拉取失败回退缓存行 */ }
+  if (fullRows && fullRows.length) fullRows.forEach(r => push(r.date, r.content, 'reports 表'));
+  else _reportsCache.forEach(r => push(r.date, r.content, 'reports 表'));
   ['voco-daily-cache', 'voco-reports', 'voco-speak-sentences', 'lingotrace-report'].forEach(k => {
     try { const raw = localStorage.getItem(k); if (raw) push(k, raw, 'localStorage:' + k); } catch (e) { /* 隐私模式 localStorage 不可用 */ }
   });
@@ -2596,7 +2587,7 @@ async function auditModule9() {
 // ═══════════════════════════════════════════════════════════════
 async function runGlobalAudit() {
   _auditStats = { total: 0, pass: 0, fail: 0, skip: 0, fails: [] };
-  console.log('%c\n🧭 Voco 全局体检（v116 · 9 模块巡检）', 'font-weight:bold;font-size:15px;color:#3E3535');
+  console.log('%c\n🧭 Voco 全局体检（v119 · 9 模块巡检）', 'font-weight:bold;font-size:15px;color:#3E3535');
   console.log('%c巡检日期：' + getLocalToday() + ' · 巡检过程零写库、零反馈推进，结束后页面状态 100% 还原', 'color:#8C7C7C;font-size:11px');
   const snap = _auditSnapshot();
   // 今日语境锚定：清历史视图残留，保证各模块断言确定（结束统一还原）
@@ -3757,7 +3748,8 @@ function renderSpeakRoute() {
     // getDueSentencesQueue(_speakAll) 唯一事实源（新卡 = 无 next_review_date，到期卡 = 曲线到期），零运行时解析拼凑
     sentences = getDueSentencesQueue(_speakAll);
   }
-  // ?id= / ?sentence= 锚定仅决定起始卡片（首页「今天需要提升」跳转仍然生效），绝不改变队列内容
+  // ?id= / ?sentence= 锚定仅决定起始卡片，绝不改变队列内容
+  // （v104 起提升区四卡跳 ?view= 列表视图不再走锚定——锚定现仅 URL 通道可达；v117 审计模块二确认机制完好）
   const anchorId = params.get('id') || null;
   const anchorText = params.get('sentence') || null;
   let startIndex = 0;
@@ -4639,7 +4631,7 @@ async function importReport(text) {
 
   const btn = document.getElementById('btn-dialog-submit');
   if (btn) { btn.disabled = true; btn.textContent = '导入中...'; }
-  // v116 历史补导：生效日期 = 弹窗日期选择器（默认今天；历史日报由文内识别/手动选择决定）
+  // v116 历史补导：生效日期 = 弹窗日期选择器（默认今天；v119 起自动识别已删除，一律手动选择）
   const importDate = getImportDate();
   // v117 审计修复：同用户同日已有日报 → 拒绝导入（防 upsert 静默覆盖旧行 + progress/topics 双计）；
   // 补导场景（该日无行）不受影响；查重网络异常时放行（宁可重复也绝不卡死正常导入）
@@ -5288,7 +5280,7 @@ async function detectClipboard() {
 // ═══════════════════════════════════════════════════════
 function EmptyState({ message = '暂无数据', size = 96 } = {}) {
   return `<div class="state-empty">
-    <img class="state-img" src="/bear-default.png" alt="💤" style="width:${size}px;height:${size}px"
+    <img class="state-img bear-img" src="/bear-default.png" alt="💤" draggable="false" style="width:${size}px;height:${size}px"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=state-fallback style=font-size:${size>80?48:32}px>💤</span>')" />
     <p class="state-text">${h(message)}</p>
   </div>`;
@@ -5296,7 +5288,7 @@ function EmptyState({ message = '暂无数据', size = 96 } = {}) {
 
 function LoadingState({ message = 'Voco小熊正一路小跑赶来...', size = 80 } = {}) {
   return `<div class="state-loading">
-    <img class="state-img animate-pulse" src="/bear-default.png" alt="⏳" style="width:${size}px;height:${size}px"
+    <img class="state-img animate-pulse bear-img" src="/bear-default.png" alt="⏳" draggable="false" style="width:${size}px;height:${size}px"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=state-fallback style=font-size:${size>80?48:32}px>⏳</span>')" />
     <p class="state-text">${h(message)}</p>
   </div>`;
@@ -5363,9 +5355,8 @@ document.getElementById('btn-login-email').addEventListener('click', sendMagicLi
 document.getElementById('btn-dialog-submit')?.addEventListener('click', () => importReport());
 // v97 实时校验绑定：文本框 input 事件（粘贴/输入/清空均触发）→ 350ms 防抖 → 校验预览 + 按钮状态
 document.getElementById('dialog-report-input')?.addEventListener('input', onImportInput);
-// v116 历史补导：手动改日期 → 标记已触碰（文内自动识别不再覆盖）；预览日期实时刷新
+// v119（用户决定）：日期自动识别已删除——手动改日期直接刷新预览卡入库日期（getImportDate 直读选择器）
 document.getElementById('dialog-report-date')?.addEventListener('change', () => {
-  _importDateTouched = true;
   renderImportPreview();
 });
 // v116：封杀长按原生菜单（保存图片/共享）——CSS 只能关 iOS 长按气泡，Android/新版 iOS 的
@@ -5423,5 +5414,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=118');
+  navigator.serviceWorker.register('/sw.js?v=119');
 }

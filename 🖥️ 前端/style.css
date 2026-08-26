@@ -435,9 +435,10 @@ textarea::placeholder { color: var(--text-ultradim); }
 .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 
-/* ── 熊条小熊 = 纯 UI 按钮（v116，用户指令）──
+/* ── 小熊图 = 纯 UI 按钮（v116 熊条，用户指令；2026-08-26 范围扩展至全站五处小熊）──
    封杀移动端长按原生菜单（保存图片/共享）：
      touch-callout 关 iOS 长按气泡；user-select 关文字选中；user-drag 关拖拽幽灵图。
+   范围：熊条小熊 + 加载页小熊 + 登录页熊头 + Profile 头像 + 空态小熊——全部复用 .bear-img 类（本规则零视觉属性，纯防护）。
    注意：三行 CSS 之外必须配 app.js 的 contextmenu 守卫——Android 与新版 iOS 的长按
    菜单不认 CSS，只能 JS 拦。绝不用 pointer-events:none（点击查看历史日报不能丢）。 */
 .bear-img {

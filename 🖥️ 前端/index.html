@@ -13,7 +13,7 @@
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
   <link rel="preload" href="/bear-head-default.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=118">
+  <link rel="stylesheet" href="/style.css?v=119">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -128,7 +128,7 @@
 <body>
 <div id="voco-loading" class="voco-loader">
   <div class="voco-loader-inner">
-    <img class="voco-loader-img" src="/bear-default.png" alt="Voco"
+    <img class="voco-loader-img bear-img" src="/bear-default.png" alt="Voco" draggable="false"
       onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
     <span class="voco-loader-fallback">🐻</span>
     <div class="voco-loader-text">Voco小熊正一路小跑赶来...</div>
@@ -139,7 +139,7 @@
 <div id="login-screen" style="display:none;">
   <div class="login-card">
     <!-- v118 修复：登录页小熊由 v5.0 起硬编码的 emoji 换为真 PNG 熊头；PNG 加载失败仍优雅回退 emoji -->
-    <div class="login-icon"><img src="/bear-head-default.png" alt="🐻" style="width:72px;height:72px;object-fit:contain;display:inline-block"
+    <div class="login-icon"><img class="bear-img" src="/bear-head-default.png" alt="🐻" draggable="false" style="width:72px;height:72px;object-fit:contain;display:inline-block"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-6xl>🐻</span>')"></div>
     <h1>Voco</h1>
     <p class="login-sub">追踪你的英语口语进步</p>
@@ -240,7 +240,7 @@
 
     <!-- Profile Header Card -->
     <div class="text-center py-5 px-4 mb-4 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
-      <div class="mb-2"><img class="w-20 h-20 rounded-full object-contain mx-auto" src="/bear-head-active.png" alt="avatar" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-6xl>🐻</span>')"></div>
+      <div class="mb-2"><img class="w-20 h-20 rounded-full object-contain mx-auto bear-img" src="/bear-head-active.png" alt="avatar" draggable="false" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-6xl>🐻</span>')"></div>
       <div class="text-xl font-bold text-[var(--c-text)] mb-0.5" id="me-name">---</div>
       <div class="text-xs text-[var(--c-text-ultradim)] mb-2" id="me-subtitle">访客模式</div>
       <div class="flex justify-center gap-4 mb-2">
@@ -422,7 +422,7 @@
             <button id="btn-copy-report-template" class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg text-xs text-[var(--c-text-dim)] cursor-pointer transition-all active:bg-[var(--c-primary-light)] active:text-[var(--c-primary)] active:border-[var(--c-primary)] whitespace-nowrap"><i data-lucide="copy" class="w-3.5 h-3.5"></i> 复制日报模板</button>
           </div>
           <textarea id="dialog-report-input" rows="6" placeholder="将 ChatGPT 生成的内容粘贴到这里，粘贴后自动校验..." class="w-full min-h-[140px] bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-border)] rounded-2xl p-3.5 text-sm leading-relaxed resize-y mb-2.5 outline-none focus:border-[var(--c-primary)] focus:shadow-[0_0_0_3px_var(--c-primary-light)] placeholder:text-[var(--c-text-ultradim)]"></textarea>
-          <!-- v116 历史日报补导：入库日期选择器（默认今天；粘贴旧日报若识别到文内日期会自动填入，可手动改） -->
+          <!-- v116 历史日报补导：入库日期选择器（默认今天，手动选择；v119 起日期自动识别已按用户决定删除） -->
           <div class="flex items-center justify-between gap-3 mb-2.5">
             <label class="text-xs text-[var(--c-text-dim)] shrink-0" for="dialog-report-date">入库日期</label>
             <input type="date" id="dialog-report-date" class="flex-1 bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-border)] rounded-xl px-3 py-2 text-sm outline-none focus:border-[var(--c-primary)]">
@@ -495,8 +495,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=118"></script>
-<script src="/parser.js?v=118"></script>
-<script src="/app.js?v=118"></script>
+<script src="/supabase-client.js?v=119"></script>
+<script src="/parser.js?v=119"></script>
+<script src="/app.js?v=119"></script>
 </body>
 </html>
