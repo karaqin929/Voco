@@ -47,11 +47,12 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v117）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v127）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v118）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v128）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
 - **版本号更新铁律（2026-08-18 用户指令）**：代码改完后**先问用户是否还有其他更新统一提交，得到确认后才 +1 版本号并 push**——禁止改完代码直接自推版本。（v98 批次为已部署 v97 的用户反馈 Bug 紧急修复，用户报 Bug 即隐含「修复并上线」授权。）
-- 当前线上：**v117 / voco-v127**（v117 全盘审计修复十处：progress 账号过滤 + 导入同日查重/互斥锁 + 日期兜底收敛 + 历史视图曲线/打卡戳守卫 + 错题全行推进 + 月历恒真修复；此前 v116 四合一 + v115 三合一及更早各批，详见下）。
+- 当前线上：**v118 / voco-v128**（v118 登录页熊头 PNG 化；v117 全盘审计修复十处：progress 账号过滤 + 导入同日查重/互斥锁 + 日期兜底收敛 + 历史视图曲线/打卡戳守卫 + 错题全行推进 + 月历恒真修复；此前 v116 四合一 + v115 三合一及更早各批，详见下）。
+- **v118 登录页熊头 PNG 化（已部署 v118/voco-v128，2026-08-26，commit fd8a914，用户报 Bug → 修复上线）**：登录页小熊自 v5.0 起就是 index.html L140 硬编码 emoji（`<div class="login-icon">🐻</div>`）——清缓存永远修不好（曾误判 SW 缓存，实为设计残留）。修复：换真实 PNG `bear-head-default.png`（72px + onerror 回退 emoji）+ `<link rel="preload">` 预载。**教训：用户报 Bug 先 grep 实际代码，再谈缓存。**
 - **铁律：内容完整 > 排版克制（2026-08-22 用户产品逻辑反转指令）**：口语复盘卡片的私教洞察与例证句（原句/修改/地道/金句）**永远不允许任何截断**（truncate / line-clamp / ellipsis / nowrap 截断一律禁止）——宁可卡片垂直变长，也绝不吞掉一个标点。容器高度必须 auto 自适应。此规则覆盖用户历史指令（v105 单行截断、v109 例证区保持截断），新指令优先。
 - **v117 全盘审计修复十处（已部署 v117/voco-v127，2026-08-26，commit eda0a0d）**：三路并行逐行审计（打卡三链路 + 14 点击入口）后确认的 10 处缺陷全部修复，报告 `⚙️ 后端/audit_2026-08-26.md`：
   - **F1【高危·跨账号污染】** updateProgress 两处 count 补 `.eq('user_id', uid)`——拆分后两账号并存，无过滤会把对方行数计进且单调护栏锁死污染值。
@@ -69,7 +70,7 @@
   - **③ 熊条长按菜单封杀（用户指令：小熊 = 纯 UI 按钮）**：`.bear-img` 三行 CSS（`-webkit-touch-callout` 关 iOS 气泡 / `user-select` 关文字选中 / `-webkit-user-drag` 关拖拽幽灵）+ `draggable="false"` + document 级 `contextmenu` 守卫（仅命中 `.bear-img` 时 preventDefault——Android/新版 iOS 的原生长按菜单不认 CSS，必须 JS 拦）；**坚决不用 pointer-events:none**，`showBearDay` 点击链路完整保留；范围仅熊条小熊（Profile 大头像未动，用户可另行指令）。
   - **④ 两账号事件 SQL 记录档**（`⚙️ 后端/` 六件套入库）：merge_accounts_2026-08-26.sql（8.26 错误合并执行记录）/ undo_split_2026-08-26.sql（拆分 + 回滚预案 + 守恒终审）/ repair_patterns_fragments.sql / audit_patterns_integrity.sql / audit_errors_integrity.sql / cleanup_errors_broken.sql。
 - **两账号事件（2026-08-25→26 重大事件，教训铁律级）**：
-  - 时间线：8.25 发现 patterns/vocabulary/errors/reports 四表分裂在两个 user_id（`1b9ea5bc` 旧账号 8.13~8.22 + `641d79b5` 8.23~8.25）→ 8.26 上午按「同一用户两个身份」执行合并（全部并入 641d79b5）→ 下午用户澄清 **641d79b5 = radiohann@gmail.com 是另一个人** → 执行拆分（用户数据拆回新账号 `0f1b0fbc` = karaqin929@gmail.com = 用户本人）→ 8.10 数据按用户指令两账号全清 → 守恒终审 10 行全过（patterns 90+20=110 / vocabulary 50+10=60 / errors 40+14=54 / reports 6+4=10 / progress 用户 20s·50w·18e & 对方 4s·10w·0e）。
+  - 时间线：8.25 发现 patterns/vocabulary/errors/reports 四表分裂在两个 user_id（`1b9ea5bc` 旧账号 8.13~8.22 + `641d79b5` 8.23~8.25）→ 8.26 上午按「同一用户两个身份」执行合并（全部并入 641d79b5）→ 下午用户澄清 **641d79b5 = radiohann@gmail.com 是另一个人** → 执行拆分（用户数据拆回新账号 `0f1b0fbc` = karaqin929@gmail.com = 用户本人）→ 8.10 数据按用户指令两账号全清 → 守恒终审 10 行全过（patterns 90+20=110 / vocabulary 50+10=60 / errors 40+14=54 / reports 6+4=10 / progress 用户 20s·50w·18e & 对方 4s·10w·0e）。**终审复查（8.26 晚）**：对方账号增量 +9 句型/+5 词/+3 错题/+1 日报，全部 date_added = 8.26 = 对方本人当天正常使用（对方是活跃用户，其日报 8.21/8.22/8.23/8.25/8.26 均为对方自己的数据，与用户待补导的三篇无关）；两账号 progress 干净（对方 5s·15w·0、用户 20s·50w·18）——v117 F1 修复实测生效。**教训延伸：守恒账本要允许对方账号增长，对方不是静止对照物。**
   - 后果：用户 8.21/8.22/8.25 三篇日报**文本**在合并步 ④「重叠日期以当前账号为准」被删（对方账号保留副本）；8.10 两账号全清。恢复通道 = v116 导入日期选择器 + 用户从 ChatGPT 复制原文重导（8.17 原文仍在库 id 13）。
   - **教训（铁律级）**：库里出现多个 user_id 时，第一步必须是问用户「这个账号是你本人吗？是否有其他人用过这台设备/账号？」——**禁止擅自合并**；合并前先核对 auth.users 的 email 归属与用户确认。拆分全程零 DELETE（只改归属 + 补副本），所以永远可回滚——这也是本次能救回来的原因。
 - **v115 三合一（已部署 v115/voco-v125，2026-08-24，commit f70db34）**：
