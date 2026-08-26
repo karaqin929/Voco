@@ -732,7 +732,7 @@ function pickCalendarDay(ds) {
   const el = document.getElementById('vococal-picker');
   if (el) el.remove();
   if (ds === getLocalToday()) { goHomeToday(); return; }
-  showBearDay(ds, !!(_dateScoreCache[ds] || {}));
+  showBearDay(ds, !!_dateScoreCache[ds]); // v117 审计修复：|| {} 恒真导致未打卡 toast 被绕过
 }
 
 // ── Section 3: Metrics Overview ─────────────────────────
@@ -1680,6 +1680,7 @@ let _importDebounceTimer = null;
 const IMPORT_DEBOUNCE_MS = 350;
 // v116 历史日报补导：入库日期选择器状态（手动改过日期则不再被文内识别日期覆盖）
 let _importDateTouched = false;
+let _importing = false; // v117 审计修复：导入互斥锁（防 1 秒窗口并发二次导入）
 
 function getImportDate() {
   const el = document.getElementById('dialog-report-date');
@@ -1688,10 +1689,12 @@ function getImportDate() {
 }
 
 // 文内日期识别：Markdown 标题行（# 2026-08-17 …）/ JSON "date" 字段 → 历史日报补导自动落位
-function detectReportDate(text) {
+// v117 审计修复：裸日期兜底仅 allowBare 时启用——JSON 内容值里的日期（想法/例句）会被误命中，
+// 导致今日日报被静默填成过去日期；JSON 意图只认 "date" 键
+function detectReportDate(text, allowBare) {
   const s = String(text || '');
   let m = s.match(/^\s*#+\s*(20\d{2}-\d{2}-\d{2})/m) || s.match(/"date"\s*:\s*"(20\d{2}-\d{2}-\d{2})"/i);
-  if (!m) m = s.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  if (!m && allowBare) m = s.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
   return m ? m[1] : null;
 }
 
@@ -1832,11 +1835,13 @@ function onImportInput() {
     _importState.error = result.error;
     _importState.preview = result.preview;
     _importState.payload = result.payload;
-    // v116 历史补导：文内日期自动填入（用户手动改过日期则尊重用户选择，不覆盖）
+    // v117 审计修复：JSON 意图禁用裸日期兜底（内容值日期不参与识别）；
+    // 识别不到日期时回落今天——防止上一篇自动填入的日期残留到下一篇（同一弹窗会话内粘贴多篇）
     if (!_importDateTouched) {
-      const found = detectReportDate(text);
+      const jsonIntent = String(text || '').trim().startsWith('{');
+      const found = detectReportDate(text, !jsonIntent);
       const dateEl = document.getElementById('dialog-report-date');
-      if (found && dateEl) dateEl.value = found;
+      if (dateEl) dateEl.value = found || getLocalToday();
     }
     renderImportPreview();
   }, IMPORT_DEBOUNCE_MS);
@@ -1847,9 +1852,9 @@ function showImportDialog() {
   dlg.classList.remove('hidden');
   const ta = document.getElementById('dialog-report-input');
   if (ta) { ta.value = ''; setTimeout(() => ta.focus(), 50); }
-  // v116 历史补导：日期选择器默认今天，打开即复位自动填入标记
+  // v116 历史补导：日期选择器默认今天，打开即复位自动填入标记；v117：max=今天封死未来日期（熊条永远看不到未来行）
   const dateEl = document.getElementById('dialog-report-date');
-  if (dateEl) dateEl.value = getLocalToday();
+  if (dateEl) { dateEl.value = getLocalToday(); dateEl.max = getLocalToday(); }
   _importDateTouched = false;
   clearTimeout(_importDebounceTimer);
   _importState.status = 'idle'; _importState.error = ''; _importState.preview = null; _importState.payload = null;
@@ -2933,32 +2938,40 @@ async function reviewErrorItem(card, quality) {
   // v115 写回加固：主键优先（数字 id 直击，不再依赖原句+正句文本匹配）+ 文本兜底 +
   // 串行队列 + update error 检查 + 失败重试一次，失败留 console.warn
   enqueueVocabWrite(async () => {
-    let targetId = null;
+    // v117 审计修复：同「原句+正句」的重复错误行全部到期行一并推进（对齐词汇 resolveVocabRows 口径）——
+    // 旧实现 limit(1) 只推进第一行 → 其余行 next_review_date 永不前移，次日永久到期重复出队
+    let rows = [];
     if (/^\d+$/.test(String(src.id))) {
       try {
-        const { data: row, error } = await sb.from('errors').select('id').eq('id', src.id).limit(1);
-        if (!error && row && row.length) targetId = row[0].id;
-      } catch (e) { /* 落入文本兜底 */ }
+        const { data: r, error } = await sb.from('errors').select('*').eq('id', src.id);
+        if (!error && r) rows = r;
+      } catch (e) { rows = []; }
     }
-    if (targetId === null) {
+    if (!rows.length) {
       try {
-        const { data: rows, error } = await sb.from('errors').select('id').eq('original', src.original).eq('correction', src.correction || '').limit(1);
-        if (!error && rows && rows.length) targetId = rows[0].id;
-      } catch (e) { /* 仅本地会话态 */ }
+        const { data: r, error } = await sb.from('errors').select('*').eq('original', src.original).eq('correction', src.correction || '');
+        if (!error && r) rows = r;
+      } catch (e) { rows = []; }
     }
-    if (targetId === null) { console.warn('[voco] 错题写回：未找到库行', src.original); return; }
-    const ok = await updateRowWithRetry('errors', targetId, {
-      status, mastered: (status === 'mastered'),
-      ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
-      review_count: src.review_count, next_review_date: src.next_review_date, last_reviewed_at: src.last_reviewed_at
-    });
-    if (ok) {
-      const local = (_errorsAll || []).find(x => String(x.id) === String(targetId));
-      if (local) Object.assign(local, {
+    if (!rows.length) { console.warn('[voco] 错题写回：未找到库行', src.original); return; }
+    const today = getLocalToday();
+    for (const row of rows) {
+      const isMain = String(row.id) === String(src.id);
+      const isDue = !row.next_review_date || String(row.next_review_date) <= today;
+      if (!isMain && !isDue) continue; // 非主行且未到期：不动其曲线，等它自己的到期日
+      const ok = await updateRowWithRetry('errors', row.id, {
         status, mastered: (status === 'mastered'),
         ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
         review_count: src.review_count, next_review_date: src.next_review_date, last_reviewed_at: src.last_reviewed_at
       });
+      if (ok) {
+        const local = (_errorsAll || []).find(x => String(x.id) === String(row.id));
+        if (local) Object.assign(local, {
+          status, mastered: (status === 'mastered'),
+          ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
+          review_count: src.review_count, next_review_date: src.next_review_date, last_reviewed_at: src.last_reviewed_at
+        });
+      }
     }
   });
 }
@@ -3327,9 +3340,6 @@ async function reviewWordItem(v, quality) {
 //   · core-N / expr-N / sentence-anchor → 非库行临时 id：v104 起先按文本锚定在内存库（_speakAll）定位既有行 ——
 //     命中即视为库行走 UPDATE（导入行补 SM-2 字段，同句绝无双行双曲线）；未命中才 INSERT 正式进入记忆曲线
 async function reviewPatternItem(p, quality) {
-  const result = sm2(p.ease_factor, p.sm2_interval, p.sm2_repetitions, quality);
-  const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
-  const status = quality < 3 ? 'learning' : (result.repetitions >= 5 ? 'mastered' : 'learning');
   let isDbRow = /^\d+$/.test(String(p.id));
   const isTodayNew = /^(core-\d+|expr-\d+|sentence-anchor)$/.test(String(p.id));
   if (!isDbRow && isTodayNew) {
@@ -3345,6 +3355,11 @@ async function reviewPatternItem(p, quality) {
     });
     if (hit) { p = hit; isDbRow = true; }
   }
+  // v117 审计修复：sm2 必须在 p 定案（锚点卡命中库行重绑）之后计算——旧实现先按锚点卡的空 SM-2 字段
+  // 算曲线再覆盖库行 → 历史视图复习会把该句真实曲线重置为全新卡（interval 回到 1，双曲线隐患同源）
+  const result = sm2(p.ease_factor, p.sm2_interval, p.sm2_repetitions, quality);
+  const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
+  const status = quality < 3 ? 'learning' : (result.repetitions >= 5 ? 'mastered' : 'learning');
   if (isDbRow) {
     // 库行：本地快照 + SM-2 UPDATE
     p.review_count = (p.review_count || 0) + 1;
@@ -4129,7 +4144,9 @@ function rateSentenceCard(status) {
 }
 
 function showSrsDone() {
-  try { localStorage.setItem('voco-speak-done', getLocalToday()); } catch (e) {} // 点亮首页【句型复习打卡】
+  // v117 审计修复：历史日期视图（?date= 非今日）复习完队列绝不写今日打卡戳——否则浏览历史顺带把任务 2 点亮
+  const hist = _ctxDate && _ctxDate !== getLocalToday();
+  if (!hist) { try { localStorage.setItem('voco-speak-done', getLocalToday()); } catch (e) {} } // 点亮首页【句型复习打卡】
   const container = document.getElementById('speak-player');
   container.innerHTML = `
     <div class="flex items-center justify-center" style="min-height:calc(100dvh - 92px)">
@@ -4616,11 +4633,28 @@ async function importReport(text) {
     showToast('⚠️ 请先通过格式校验，再确认导入');
     return;
   }
+  // v117 审计修复：互斥锁——成功后 1 秒窗口内防抖校验可能重新启用按钮，禁止并发二次导入
+  if (_importing) return;
+  _importing = true;
 
   const btn = document.getElementById('btn-dialog-submit');
   if (btn) { btn.disabled = true; btn.textContent = '导入中...'; }
   // v116 历史补导：生效日期 = 弹窗日期选择器（默认今天；历史日报由文内识别/手动选择决定）
   const importDate = getImportDate();
+  // v117 审计修复：同用户同日已有日报 → 拒绝导入（防 upsert 静默覆盖旧行 + progress/topics 双计）；
+  // 补导场景（该日无行）不受影响；查重网络异常时放行（宁可重复也绝不卡死正常导入）
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      const { data: dup } = await sb.from('reports').select('id').eq('user_id', session.user.id).eq('date', importDate).limit(1);
+      if (dup && dup.length) {
+        showToast(`⚠️ ${importDate} 已有日报，请勿重复导入`);
+        if (btn) { btn.disabled = false; btn.textContent = '确认导入'; }
+        _importing = false;
+        return;
+      }
+    }
+  } catch (e) { console.warn('[voco] 导入查重跳过（网络异常）', e); }
   try {
     if (_importState.payload.kind === 'json') {
       await importJsonDailyReport(_importState.payload.jsonReport, _importState.payload.cleanedText, importDate);
@@ -4635,6 +4669,7 @@ async function importReport(text) {
     _importState.error = '入库异常：' + String((e && e.message) || e).slice(0, 100) + '（完整堆栈见控制台）';
     renderImportPreview();
     if (btn) { btn.disabled = true; btn.textContent = '确认导入'; }
+    _importing = false;
     return;
   }
 
@@ -4646,6 +4681,7 @@ async function importReport(text) {
   renderImportPreview();
   if (btn) { btn.disabled = true; btn.textContent = '确认导入'; }
   _viewDate = null;
+  _importing = false;
   setTimeout(() => { hideImportDialog(); invalidateHomeData(); loadHome(); }, 1000);
 }
 
@@ -4890,8 +4926,10 @@ async function updateProgress(uid, fluency, accuracy, weak_areas, topic, duratio
   (weak_areas || '').split(/[、,，]/).map(s => s.trim()).filter(Boolean).forEach(w => {
     if (!p.weak_areas.includes(w)) p.weak_areas.push(w);
   });
-  const { count: vCount } = await sb.from('vocabulary').select('*', { count: 'exact', head: true });
-  const { count: eCount } = await sb.from('errors').select('*', { count: 'exact', head: true }).eq('correct_in_review', true);
+  // v117 审计修复：count 必须按 user_id 过滤——两账号拆分后库里并存两个账号的数据，
+  // 不带过滤会把对方行数计进来（单调护栏还会把污染值永久锁死）
+  const { count: vCount } = await sb.from('vocabulary').select('*', { count: 'exact', head: true }).eq('user_id', uid);
+  const { count: eCount } = await sb.from('errors').select('*', { count: 'exact', head: true }).eq('user_id', uid).eq('correct_in_review', true);
   p.words_learned = vCount;
   // v116 单调护栏：数据清理/去重会让 correct_in_review 计数回落，成就数字只增不减
   p.errors_fixed = Math.max(p.errors_fixed || 0, eCount);
@@ -5385,5 +5423,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=116');
+  navigator.serviceWorker.register('/sw.js?v=117');
 }
