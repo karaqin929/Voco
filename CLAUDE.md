@@ -47,12 +47,21 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v115）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v125）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v116）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v126）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
 - **版本号更新铁律（2026-08-18 用户指令）**：代码改完后**先问用户是否还有其他更新统一提交，得到确认后才 +1 版本号并 push**——禁止改完代码直接自推版本。（v98 批次为已部署 v97 的用户反馈 Bug 紧急修复，用户报 Bug 即隐含「修复并上线」授权。）
-- 当前线上：**v115 / voco-v125**（v115 三合一：SRS 翻卡正面简化 + 课前教练契约 + 复习写回加固·50→24 复活根治；此前 v114 熊条对称/SRS 认知重构/嵌套滚动根治 + v105-v113 各批，详见下）。
+- 当前线上：**v116 / voco-v126**（v116 四合一：历史补导日期选择器 + progress 口径硬化 + 熊条长按菜单封杀 + 两账号拆分 SQL 记录档；此前 v115 三合一 + v114 及更早各批，详见下）。
 - **铁律：内容完整 > 排版克制（2026-08-22 用户产品逻辑反转指令）**：口语复盘卡片的私教洞察与例证句（原句/修改/地道/金句）**永远不允许任何截断**（truncate / line-clamp / ellipsis / nowrap 截断一律禁止）——宁可卡片垂直变长，也绝不吞掉一个标点。容器高度必须 auto 自适应。此规则覆盖用户历史指令（v105 单行截断、v109 例证区保持截断），新指令优先。
+- **v116 四合一（已部署 v116/voco-v126，2026-08-26，commit e98805e）**：
+  - **① 历史日报补导日期选择器（用户指令「补」——恢复 8.21/8.22/8.25 三篇被合并误删的日报文本）**：导入弹窗 textarea 下新增 `#dialog-report-date`（默认今天）；`_importDateTouched` 标记手动改动（一旦手动改过，文内自动识别不再覆盖）；`detectReportDate(text)` 三入口正则（Markdown 标题 `# YYYY-MM-DD` / JSON `"date":"…"` / 裸日期兜底）；`renderImportPreview` 预览卡明示「入库日期」；`importReport` 取 `getImportDate()` 传参——JSON 链路 `importJsonDailyReport(jsonReport, rawText, importDate)`、Markdown 链路覆写 `parsed.meta.date`；**updateProgress/topics 仅在 `date === getLocalToday()` 时执行**（历史导入绝不重复计今日 progress——两路径同款护栏）。入库即查重逻辑不变（当日已有日报行则拒绝重复导入）。
+  - **② updateProgress 口径硬化**：`p.words_learned = vCount`（词汇表实际行数）；`p.errors_fixed = Math.max(p.errors_fixed || 0, eCount)`（correct_in_review 行数，**单调护栏只增不减**——历史导入跳过 updateProgress 后，此护栏保证后续正常打卡不会把计数值打低）。
+  - **③ 熊条长按菜单封杀（用户指令：小熊 = 纯 UI 按钮）**：`.bear-img` 三行 CSS（`-webkit-touch-callout` 关 iOS 气泡 / `user-select` 关文字选中 / `-webkit-user-drag` 关拖拽幽灵）+ `draggable="false"` + document 级 `contextmenu` 守卫（仅命中 `.bear-img` 时 preventDefault——Android/新版 iOS 的原生长按菜单不认 CSS，必须 JS 拦）；**坚决不用 pointer-events:none**，`showBearDay` 点击链路完整保留；范围仅熊条小熊（Profile 大头像未动，用户可另行指令）。
+  - **④ 两账号事件 SQL 记录档**（`⚙️ 后端/` 六件套入库）：merge_accounts_2026-08-26.sql（8.26 错误合并执行记录）/ undo_split_2026-08-26.sql（拆分 + 回滚预案 + 守恒终审）/ repair_patterns_fragments.sql / audit_patterns_integrity.sql / audit_errors_integrity.sql / cleanup_errors_broken.sql。
+- **两账号事件（2026-08-25→26 重大事件，教训铁律级）**：
+  - 时间线：8.25 发现 patterns/vocabulary/errors/reports 四表分裂在两个 user_id（`1b9ea5bc` 旧账号 8.13~8.22 + `641d79b5` 8.23~8.25）→ 8.26 上午按「同一用户两个身份」执行合并（全部并入 641d79b5）→ 下午用户澄清 **641d79b5 = radiohann@gmail.com 是另一个人** → 执行拆分（用户数据拆回新账号 `0f1b0fbc` = karaqin929@gmail.com = 用户本人）→ 8.10 数据按用户指令两账号全清 → 守恒终审 10 行全过（patterns 90+20=110 / vocabulary 50+10=60 / errors 40+14=54 / reports 6+4=10 / progress 用户 20s·50w·18e & 对方 4s·10w·0e）。
+  - 后果：用户 8.21/8.22/8.25 三篇日报**文本**在合并步 ④「重叠日期以当前账号为准」被删（对方账号保留副本）；8.10 两账号全清。恢复通道 = v116 导入日期选择器 + 用户从 ChatGPT 复制原文重导（8.17 原文仍在库 id 13）。
+  - **教训（铁律级）**：库里出现多个 user_id 时，第一步必须是问用户「这个账号是你本人吗？是否有其他人用过这台设备/账号？」——**禁止擅自合并**；合并前先核对 auth.users 的 email 归属与用户确认。拆分全程零 DELETE（只改归属 + 补副本），所以永远可回滚——这也是本次能救回来的原因。
 - **v115 三合一（已部署 v115/voco-v125，2026-08-24，commit f70db34）**：
   - **① SRS 翻卡正面简化（用户指令：正面 = 逐字使用对比卡片底部说明行）**：正面两行 = 错误原句锚点 + explanation 总结直搬（📖 灰底框）；v114 设备指令/首字母骨架/解析类锁屏整套抽取管线**物理删除**（isAnalysisExpl/_EXPL_ANALYSIS_HINTS/_DEVICE_HINTS/deviceMatch/deviceContext/deviceFragment/letterSkeleton/toggleSrsHint + srs-card-hint/srs-hint-btn/srs-card-skeleton 元素，grep 零残留）；背面恢复为与对比卡片一致的段落三段式（绿字主句 → 原句小字 → 📖 灰底解析框），提示词重复可接受（用户明确）。
   - **② 课前教练契约 prompt（升级现有灵感舱）**：`_PRE_COACH_CONTRACT` 8 条**全英文**契约——纠错融入交流（有错就纠、没错不纠，绝不编造/挑刺）、引导深挖（提示词引导 → 升级挑战 → 点破错误根因 pattern，建立语感而非背规则）、自然衔接课后日报（课上只陪练，沉淀课后做）、真人私教节奏；组装顺序 = 契约 → 可选话题 → URL → 灵感，三输入全空也允许生成（纯契约自由开场，防空 guard 删除）。
