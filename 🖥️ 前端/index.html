@@ -12,7 +12,8 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=117">
+  <link rel="preload" href="/bear-head-default.png" as="image">
+  <link rel="stylesheet" href="/style.css?v=118">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -137,7 +138,9 @@
 <!-- ═══════════════════════════════ Login ═══════════════════════════════ -->
 <div id="login-screen" style="display:none;">
   <div class="login-card">
-    <div class="login-icon">🐻</div>
+    <!-- v118 修复：登录页小熊由 v5.0 起硬编码的 emoji 换为真 PNG 熊头；PNG 加载失败仍优雅回退 emoji -->
+    <div class="login-icon"><img src="/bear-head-default.png" alt="🐻" style="width:72px;height:72px;object-fit:contain;display:inline-block"
+      onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-6xl>🐻</span>')"></div>
     <h1>Voco</h1>
     <p class="login-sub">追踪你的英语口语进步</p>
     <button id="btn-login" class="btn-login">
@@ -492,8 +495,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=117"></script>
-<script src="/parser.js?v=117"></script>
-<script src="/app.js?v=117"></script>
+<script src="/supabase-client.js?v=118"></script>
+<script src="/parser.js?v=118"></script>
+<script src="/app.js?v=118"></script>
 </body>
 </html>
