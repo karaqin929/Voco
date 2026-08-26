@@ -47,12 +47,22 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v116）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v126）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v117）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v127）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
 - **版本号更新铁律（2026-08-18 用户指令）**：代码改完后**先问用户是否还有其他更新统一提交，得到确认后才 +1 版本号并 push**——禁止改完代码直接自推版本。（v98 批次为已部署 v97 的用户反馈 Bug 紧急修复，用户报 Bug 即隐含「修复并上线」授权。）
-- 当前线上：**v116 / voco-v126**（v116 四合一：历史补导日期选择器 + progress 口径硬化 + 熊条长按菜单封杀 + 两账号拆分 SQL 记录档；此前 v115 三合一 + v114 及更早各批，详见下）。
+- 当前线上：**v117 / voco-v127**（v117 全盘审计修复十处：progress 账号过滤 + 导入同日查重/互斥锁 + 日期兜底收敛 + 历史视图曲线/打卡戳守卫 + 错题全行推进 + 月历恒真修复；此前 v116 四合一 + v115 三合一及更早各批，详见下）。
 - **铁律：内容完整 > 排版克制（2026-08-22 用户产品逻辑反转指令）**：口语复盘卡片的私教洞察与例证句（原句/修改/地道/金句）**永远不允许任何截断**（truncate / line-clamp / ellipsis / nowrap 截断一律禁止）——宁可卡片垂直变长，也绝不吞掉一个标点。容器高度必须 auto 自适应。此规则覆盖用户历史指令（v105 单行截断、v109 例证区保持截断），新指令优先。
+- **v117 全盘审计修复十处（已部署 v117/voco-v127，2026-08-26，commit eda0a0d）**：三路并行逐行审计（打卡三链路 + 14 点击入口）后确认的 10 处缺陷全部修复，报告 `⚙️ 后端/audit_2026-08-26.md`：
+  - **F1【高危·跨账号污染】** updateProgress 两处 count 补 `.eq('user_id', uid)`——拆分后两账号并存，无过滤会把对方行数计进且单调护栏锁死污染值。
+  - **F2【高·双计】** importReport 新增同日查重（reports 已有 (user,date) 行 → toast 拒绝）——堵住 upsert 静默覆盖 + progress/topics 双计；补导场景（该日无行）不受影响。
+  - **F3/F4/F5 日期选择器收敛**：识别不到日期回落今天（防弹窗内换贴残留）；JSON 意图禁用裸日期兜底（内容值日期不再误命中，只认 "date" 键，Markdown 保留裸日期）；date input max=今天（封死未来日期）。
+  - **F6** `_importing` 互斥锁——防成功后 1 秒窗口内二次提交。
+  - **F7【高·曲线重置】** reviewPatternItem 的 sm2 计算移到锚点卡命中库行重绑**之后**——历史视图复习不再把真实曲线重置为全新卡（interval 回到 1）。
+  - **F8【高·打卡戳污染】** showSrsDone 历史视图（_ctxDate 非今日）跳过写 voco-speak-done——浏览历史不再误亮任务 2。
+  - **F9【中·重复行永久到期】** reviewErrorItem limit(1) → 同「原句+正句」重复行全部到期行一并推进（对齐词汇 resolveVocabRows 口径）。
+  - **F10** pickCalendarDay `!!(_dateScoreCache[ds] || {})` 恒真 → `!!_dateScoreCache[ds]`——月历跳无数据日恢复「未打卡」toast。
+  - 已知取舍（记录不修）：完成戳与写回成功脱钩（v115 设计）；due 复习不写 correct_in_review（v99 设计，SQL 清理脚本负责）；15 句截断 vs 打卡完成语义；入库非事务（文本查重自愈）；words_learned 非单调（实际行数口径）。
 - **v116 四合一（已部署 v116/voco-v126，2026-08-26，commit e98805e）**：
   - **① 历史日报补导日期选择器（用户指令「补」——恢复 8.21/8.22/8.25 三篇被合并误删的日报文本）**：导入弹窗 textarea 下新增 `#dialog-report-date`（默认今天）；`_importDateTouched` 标记手动改动（一旦手动改过，文内自动识别不再覆盖）；`detectReportDate(text)` 三入口正则（Markdown 标题 `# YYYY-MM-DD` / JSON `"date":"…"` / 裸日期兜底）；`renderImportPreview` 预览卡明示「入库日期」；`importReport` 取 `getImportDate()` 传参——JSON 链路 `importJsonDailyReport(jsonReport, rawText, importDate)`、Markdown 链路覆写 `parsed.meta.date`；**updateProgress/topics 仅在 `date === getLocalToday()` 时执行**（历史导入绝不重复计今日 progress——两路径同款护栏）。入库即查重逻辑不变（当日已有日报行则拒绝重复导入）。
   - **② updateProgress 口径硬化**：`p.words_learned = vCount`（词汇表实际行数）；`p.errors_fixed = Math.max(p.errors_fixed || 0, eCount)`（correct_in_review 行数，**单调护栏只增不减**——历史导入跳过 updateProgress 后，此护栏保证后续正常打卡不会把计数值打低）。
