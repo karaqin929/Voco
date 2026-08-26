@@ -623,7 +623,7 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
     <div class="grid overflow-x-auto hide-scrollbar gap-1 pt-2 pb-1 pl-1 pr-1 -ml-1 -mr-1" id="streak-strip" style="overflow-x:auto;grid-auto-flow:column;${days.length ? `grid-template-columns:repeat(${days.length-1},calc((100% - 24px)/6 - 4px)) 24px` : 'grid-auto-columns:14.28%'}">
       ${days.map(d => `
         <div class="flex flex-col items-start gap-px cursor-pointer" onclick="showBearDay('${d.date}',${d.active})">
-          <img class="w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===selected?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
+          <img class="bear-img w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===selected?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" draggable="false" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
           <span class="text-[0.6875rem] whitespace-nowrap text-left ${d.date===selected ? 'text-[var(--c-primary)] font-bold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
         </div>
       `).join('')}
@@ -803,22 +803,40 @@ function mergeReportVocab(snapshot, reportParsed) {
 }
 // 句型/表达条目打标：唯一 id + isTodayCore + needsReview + 标准嵌套字段（targetSentence/replacedSentence/explanation）
 // 碎片数组合并映射：better→targetSentence / original→replacedSentence / scene→explanation
+// v116 卡型归一化（用户 Bug 报告：翻卡格式混乱、原句=修改句）——patterns 表混入 5 条导入路径的不同形状行，
+// 渲染层曾按单一「纠错卡」形状渲染 → 金句卡正面无提示背面单句、仅原句行把用户原句当绿色正确句（训练目标错误）。
+// 归一化规则（只读内存层，零写库）：
+//   ① 文本归一（小写 + 空白折叠）后 original == better → 原句置空 → 纯金句卡（背面不再出现「原句=正句」重复行）
+//   ② better 缺失（仅原句/全空）→ incomplete 残缺卡：无正确句可训练 → 强制出队（绝不把用户原句当模板复述）
+//   ③ 卡型三分类：correction（原句+正句、文本不同）/ expression（仅正句，金句卡）/ broken（无正句）
+// 队列口径：getDueSentencesQueue 只收 needsReview===true 且非 incomplete 的行 —— 首页待办任务 2 数字同源自愈
 function stampPatternTags(patterns) {
   const today = getLocalToday();
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  // v116：占位符 = 缺失（'历史表达'/'历史错题'/'历史导入内容' 是清洗层注入的占位文本，绝不当真实内容渲染/训练）
+  const real = s => { const t = norm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
   return (patterns || []).map((p, index) => {
     const base = (p && typeof p === 'object') ? { ...p } : {};
-    const better = base.better || base.targetSentence || (typeof p === 'string' ? p : '');
-    const original = base.original || base.replacedSentence || '';
+    let better = base.better || base.targetSentence || (typeof p === 'string' ? p : '');
+    let original = base.original || base.replacedSentence || '';
+    if (!real(better)) better = '';
+    if (!real(original)) original = '';
+    if (better && original && norm(better) === norm(original)) original = ''; // ① 原句=正句 → 金句卡
+    const cardKind = better ? (original ? 'correction' : 'expression') : 'broken'; // ②③
     const tagged = {
       ...base,
       id: base.id || `pat_${index}`,
       targetSentence: better || original || '',
       replacedSentence: original,
       explanation: base.explanation || base.scene || '',
-      isTodayCore: base.isTodayCore !== undefined ? base.isTodayCore : (base.is_core === true)
+      isTodayCore: base.isTodayCore !== undefined ? base.isTodayCore : (base.is_core === true),
+      cardKind,
+      incomplete: cardKind === 'broken'
     };
     // 句型 SRS：SM-2 到期判定与单词同源（无 next_review_date → 未复习过 → 到期；mastered → 永久出队）
     if (tagged.needsReview === undefined) tagged.needsReview = isDueBySrs(tagged, today);
+    // 残缺卡隔离：无正确句不可训练 —— 强制出队（读时门，DB 行不动，SQL 审计可见）
+    if (tagged.incomplete && tagged.needsReview) tagged.needsReview = false;
     return tagged;
   });
 }
@@ -838,7 +856,7 @@ function dedupePatternsByText(list) {
   });
   const out = [];
   for (const { p } of scored) {
-    const k = String(p.targetSentence || p.better || p.original || '').toLowerCase().trim();
+    const k = String(p.targetSentence || p.better || p.original || '').replace(/\s+/g, ' ').trim().toLowerCase();
     if (!k || seen.has(k)) continue;
     seen.add(k);
     out.push(p);
@@ -1363,11 +1381,16 @@ function normalizeDailyData(rawDailyData) {
   if (Array.isArray(d.grammar)) {
     d.grammar = d.grammar.map((g, index) => {
       const base = (g && typeof g === 'object') ? { ...g } : {};
-      const original = base.original || ((g && typeof g === 'string') ? g : '历史错题');
-      return { ...base, id: base.id || `err_${index}`, original, correction: base.correction || '', rule: base.rule || '' };
+      let original = base.original || ((g && typeof g === 'string') ? g : '历史错题');
+      const correction = base.correction || '';
+      // v116：原句=正句（GPT echo）→ 原句置空（渲染层绝不出现「原句=修改句」重复行）
+      if (original && correction && String(original).replace(/\s+/g, ' ').trim().toLowerCase() === String(correction).replace(/\s+/g, ' ').trim().toLowerCase()) original = '';
+      return { ...base, id: base.id || `err_${index}`, original, correction, rule: base.rule || '' };
     });
   }
   if (Array.isArray(d.patterns)) {
+    // v116：better 为空的半截条目（只有原句、无地道版）整体过滤 —— 否则用户原句会被绿字顶成「地道表达」，
+    // SRS 队列也会把原句当正确句训练。原始日报仍整篇归档 reports 表，零数据丢失（展示层过滤）
     d.patterns = d.patterns.map((p, index) => {
       const base = (p && typeof p === 'object') ? { ...p } : {};
       const better = base.better || base.targetSentence || (typeof p === 'string' ? p : '');
@@ -1384,7 +1407,7 @@ function normalizeDailyData(rawDailyData) {
         explanation: base.explanation || base.scene || '',
         isTodayCore: base.isTodayCore !== undefined ? base.isTodayCore : (base.is_core === true)
       };
-    });
+    }).filter(x => x && String(x.better || '').trim());
   }
   return d;
 }
@@ -1607,9 +1630,12 @@ function normalizeJsonReport(j, raw) {
     grammar,
     pronunciation,
     patterns,
+    // v116：replacedSentence / explanation 拆成独立键（旧版把两者 join(' — ') 塞进 example 单键 →
+    // 核心句型列表「原句」行永远缺失、解析框混着原句+解析）—— coreDeck / renderCoreList / 入库三处同源受益
     sentence_patterns: core.filter(c => c && c.targetSentence).map(c => ({
       pattern: c.targetSentence,
-      example: [c.replacedSentence, c.explanation].filter(Boolean).join(' — '),
+      replacedSentence: c.replacedSentence || '',
+      explanation: c.explanation || '',
       isTodayCore: true          // 自动打标：核心句型布尔过滤直接命中
     })),
     vocabulary: words.filter(w => w && w.word).map(w => ({
@@ -1652,6 +1678,22 @@ function normalizeJsonReport(j, raw) {
 const _importState = { status: 'idle', error: '', preview: null, payload: null };
 let _importDebounceTimer = null;
 const IMPORT_DEBOUNCE_MS = 350;
+// v116 历史日报补导：入库日期选择器状态（手动改过日期则不再被文内识别日期覆盖）
+let _importDateTouched = false;
+
+function getImportDate() {
+  const el = document.getElementById('dialog-report-date');
+  const v = el && el.value ? String(el.value).trim() : '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : getLocalToday();
+}
+
+// 文内日期识别：Markdown 标题行（# 2026-08-17 …）/ JSON "date" 字段 → 历史日报补导自动落位
+function detectReportDate(text) {
+  const s = String(text || '');
+  let m = s.match(/^\s*#+\s*(20\d{2}-\d{2}-\d{2})/m) || s.match(/"date"\s*:\s*"(20\d{2}-\d{2}-\d{2})"/i);
+  if (!m) m = s.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  return m ? m[1] : null;
+}
 
 // ── 实时校验器（纯函数）：输入文本 → 校验结果 + 入库产物 ──
 function validateImportInput(text) {
@@ -1761,7 +1803,7 @@ function renderImportPreview() {
         <div class="grid grid-cols-4 gap-1.5">
           ${scoreCell('流利度', p.fluency)}${scoreCell('准确度', p.accuracy)}${scoreCell('自然度', p.naturalness)}${scoreCell('词汇', p.vocabulary)}
         </div>
-        ${p.topic ? `<div class="mt-2 text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">话题：${h(p.topic)}<span class="ml-2 text-[var(--c-text-ultradim)]">入库日期 ${p.date}</span></div>` : ''}
+        <div class="mt-2 text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">${p.topic ? `话题：${h(p.topic)} · ` : ''}入库日期 <span class="font-semibold text-[var(--c-text)]">${getImportDate()}</span></div>
       </div>`;
     setImportSubmitEnabled(true);
     return;
@@ -1790,6 +1832,12 @@ function onImportInput() {
     _importState.error = result.error;
     _importState.preview = result.preview;
     _importState.payload = result.payload;
+    // v116 历史补导：文内日期自动填入（用户手动改过日期则尊重用户选择，不覆盖）
+    if (!_importDateTouched) {
+      const found = detectReportDate(text);
+      const dateEl = document.getElementById('dialog-report-date');
+      if (found && dateEl) dateEl.value = found;
+    }
     renderImportPreview();
   }, IMPORT_DEBOUNCE_MS);
 }
@@ -1799,6 +1847,10 @@ function showImportDialog() {
   dlg.classList.remove('hidden');
   const ta = document.getElementById('dialog-report-input');
   if (ta) { ta.value = ''; setTimeout(() => ta.focus(), 50); }
+  // v116 历史补导：日期选择器默认今天，打开即复位自动填入标记
+  const dateEl = document.getElementById('dialog-report-date');
+  if (dateEl) dateEl.value = getLocalToday();
+  _importDateTouched = false;
   clearTimeout(_importDebounceTimer);
   _importState.status = 'idle'; _importState.error = ''; _importState.preview = null; _importState.payload = null;
   renderImportPreview();
@@ -2007,7 +2059,7 @@ function hideAuditDialog() {
 
 // ═══════════════════════════════════════════════════════════════
 // v105 全局体检 runGlobalAudit（用户指令）：浏览器 Console 一键触发（runGlobalAudit()），
-// 7 模块顺序巡检，后台静默运行，Console 输出 ✅/❌ 结构化体检报告 + 成功/失败统计汇总。
+// 9 模块顺序巡检，后台静默运行，Console 输出 ✅/❌ 结构化体检报告 + 成功/失败统计汇总。
 // 设计铁律：
 //  ① 巡检绝不写库——所有「模拟点击」只走导航/渲染/队列构建链路，绝不触发 SM-2 反馈与导入；
 //     每个模块结束时全局状态与 URL 100% 还原，体检本身零副作用；
@@ -2444,12 +2496,102 @@ async function auditModule7() {
   else _auditFail(`SM-2 防腐化：${bad}/${total} 张卡数据腐化（NaN/null/负数/坏日期）`, badSamples.join(' · '));
 }
 
+// ── 模块八：句型卡数据完整性（v116 卡型三分类 correction / expression / broken）──
+// 断言 A 打标完整 + correction 无回声（原句≠正句）｜B 残缺卡隔离（incomplete + 绝不入队）
+// 断言 C SRS 队列纯净（全部含真实正确句 + 单日 ≤ PATTERN_SESSION_CAP）｜D 今日日报解析层过滤生效
+async function auditModule8() {
+  if (!_patternLibrary.length) { try { await loadSpeak(); } catch (e) { /* 网络失败交由 SKIP */ } }
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const real = s => { const t = norm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
+  const lib = _patternLibrary || [];
+  if (!lib.length) { _auditSkip('句型卡数据完整性', '句型库为空（无任何卡片可巡检）'); return; }
+
+  // 信息报表：卡型分布（只读展示，不参与通过/失败判定）
+  const dist = { correction: 0, expression: 0, broken: 0, unstamped: 0 };
+  for (const p of lib) {
+    if (p.cardKind) dist[p.cardKind] = (dist[p.cardKind] || 0) + 1;
+    else dist.unstamped++;
+  }
+  console.log('%c📊 句型库卡型分布：纠错卡 ' + dist.correction + ' · 金句卡 ' + dist.expression + ' · 残缺卡 ' + dist.broken + (dist.unstamped ? ' · 未打标 ' + dist.unstamped : '') + '（共 ' + lib.length + ' 张）', 'color:#5b7a9d');
+
+  // 断言 A：全部打标 + correction 卡必须带真实原句且原句≠正句（回声卡杜绝）
+  const echoSamples = []; let badStamp = 0;
+  for (const p of lib) {
+    if (!p.cardKind) badStamp++;
+    if (p.cardKind === 'correction') {
+      if (!real(p.replacedSentence) || norm(p.replacedSentence) === norm(p.targetSentence)) {
+        badStamp++;
+        if (echoSamples.length < 3) echoSamples.push(`id=${p.id} 原句「${p.replacedSentence}」≈ 正句「${p.targetSentence}」`);
+      }
+    }
+  }
+  if (!badStamp) _auditPass(`句型卡打标：${lib.length} 张全部完成 stampPatternTags 分类，correction 卡无回声（原句≠正句）`);
+  else _auditFail(`句型卡打标：${badStamp} 张异常（未打标或原句=正句回声）`, echoSamples.join(' · '));
+
+  // 断言 B：残缺卡隔离 —— broken 必须 incomplete=true 且 needsReview=false，绝不混入 SRS 队列
+  const brokenRows = lib.filter(p => p.cardKind === 'broken');
+  const brokenLeak = brokenRows.filter(p => p.incomplete !== true || p.needsReview === true);
+  const queue = getDueSentencesQueue(lib);
+  const brokenInQueue = queue.filter(q => q.cardKind === 'broken' || !q.targetSentence);
+  if (!brokenLeak.length) _auditPass(`残缺卡隔离：${brokenRows.length} 张 broken 全部置 incomplete + needsReview=false（强制出队）`);
+  else _auditFail(`残缺卡隔离：${brokenLeak.length} 张 broken 未被隔离（可能混入 SRS 队列）`, brokenLeak.map(p => `id=${p.id}`).join(' · '));
+
+  // 断言 C：队列纯净 —— 队内每张卡都有真实正确句，且未超单日上限
+  const badQueue = queue.filter(q => !real(q.targetSentence));
+  const capOk = queue.length <= PATTERN_SESSION_CAP;
+  if (!brokenInQueue.length && !badQueue.length && capOk) _auditPass(`SRS 队列纯净：${queue.length} 张待复习卡全部含真实正确句，无 broken 混入，未超单日上限 ${PATTERN_SESSION_CAP} 句`);
+  else _auditFail(`SRS 队列污染：broken 混入 ${brokenInQueue.length} · 无正确句 ${badQueue.length} · 队满 ${queue.length}/${PATTERN_SESSION_CAP}`, brokenInQueue.concat(badQueue).map(q => q.targetSentence || String(q.id)).join(' · '));
+
+  // 断言 D：今日日报解析层过滤 —— _reportParsed 的 patterns / 核心句型无半截条目、无回声
+  const rp = _reportParsed;
+  if (rp) {
+    const pats = Array.isArray(rp.patterns) ? rp.patterns : [];
+    const sps = Array.isArray(rp.sentence_patterns) ? rp.sentence_patterns : [];
+    const badPats = pats.filter(p => !p || !real(p.better));
+    const echoPats = pats.filter(p => p && real(p.better) && norm(p.better) === norm(p.original));
+    const badSps = sps.filter(s => !s || !real(s.targetSentence));
+    if (!badPats.length && !echoPats.length && !badSps.length) _auditPass(`今日日报解析层：patterns ${pats.length} 条 / 核心句型 ${sps.length} 条全部完整（无半截、无回声）`);
+    else _auditFail(`今日日报解析层存在脏数据：半截 patterns ${badPats.length} · 回声 ${echoPats.length} · 无正句核心句型 ${badSps.length}`, [].concat(badPats, echoPats, badSps).slice(0, 3).map(x => String(JSON.stringify(x)).slice(0, 80)).join(' · '));
+  } else {
+    _auditPass('今日日报解析层：今日无日报（_reportParsed 为空），无过滤断言可跑');
+  }
+}
+
+// ── 模块九：错题库内容完整性（v116：占位符原句 / 无正确句 / 原句=正句回声 三形态防线）──
+// 断言 A 错题 SM-2 队列纯净（dueErrorCards 内容门生效）｜B 今日日报解析层 grammar 无回声
+async function auditModule9() {
+  if (!_errorsAll.length && !_wordsAll.length && !_patternLibrary.length) { try { await loadWords(); } catch (e) { /* 网络失败交由 SKIP */ } }
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const real = s => { const t = norm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
+  const rows = _errorsAll || [];
+  // 信息报表：错题形状分布（只读展示，不参与通过/失败判定）
+  const dist = { total: rows.length, echo: 0, noCorrection: 0, placeholderOrig: 0, pronunciation: 0 };
+  for (const e of rows) {
+    if (e.type === 'pronunciation') dist.pronunciation++;
+    else if (real(e.original) && real(e.correction) && norm(e.original) === norm(e.correction)) dist.echo++;
+    else if (real(e.original) && !real(e.correction)) dist.noCorrection++;
+    else if (!real(e.original)) dist.placeholderOrig++;
+  }
+  const valid = dist.total - dist.echo - dist.noCorrection - dist.placeholderOrig - dist.pronunciation;
+  console.log('%c📊 错题库形状分布：完整对 ' + valid + ' · 回声 ' + dist.echo + ' · 无正句 ' + dist.noCorrection + ' · 占位原句 ' + dist.placeholderOrig + ' · 发音行 ' + dist.pronunciation + '（共 ' + dist.total + ' 行）', 'color:#5b7a9d');
+  // 断言 A：错题队列纯净 —— dueErrorCards 出队卡全部有真实原句+正句且非回声（内容门生效）
+  const cards = dueErrorCards();
+  const bad = cards.filter(c => !real(c.original) || !real(c.correction) || norm(c.original) === norm(c.correction));
+  if (!bad.length) _auditPass(`错题队列纯净：${cards.length} 张待复习错题全部含真实原句+正句、无回声、无占位`);
+  else _auditFail(`错题队列污染：${bad.length} 张脏卡混入（占位原句/无正句/回声）`, bad.slice(0, 3).map(c => `原句「${c.original}」/ 正句「${c.correction}」`).join(' · '));
+  // 断言 B：今日日报解析层 —— grammar 无回声条目（normalizeDailyData v116 回声剥离生效）
+  const g = (_reportParsed && Array.isArray(_reportParsed.grammar)) ? _reportParsed.grammar : [];
+  const echoG = g.filter(e => e && real(e.original) && real(e.correction) && norm(e.original) === norm(e.correction));
+  if (!echoG.length) _auditPass(`今日日报解析层：grammar ${g.length} 条无回声（原句≠正句）`);
+  else _auditFail(`今日日报解析层：${echoG.length} 条回声未被剥离`, echoG.slice(0, 3).map(e => String(e.original).slice(0, 60)).join(' · '));
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 体检总入口：Console 输入 runGlobalAudit() 一键执行（async 链式顺序巡检）
 // ═══════════════════════════════════════════════════════════════
 async function runGlobalAudit() {
   _auditStats = { total: 0, pass: 0, fail: 0, skip: 0, fails: [] };
-  console.log('%c\n🧭 Voco 全局体检（v107 · 7 模块巡检）', 'font-weight:bold;font-size:15px;color:#3E3535');
+  console.log('%c\n🧭 Voco 全局体检（v116 · 9 模块巡检）', 'font-weight:bold;font-size:15px;color:#3E3535');
   console.log('%c巡检日期：' + getLocalToday() + ' · 巡检过程零写库、零反馈推进，结束后页面状态 100% 还原', 'color:#8C7C7C;font-size:11px');
   const snap = _auditSnapshot();
   // 今日语境锚定：清历史视图残留，保证各模块断言确定（结束统一还原）
@@ -2466,6 +2608,8 @@ async function runGlobalAudit() {
   await module('模块五：极限空态拦截', auditModule5);
   await module('模块六：状态清理与防泄漏', auditModule6);
   await module('模块七：SM-2 记忆库防腐化', auditModule7);
+  await module('模块八：句型卡数据完整性', auditModule8);
+  await module('模块九：错题库内容完整性', auditModule9);
   _auditRestore(snap);
   await _auditGoHome().catch(() => {});
   const s = _auditStats;
@@ -2475,7 +2619,7 @@ async function runGlobalAudit() {
     console.log('%c失败清单：', 'color:#c62828;font-weight:bold');
     s.fails.forEach(f => console.log('%c❌ ' + f.label + (f.detail ? ' —— ' + f.detail : ''), 'color:#c62828'));
   }
-  console.log(s.fail ? '%c⚠️ 存在 ' + s.fail + ' 项失败，请逐项排查后重跑' : '%c🎉 全部通过 —— 七模块健康度 100%', 'font-weight:bold;color:' + (s.fail ? '#c62828' : '#2e7d32'));
+  console.log(s.fail ? '%c⚠️ 存在 ' + s.fail + ' 项失败，请逐项排查后重跑' : '%c🎉 全部通过 —— 九模块健康度 100%', 'font-weight:bold;color:' + (s.fail ? '#c62828' : '#2e7d32'));
   return _auditStats;
 }
 
@@ -2753,10 +2897,14 @@ function allGrammarErrors() {
 // 复习后按 1→6→间隔×EF 推进；5 次 good → mastered 永久出队；correct_in_review=true（历史清理行）永久出队。
 // 与 v97 相比：不再以「今日语境错题 − 已纠正签名」推算（today-first 口径会破坏曲线节律），
 // 改为 DB 驱动 —— _errorsAll 行由全局输入构建器统一碎片合并，可直接消费，ref 挂载原始行供 reviewErrorItem 写回
+// v116 内容完整性门（与句型卡 stampPatternTags 同口径）：占位符原句（历史错题）/ 无正确句 / 原句=正句回声
+// 一律不入队 —— SM-2 只调度「何时复习」，内容完整性由本门把关（读时门，DB 行不动，SQL 审计可见）
 function dueErrorCards() {
   const today = getLocalToday();
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const real = s => { const t = norm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
   return (_errorsAll || [])
-    .filter(e => e && e.original && e.type !== 'pronunciation'
+    .filter(e => e && real(e.original) && e.type !== 'pronunciation'
       && !e.correct_in_review && !e.mastered
       && (!e.next_review_date || e.next_review_date <= today))
     .map(e => ({
@@ -2767,7 +2915,8 @@ function dueErrorCards() {
       rule: e.rule || '',
       type: 'grammar',
       ref: e
-    }));
+    }))
+    .filter(c => real(c.correction) && norm(c.correction) !== norm(c.original));
 }
 // 错题 SM-2 推进 + 落库（与 reviewPatternItem/reviewWordItem 同构）：again(0)/good(3) 均写回曲线；
 // 按「原句+正句」查 errors 表行更新 SM-2 列；库行缺失（今日新错题未入库/演示态）→ 仅本地快照，静默降级
@@ -2878,7 +3027,13 @@ function standardizeErrorCards(rawItems) {
     }
     merged.push(item);
   }
-  return merged.map((m, i) => ({ ...m, id: m.id || `err_${i}` }));
+  // v116 占位剥离：清洗层注入的「历史错题/历史表达/历史导入内容」原句绝不渲染（对照行消失，绿色正确句为主视觉不受影响）；
+  // 剥离后原句与正句双空的行整体过滤 —— 空壳卡绝不渲染（getDayCounts 与列表同函数，计数自动一致）
+  return merged.map((m, i) => ({
+    ...m,
+    id: m.id || `err_${i}`,
+    original: (m.original === '历史错题' || m.original === '历史表达' || m.original === '历史导入内容') ? '' : m.original
+  })).filter(m => m.correction || m.original);
 }
 
 // ── 模块三：复习页严格三 Tab（全部词汇 / 语法错题 / 待复习）────────────────
@@ -3181,11 +3336,11 @@ async function reviewPatternItem(p, quality) {
     // v104 文本锚定 UPSERT（SM-2 队列断层修复核心）：导入瞬间已入库的句子，首次复习绝不盲 INSERT 第二行——
     // 按 better/targetSentence 与 original/replacedSentence 归一化文本（小写去空白）在 _speakAll 打标库中定位既有行，
     // 命中 → 以既有行身份走 UPDATE（其 SM-2 字段从零起步，与 INSERT 语义等价但零重复）；未命中 → 走 INSERT
-    const tKey = String(p.targetSentence || '').toLowerCase().trim();
-    const oKey = String(p.replacedSentence || '').toLowerCase().trim();
+    const tKey = String(p.targetSentence || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const oKey = String(p.replacedSentence || '').replace(/\s+/g, ' ').trim().toLowerCase();
     const hit = (_speakAll || []).find(r => {
-      const b = String(r.better || r.targetSentence || '').toLowerCase().trim();
-      const o = String(r.original || r.replacedSentence || '').toLowerCase().trim();
+      const b = String(r.better || r.targetSentence || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const o = String(r.original || r.replacedSentence || '').replace(/\s+/g, ' ').trim().toLowerCase();
       return (tKey && b === tKey) || (oKey && o === oKey);
     });
     if (hit) { p = hit; isDbRow = true; }
@@ -3602,7 +3757,10 @@ function renderSpeakRoute() {
       // 先去 _patternLibrary 按 targetSentence 文本精确匹配，命中即以完整记录入队（解析/场景/SM-2 字段全带齐）；
       // 全库也没有才建空解析 sentence-anchor 卡 —— 「暂无解析」从此只代表数据真缺失
       const libHit = (_patternLibrary || []).find(p => String(p.targetSentence || '').toLowerCase().trim() === String(anchorText).toLowerCase().trim());
-      sentences = [libHit ? toPlayerItem(libHit) : { id: 'sentence-anchor', targetSentence: anchorText, replacedSentence: '', explanation: '', isTodayCore: false }].concat(sentences || []);
+      // v116：残缺行（无正确句）不参与锚定 —— 命中残缺行时退化为 sentence-anchor 卡（金句卡语义，绝不把原句当模板）
+      const anchorCard = (libHit && libHit.cardKind !== 'broken') ? toPlayerItem(libHit)
+        : { id: 'sentence-anchor', targetSentence: anchorText, replacedSentence: '', explanation: '', isTodayCore: false, cardKind: 'expression' };
+      sentences = [anchorCard].concat(sentences || []);
       startIndex = 0;
     }
   }
@@ -3644,11 +3802,19 @@ function switchSpeakView(view) {
 
 // ═══ v104 对比阅读卡片（跳转页 · 用户指令）：主视觉 = Improved/Target 正确句（绿），
 //     辅助视觉 = Original/Replaced 原句（灰小字），底部 = Explanation 解析框 —— 零挖空、零填空 ═══
+// v116 数据形状防御：① 原句与主句归一化相同 → 不重复渲染原句行（原句=正句脏行不再双显示）
+//                  ② 占位符文本（历史表达/历史导入内容/历史错题）→ 视为缺失，绝不渲染
 function comparisonCardHTML(main, original, note) {
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const real = s => { const t = norm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
+  const mainOK = real(main) ? String(main).trim() : '';
+  const origOK = real(original) ? String(original).trim() : '';
+  const noteOK = real(note) ? String(note).trim() : '';
+  const showOrig = origOK && norm(origOK) !== norm(mainOK);
   return `<div class="err-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)] transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
-    ${main ? `<div class="text-xl font-bold mb-1.5 text-[var(--c-green)]">${h(main)}</div>` : ''}
-    ${original ? `<div class="text-xs text-[var(--c-text-ultradim)] mb-2">原句：${h(original)}</div>` : ''}
-    ${note ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg">📖 ${h(note)}</div>` : ''}
+    ${mainOK ? `<div class="text-xl font-bold mb-1.5 text-[var(--c-green)]">${h(mainOK)}</div>` : ''}
+    ${showOrig ? `<div class="text-xs text-[var(--c-text-ultradim)] mb-2">原句：${h(origOK)}</div>` : ''}
+    ${noteOK ? `<div class="text-xs text-[var(--c-text-dim)] bg-[var(--c-bg)] p-2 rounded-lg">📖 ${h(noteOK)}</div>` : ''}
   </div>`;
 }
 
@@ -3693,10 +3859,11 @@ function speakListEmpty(label) {
 
 // 自然表达列表：该日日报 patterns（mistakes 过滤 expression）→ 对比阅读卡片
 // 主句 = better（地道升级句），原句 = original，解析 = scene（无 scene 降级 pattern 根因）
+// v116：better 为空的半截条目（只有原句、无地道版）绝不渲染 —— 否则用户原句会被绿字顶成「地道表达」
 function renderExpressionList() {
   const container = document.getElementById('speak-player');
   const dp = parsedReportFor(_ctxDate || getLocalToday());
-  const items = (dp && dp.patterns) || [];
+  const items = ((dp && dp.patterns) || []).filter(x => x && String(x.better || x.targetSentence || '').trim());
   if (!items.length) { container.innerHTML = speakListEmpty('自然表达'); refreshIcons(container); return; }
   container.innerHTML = speakListHeader(items.length, '自然表达', '条') + items.map(x =>
     comparisonCardHTML(
@@ -3760,7 +3927,8 @@ function getDueSentencesQueue(speakAll) {
   const dueCards = [];
   for (const p of (speakAll || [])) {
     if (p.needsReview !== true) continue;
-    const k = String(p.targetSentence || p.better || p.original || '').toLowerCase().trim();
+    if (p.incomplete) continue; // v116：残缺卡（无正确句）绝不入队 —— stamp 层已强制 needsReview=false，此处兜底
+    const k = String(p.targetSentence || p.better || p.original || '').replace(/\s+/g, ' ').trim().toLowerCase();
     if (!k || seen.has(k)) continue;
     seen.add(k);
     if (!p.next_review_date) newCards.push(p); else dueCards.push(p);
@@ -3772,6 +3940,7 @@ function getDueSentencesQueue(speakAll) {
 
 // 词条 → 提词器句子：兼容两种数据形状（嵌套对象 targetSentence / 云端 better+original+scene）
 // 碎裂防护：主句缺失降级为原句，绝不允许空主句卡片；唯一 id 随条目流转（路由锚定）
+// v116：cardKind 随条目流转（stamp 层分类 → 渲染层按卡型分流）；云端形状分支同样按 better/original 现场分类
 function toPlayerItem(p) {
   if (p && p.targetSentence !== undefined) {
     return {
@@ -3779,16 +3948,21 @@ function toPlayerItem(p) {
       targetSentence: p.targetSentence,
       replacedSentence: p.replacedSentence || '',
       explanation: p.explanation || '',
-      isTodayCore: p.isTodayCore, is_core: p.is_core
+      isTodayCore: p.isTodayCore, is_core: p.is_core,
+      cardKind: p.cardKind || (p.targetSentence ? (p.replacedSentence ? 'correction' : 'expression') : 'broken'),
+      sourceTopic: p.source_topic || '', dateAdded: p.date_added || ''
     };
   }
   const main = p.better || p.original || '';
+  const orig = p.better ? (p.original || '') : '';
   return {
     id: p.id,
     targetSentence: main,
-    replacedSentence: p.better ? (p.original || '') : '',
+    replacedSentence: orig,
     explanation: p.scene || '',
-    isTodayCore: p.isTodayCore, is_core: p.is_core
+    isTodayCore: p.isTodayCore, is_core: p.is_core,
+    cardKind: main ? (orig ? 'correction' : 'expression') : 'broken',
+    sourceTopic: p.source_topic || '', dateAdded: p.date_added || ''
   };
 }
 
@@ -3885,6 +4059,11 @@ function renderSentenceReview(sentences, startIndex) {
 // v104 状态驱动渲染（换皮不换骨）：正面 = 仅 💡 情境提示（零挖空）；背面 = 对比阅读卡片同款三段（绿主句 + 原句小字 + 📖 解析框）
 // v115 正面简化定案：两行 = 错误原句锚点 + 总结直搬（对比阅读卡片底部那句，零抽取零加工）；
 // 骨架按钮与 v114 抽取管线全部物理删除（范围=仅每日打卡 15 句句型复习翻卡，对比阅读卡片零改动）
+// v116 卡型分流（用户 Bug 报告：翻卡格式混乱/原句=正句）：stamp 层三分类随条目流转 ——
+//   correction（纠错卡）：正面 = 原句锚点 + 总结直搬；背面 = 绿主句 + 原句小字 + 📖 解析框（v115 定案原样）
+//   expression（金句卡，无原句）：正面 = 💡 回忆这条地道的表达 + 场景提示（无场景则显示来源上下文，绝不空白）；
+//                                背面 = 绿主句 + 📖 解析框（零原句行——金句卡本就没有原句，不再出现「原句=正句」重复）
+//   broken（残缺卡，无正句）：stamp 层已强制出队；万一流入（锚定兜底），按金句卡防御渲染且绝不重复原句行
 function renderSrsCard() {
   const item = _srsQueue[_srsIdx];
   if (!item) return;
@@ -3894,25 +4073,26 @@ function renderSrsCard() {
   const original = String(item.replacedSentence || '').trim();
   const expl = String(item.explanation || '').trim();
   const explOK = expl && !/历史导入/.test(expl);
-  // v115 正面简化定案（用户指令，推翻 v114 六轮抽取管线）：
-  //   正面两行 = ① 错误原句锚点（无原句则整行隐藏）② 总结直搬——对比阅读卡片底部那句 📖 总结
-  //   （= item.explanation 原样展示，零抽取零加工）；💡 首字母骨架按钮与渐进提示逻辑已物理删除；
-  //   无原句且无总结（迁移空卡）→ 显示「回忆这条地道的表达」防空白。
-  //   背面 = 与当日复习对比阅读卡片同款三段（绿主句 + 原句小字 + 📖 解析框，与正面总结重复无妨——用户确认）
+  const kind = item.cardKind === 'correction' ? 'correction' : 'expression';
+  const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const dupOrig = original && norm(original) === norm(target); // 防御：原句=主句时绝不重复渲染
+  // v115/v116 正面：纠错卡 = 原句锚点 + 总结；金句卡 = 💡 回忆提示 + 场景/来源上下文
   const clueEl = document.getElementById('srs-card-clue');
   if (clueEl) {
-    clueEl.textContent = original ? `你上次是这样说的：“${original}”` : (explOK ? '' : '回忆这条地道的表达');
-    clueEl.style.display = (original || !explOK) ? '' : 'none';
+    if (kind === 'correction') clueEl.textContent = `你上次是这样说的：“${original}”`;
+    else clueEl.textContent = '💡 回忆这条地道的表达';
+    clueEl.style.display = ''; // 两种卡型正面恒有引导行
   }
   const noteEl = document.getElementById('srs-card-note');
   if (noteEl) {
-    noteEl.textContent = explOK ? `📖 ${expl}` : '';
-    noteEl.style.display = explOK ? '' : 'none';
+    const ctx = [String(item.dateAdded || '').slice(0, 10), item.sourceTopic ? String(item.sourceTopic).trim() : ''].filter(Boolean);
+    noteEl.textContent = explOK ? `📖 ${expl}` : (kind === 'expression' && ctx.length ? `来自 ${ctx.join(' · ')}` : '');
+    noteEl.style.display = noteEl.textContent ? '' : 'none';
   }
-  // 背面三段（对比阅读卡片同款）：主视觉正确句（绿）+ 原句小字 + 📖 解析框（空则整段隐藏）
+  // 背面：绿主句恒在；原句行仅纠错卡且非重复时显示；解析框空则整段隐藏
   document.getElementById('srs-card-back-correct').textContent = target || '（暂无句子）';
   const origEl = document.getElementById('srs-card-back-original');
-  if (origEl) origEl.textContent = original ? `原句：${original}` : '';
+  if (origEl) origEl.textContent = (kind === 'correction' && original && !dupOrig) ? `原句：${original}` : '';
   const explEl = document.getElementById('srs-card-back-explanation');
   if (explEl) {
     explEl.textContent = explOK ? `📖 ${expl}` : '';
@@ -4439,10 +4619,13 @@ async function importReport(text) {
 
   const btn = document.getElementById('btn-dialog-submit');
   if (btn) { btn.disabled = true; btn.textContent = '导入中...'; }
+  // v116 历史补导：生效日期 = 弹窗日期选择器（默认今天；历史日报由文内识别/手动选择决定）
+  const importDate = getImportDate();
   try {
     if (_importState.payload.kind === 'json') {
-      await importJsonDailyReport(_importState.payload.jsonReport, _importState.payload.cleanedText);
+      await importJsonDailyReport(_importState.payload.jsonReport, _importState.payload.cleanedText, importDate);
     } else {
+      _importState.payload.parsed.meta.date = importDate;
       await importDailyReport(_importState.payload.parsed);
     }
   } catch (e) {
@@ -4467,13 +4650,14 @@ async function importReport(text) {
 }
 
 // ── 新版 JSON 日报入库器：写入时自动打上前端约定标签 ────
-async function importJsonDailyReport(jsonReport, rawText) {
+async function importJsonDailyReport(jsonReport, rawText, importDate) {
   const { data: { session } } = await sb.auth.getSession();
   const uid = session.user.id;
   // 无损清洗：老格式 mistakes/coreSentences（字符串、元组、残缺对象）先补齐结构再入库，
   // 下方所有 `!m.original` / `!c.targetSentence` 过滤从此一行都不会丢。
   jsonReport = normalizeDailyData(jsonReport || {});
-  const date = getLocalToday();
+  // v116 历史补导：日期来自弹窗日期选择器（默认今天）
+  const date = importDate || getLocalToday();
   // v96 可选链加固：summary 缺失/非对象时安全降级为空串，绝不让映射层因缺字段抛 TypeError
   const topic = (jsonReport?.summary?.topic) || '';
 
@@ -4497,38 +4681,70 @@ async function importJsonDailyReport(jsonReport, rawText) {
   }
 
   // 2) 语法硬伤 → errors 表（v99：发音纠正整体移出错题体系，只收 grammar —— 原始 JSON 仍整篇归档 reports 表，数据不丢）
+  // v116 入库净化（与句型卡同口径）：① 无正确句的半截错题不入库（原句不得充当答案）
+  // ② 原句=正句（GPT echo）不入库 ③ 占位符剥离 ④ 按「原句+正句」文本对全库查重 —— 同一知识 = 一行一条曲线
+  const _eNorm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const _eReal = s => { const t = _eNorm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
   const allErrors = [];
   for (const m of (Array.isArray(jsonReport.mistakes) ? jsonReport.mistakes : [])) {
-    if (!m || !m.original || m.type === 'expression') continue;
+    if (!m || !_eReal(m.original) || m.type === 'expression') continue;
     if (m.type === 'pronunciation') continue; // v99：发音错题不进错题本（用户指令）
+    if (!_eReal(m.improved) || _eNorm(m.improved) === _eNorm(m.original)) continue; // ①②③
     allErrors.push({
-      user_id: uid, type: 'grammar', original: m.original || '',
-      correction: m.improved || '', rule: m.explanation || '',
+      user_id: uid, type: 'grammar', original: String(m.original).trim(),
+      correction: String(m.improved).trim(), rule: _eReal(m.explanation) ? String(m.explanation).trim() : '',
       date_added: date, source_topic: topic,
       // v101：error_pattern 列改承载语法 3 桶标签（GPT 显式 category 优先，关键字回退）——
       // 旧值（v60-99 的 4 标准分类）无活消费者，渲染层 resolveGrammarCategory 对旧值自动回退关键字归类
       error_pattern: resolveGrammarCategory(m)
     });
   }
-  if (allErrors.length) await sb.from('errors').insert(allErrors);
+  let insertedErrors = 0;
+  if (allErrors.length) {
+    // ④ 全库「原句+正句」文本对查重：库中已有同对 → 跳过（其 SM-2 曲线已在库中）；同日重导不再盲插重复行
+    const { data: existingErrs } = await sb.from('errors').select('original,correction').eq('user_id', uid);
+    const knownErrs = new Set((existingErrs || []).map(r => _eNorm(r.original) + '::' + _eNorm(r.correction)).filter(k => k !== '::'));
+    const freshErrs = allErrors.filter(r => !knownErrs.has(_eNorm(r.original) + '::' + _eNorm(r.correction)));
+    if (freshErrs.length) { await sb.from('errors').insert(freshErrs); insertedErrors = freshErrs.length; }
+  }
 
   // 3) 地道表达（type:'expression'）+ 核心句型 → patterns 表
+  // v116 入库净化：① improved 缺失的半截表达不入库（无正确句不可训练，原句不得充当模板）
+  //              ② 原句=正句（GPT echo）→ 原句置空入金句卡（绝不让「原句=修改句」重复行落库）
+  //              ③ 清洗层占位符（历史导入内容）剥离，不入库
+  //              ④ 按 better 文本全库查重（v103 词汇先例）—— 同日重导/跨天同句不再盲插重复行
+  const _pNorm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const _pReal = s => { const t = _pNorm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
   const patRows = [];
   for (const c of (Array.isArray(jsonReport.coreSentences) ? jsonReport.coreSentences : [])) {
-    if (!c || !c.targetSentence) continue;
+    if (!c || !_pReal(c.targetSentence)) continue;
+    const corig = String(c.replacedSentence || '').trim();
     patRows.push({
-      user_id: uid, original: c.replacedSentence || '', better: c.targetSentence,
-      scene: c.explanation || '', date_added: date, source_topic: '核心句型'
+      user_id: uid,
+      original: (_pReal(corig) && _pNorm(corig) !== _pNorm(c.targetSentence)) ? corig : '',
+      better: String(c.targetSentence).trim(),
+      scene: _pReal(c.explanation) ? String(c.explanation).trim() : '',
+      date_added: date, source_topic: '核心句型'
     });
   }
   for (const m of (Array.isArray(jsonReport.mistakes) ? jsonReport.mistakes : [])) {
-    if (!m || m.type !== 'expression' || !m.original) continue;
+    if (!m || m.type !== 'expression' || !m.original || !_pReal(m.improved)) continue; // ① 无地道版不入库
     patRows.push({
-      user_id: uid, original: m.original, better: m.improved || '',
-      scene: m.explanation || '', date_added: date, source_topic: topic
+      user_id: uid,
+      original: _pNorm(m.original) === _pNorm(m.improved) ? '' : String(m.original).trim(), // ②
+      better: String(m.improved).trim(),
+      scene: _pReal(m.explanation) ? String(m.explanation).trim() : '',
+      date_added: date, source_topic: topic
     });
   }
-  if (patRows.length) await sb.from('patterns').insert(patRows);
+  let insertedPats = 0;
+  if (patRows.length) {
+    // ④ 全库文本查重（与 v103 词库同款）：库中已有同文本 better 的行 → 跳过（其 SM-2 曲线已在库中，到期自然复习）
+    const { data: existingPats } = await sb.from('patterns').select('better').eq('user_id', uid);
+    const knownPats = new Set((existingPats || []).map(r => _pNorm(r.better)).filter(Boolean));
+    const freshPats = patRows.filter(r => r.better && !knownPats.has(_pNorm(r.better)));
+    if (freshPats.length) { await sb.from('patterns').insert(freshPats); insertedPats = freshPats.length; }
+  }
 
   // 4) 原始 JSON 原样入库（下游 parseSmartReport 每次读取时统一归一化打标 → 上下游绝对对齐）
   await sb.from('reports').upsert({ user_id: uid, date, content: rawText }, { onConflict: 'user_id,date' });
@@ -4536,78 +4752,120 @@ async function importJsonDailyReport(jsonReport, rawText) {
   // v97：新版日报无 duration（dur 默认 0，不虚增时长）；对话占比走 parsed.summary.speakingRatio，不落 progress 表
   const s2 = (jsonReport?.summary && typeof jsonReport.summary === 'object') ? jsonReport.summary : {};
   const dur = parseInt(String((jsonReport.duration || s2.duration || s2.durationMinutes) || ''), 10) || 0;
-  await updateProgress(uid, Number(s2.fluency) || 0, Number(s2.accuracy) || 0, s2.weak_areas || '', topic, dur);
-
-  if (topic) {
-    const { data: existingTopic } = await sb.from('topics').select('id').eq('title', topic).maybeSingle();
-    if (existingTopic) {
-      await sb.from('topics').update({
-        practice_count: sb.raw('practice_count + 1'),
-        last_practiced_at: new Date().toISOString()
-      }).eq('id', existingTopic.id);
+  // v116 历史补导：只有「今天」的导入才推进打卡进度（历史补导当年已计过，重导不得双计）
+  if (date === getLocalToday()) {
+    await updateProgress(uid, Number(s2.fluency) || 0, Number(s2.accuracy) || 0, s2.weak_areas || '', topic, dur);
+    if (topic) {
+      const { data: existingTopic } = await sb.from('topics').select('id').eq('title', topic).maybeSingle();
+      if (existingTopic) {
+        await sb.from('topics').update({
+          practice_count: sb.raw('practice_count + 1'),
+          last_practiced_at: new Date().toISOString()
+        }).eq('id', existingTopic.id);
+      }
     }
   }
 
-  showToast(`✅ 入库完成！单词 ${parsed.vocabulary.length} · 语法纠错 ${allErrors.length} · 地道表达/句型 ${patRows.length}`);
+  showToast(`✅ 入库完成！单词 ${parsed.vocabulary.length} · 语法纠错 ${insertedErrors} · 地道表达/句型 ${insertedPats}`);
 }
 
 async function importDailyReport(parsed) {
   const { data: { session } } = await sb.auth.getSession();
   const uid = session.user.id;
   const date = parsed.meta.date || getLocalToday();
+  const isToday = date === getLocalToday();
   const topic = parsed.meta.topic || '';
   const duration = parseInt(parsed.meta.duration) || 0;
 
   if (parsed.vocabulary.length) {
-    await sb.from('vocabulary').insert(parsed.vocabulary.map(v => ({
-      user_id: uid, word: v.word, phonetic: v.phonetic, meaning: v.meaning,
-      example: v.example, date_added: date, source_topic: topic, status: 'new'
-    })));
+    // v116：Markdown 路径补 v103 词级查重（此前仅 JSON 路径有）—— 同日重导/跨天重复词不再盲插重复行
+    const { data: existingVocab } = await sb.from('vocabulary').select('word').eq('user_id', uid);
+    const known = new Set((existingVocab || []).map(r => String(r.word || '').toLowerCase().trim()).filter(Boolean));
+    const freshWords = parsed.vocabulary.filter(v => v && v.word && !known.has(String(v.word).toLowerCase().trim()));
+    if (freshWords.length) {
+      await sb.from('vocabulary').insert(freshWords.map(v => ({
+        user_id: uid, word: v.word, phonetic: v.phonetic, meaning: v.meaning,
+        example: v.example, date_added: date, source_topic: topic, status: 'new'
+      })));
+    }
   }
 
-  const allErrors = [];
   // v99：发音纠正（parsed.pronunciation）不再写入 errors 表（用户指令：错题本只收语法）
-  for (const e of parsed.grammar) allErrors.push({
-    user_id: uid, type: 'grammar', original: e.original || '', correction: e.correction || '',
-    rule: e.rule || '', date_added: date, source_topic: topic,
-    // v101：Markdown 日报无 GPT category 标签 → 关键字启发式归类（与 JSON 链路同一 3 桶口径）
-    error_pattern: classifyGrammarCategory(e.original, e.correction, e.rule || '')
-  });
-  if (allErrors.length) await sb.from('errors').insert(allErrors);
-
-  if (parsed.patterns.length) {
-    await sb.from('patterns').insert(parsed.patterns.map(p => ({
-      user_id: uid, original: p.original || '', better: p.better || '',
-      scene: p.scene || '', date_added: date, source_topic: topic
-    })));
+  // v116 入库净化（与 JSON 链路同口径）：占位符原句 / 无正确句 / 原句=正句回声 一律不入库；
+  // 按「原句+正句」文本对全库查重 —— 同一知识 = 一行一条曲线
+  const _eNorm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const _eReal = s => { const t = _eNorm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
+  const allErrors = [];
+  for (const e of parsed.grammar) {
+    if (!e || !_eReal(e.original) || !_eReal(e.correction)) continue;
+    if (_eNorm(e.original) === _eNorm(e.correction)) continue;
+    allErrors.push({
+      user_id: uid, type: 'grammar', original: String(e.original).trim(), correction: String(e.correction).trim(),
+      rule: _eReal(e.rule) ? String(e.rule).trim() : '', date_added: date, source_topic: topic,
+      // v101：Markdown 日报无 GPT category 标签 → 关键字启发式归类（与 JSON 链路同一 3 桶口径）
+      error_pattern: classifyGrammarCategory(e.original, e.correction, e.rule || '')
+    });
+  }
+  let insertedErrors = 0;
+  if (allErrors.length) {
+    const { data: existingErrs } = await sb.from('errors').select('original,correction').eq('user_id', uid);
+    const knownErrs = new Set((existingErrs || []).map(r => _eNorm(r.original) + '::' + _eNorm(r.correction)).filter(k => k !== '::'));
+    const freshErrs = allErrors.filter(r => !knownErrs.has(_eNorm(r.original) + '::' + _eNorm(r.correction)));
+    if (freshErrs.length) { await sb.from('errors').insert(freshErrs); insertedErrors = freshErrs.length; }
   }
 
   // v104 SM-2 队列断层修复：核心句型与自然表达同日正式入库（JSON 链路早已入库，Markdown 链路此前漏写 →
   // 未复习的核心句型会永久蒸发）。入库行无 SM-2 字段 → 队列按「新卡」语义立即到期，首次复习由文本锚定 UPSERT 补曲线
-  if (parsed.sentence_patterns && parsed.sentence_patterns.length) {
-    await sb.from('patterns').insert(parsed.sentence_patterns.map(s => ({
+  // v116 入库净化（与 JSON 链路同口径）：① 无正句的半截条目不入库 ② 原句=正句 → 原句置空 ③ 占位符剥离 ④ 按 better 文本查重
+  const _mpNorm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const _mpReal = s => { const t = _mpNorm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
+  const _patIn = [];
+  for (const p of (parsed.patterns || [])) {
+    if (!p || !_mpReal(p.better)) continue;
+    _patIn.push({
       user_id: uid,
-      original: s.replacedSentence || '',
-      better: s.pattern || s.targetSentence || s.text || '',
-      scene: s.example || s.explanation || '',
+      original: (_mpReal(p.original) && _mpNorm(p.original) !== _mpNorm(p.better)) ? String(p.original).trim() : '',
+      better: String(p.better).trim(),
+      scene: _mpReal(p.scene) ? String(p.scene).trim() : '',
+      date_added: date, source_topic: topic
+    });
+  }
+  for (const s of (parsed.sentence_patterns || [])) {
+    const better = String(s.pattern || s.targetSentence || s.text || '').trim();
+    if (!_mpReal(better)) continue;
+    const orig = String(s.replacedSentence || '').trim();
+    _patIn.push({
+      user_id: uid,
+      original: (_mpReal(orig) && _mpNorm(orig) !== _mpNorm(better)) ? orig : '',
+      better,
+      scene: _mpReal(s.example || s.explanation) ? String(s.example || s.explanation).trim() : '',
       date_added: date, source_topic: '核心句型'
-    })));
+    });
+  }
+  let insertedPats = 0;
+  if (_patIn.length) {
+    const { data: existingPats } = await sb.from('patterns').select('better').eq('user_id', uid);
+    const knownPats = new Set((existingPats || []).map(r => _mpNorm(r.better)).filter(Boolean));
+    const freshPats = _patIn.filter(r => r.better && !knownPats.has(_mpNorm(r.better)));
+    if (freshPats.length) { await sb.from('patterns').insert(freshPats); insertedPats = freshPats.length; }
   }
 
   await sb.from('reports').upsert({ user_id: uid, date, content: parsed.raw }, { onConflict: 'user_id,date' });
-  await updateProgress(uid, parsed.summary.fluency || 0, parsed.summary.accuracy || 0, parsed.summary.weak_areas, topic, duration);
-
-  if (topic) {
-    const { data: existingTopic } = await sb.from('topics').select('id').eq('title', topic).maybeSingle();
-    if (existingTopic) {
-      await sb.from('topics').update({
-        practice_count: sb.raw('practice_count + 1'),
-        last_practiced_at: new Date().toISOString()
-      }).eq('id', existingTopic.id);
+  // v116 历史补导：只有「今天」的导入才推进打卡进度（历史补导当年已计过，重导不得双计）
+  if (isToday) {
+    await updateProgress(uid, parsed.summary.fluency || 0, parsed.summary.accuracy || 0, parsed.summary.weak_areas, topic, duration);
+    if (topic) {
+      const { data: existingTopic } = await sb.from('topics').select('id').eq('title', topic).maybeSingle();
+      if (existingTopic) {
+        await sb.from('topics').update({
+          practice_count: sb.raw('practice_count + 1'),
+          last_practiced_at: new Date().toISOString()
+        }).eq('id', existingTopic.id);
+      }
     }
   }
 
-  showToast(`✅ 入库完成！单词 ${parsed.vocabulary.length} · 纠错 ${allErrors.length} · 句型 ${parsed.patterns.length + (parsed.sentence_patterns || []).length}`);
+  showToast(`✅ 入库完成！单词 ${parsed.vocabulary.length} · 纠错 ${insertedErrors} · 句型 ${insertedPats}`);
 }
 
 // v97：importTopicCard / importInsightReport 已物理删除——话题卡与弱点分析模板功能彻底下线。
@@ -4635,7 +4893,8 @@ async function updateProgress(uid, fluency, accuracy, weak_areas, topic, duratio
   const { count: vCount } = await sb.from('vocabulary').select('*', { count: 'exact', head: true });
   const { count: eCount } = await sb.from('errors').select('*', { count: 'exact', head: true }).eq('correct_in_review', true);
   p.words_learned = vCount;
-  p.errors_fixed = eCount;
+  // v116 单调护栏：数据清理/去重会让 correct_in_review 计数回落，成就数字只增不减
+  p.errors_fixed = Math.max(p.errors_fixed || 0, eCount);
   await sb.from('progress').upsert(p, { onConflict: 'user_id' });
 }
 
@@ -5066,6 +5325,17 @@ document.getElementById('btn-login-email').addEventListener('click', sendMagicLi
 document.getElementById('btn-dialog-submit')?.addEventListener('click', () => importReport());
 // v97 实时校验绑定：文本框 input 事件（粘贴/输入/清空均触发）→ 350ms 防抖 → 校验预览 + 按钮状态
 document.getElementById('dialog-report-input')?.addEventListener('input', onImportInput);
+// v116 历史补导：手动改日期 → 标记已触碰（文内自动识别不再覆盖）；预览日期实时刷新
+document.getElementById('dialog-report-date')?.addEventListener('change', () => {
+  _importDateTouched = true;
+  renderImportPreview();
+});
+// v116：封杀长按原生菜单（保存图片/共享）——CSS 只能关 iOS 长按气泡，Android/新版 iOS 的
+// 原生菜单不认 CSS，必须 JS 拦 contextmenu（preventDefault）；仅命中 .bear-img（熊条小熊），
+// click/touch 链路零影响（坚决不用 pointer-events:none，showBearDay 点击完整保留）
+document.addEventListener('contextmenu', (e) => {
+  if (e.target && e.target.closest && e.target.closest('.bear-img')) e.preventDefault();
+});
 document.getElementById('btn-copy-report-template')?.addEventListener('click', () => copyTemplate('report'));
 document.getElementById('btn-export-data').addEventListener('click', exportData);
 document.getElementById('btn-logout-me').addEventListener('click', signOut);
@@ -5115,5 +5385,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=115');
+  navigator.serviceWorker.register('/sw.js?v=116');
 }

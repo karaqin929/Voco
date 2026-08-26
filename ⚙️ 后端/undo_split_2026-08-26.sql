@@ -1,0 +1,124 @@
+-- undo_split_2026-08-26.sql
+-- 回滚脚本：2026-08-26 两账号数据拆分（逆向 8.26 错误合并）的逐步骤逆操作记录
+--
+-- 为什么可以回滚：
+--   本次拆分全程零 DELETE。所有修改只有两种形态：
+--     ① UPDATE user_id 换归属（逆操作 = 把 user_id 改回去，一行不会没）
+--     ② INSERT 给另一个人补副本（逆操作 = DELETE 这几行新副本，不影响原数据）
+--   昨天合并后今天仍能反向拆，本身就是证据：合并只动了归属、没毁内容，所以救得回来。
+--
+-- 使用方式：每一步执行完，把 RETURNING 结果核对后，把逆操作填入下方对应段落。
+--   任何一步怀疑出错 → 立即停止，按本文件执行已记录步骤的逆操作即可回到上一步状态。
+--
+-- ══ 目标账号 ══
+--   用户（本人）:   0f1b0fbc-9f79-4102-8cc9-c87a199e4f44  (karaqin929@gmail.com, 2026-08-26 新建)
+--   另一个人（对方）: 641d79b5-9a4f-4f3b-8d76-1efcb5072b80  (radiohann@gmail.com, 合并后数据暂存于此)
+--   旧账号（已删）:  1b9ea5bc-f710-4f4b-b008-472dca338681  (auth.users 已删除，数据已并入 641d79b5)
+
+-- ══ 守恒校验（每一步执行后都先跑这个，总数必须与预期一致）══
+-- 【已执行 2026-08-26 终审，10 行全部与预期一致 ✓ 拆分正式收官】
+--   patterns   用户 90 + 对方 20 = 110 ✓
+--   vocabulary 用户 50 + 对方 10 = 60  ✓
+--   errors     用户 40 + 对方 14 = 54  ✓
+--   reports    用户 6  + 对方 4  = 10  ✓
+--   progress   用户 20s/50w/18e、对方 4s/10w/0e ✓
+--   注：用户 8.21/8.22/8.25 三篇日报文本当年合并时被删，数据行完好；
+--       补导通道 = v116 导入日期选择器 + 导入即查重（见 app.js v116 改动）。
+-- SELECT 'patterns' t, count(*) FROM patterns WHERE user_id IN ('0f1b0fbc-9f79-4102-8cc9-c87a199e4f44','641d79b5-9a4f-4f3b-8d76-1efcb5072b80')
+-- UNION ALL SELECT 'vocabulary', count(*) FROM vocabulary WHERE user_id IN ('0f1b0fbc-9f79-4102-8cc9-c87a199e4f44','641d79b5-9a4f-4f3b-8d76-1efcb5072b80')
+-- UNION ALL SELECT 'errors', count(*) FROM errors WHERE user_id IN ('0f1b0fbc-9f79-4102-8cc9-c87a199e4f44','641d79b5-9a4f-4f3b-8d76-1efcb5072b80')
+-- UNION ALL SELECT 'reports', count(*) FROM reports WHERE user_id IN ('0f1b0fbc-9f79-4102-8cc9-c87a199e4f44','641d79b5-9a4f-4f3b-8d76-1efcb5072b80');
+
+-- ══ 步骤 1：patterns 迁移（预览确认后执行）══
+-- UPDATE patterns SET user_id = '0f1b0fbc-9f79-4102-8cc9-c87a199e4f44'
+-- WHERE user_id = '641d79b5-9a4f-4f3b-8d76-1efcb5072b80'
+--   AND (date_added BETWEEN '2026-08-13' AND '2026-08-22' OR id IN (32,35,38,41,44))
+-- RETURNING id, date_added, better;
+-- 【逆操作】把 RETURNING 返回的 id 清单填进下面：
+-- UPDATE patterns SET user_id = '641d79b5-9a4f-4f3b-8d76-1efcb5072b80' WHERE id IN (/* 此处粘贴步骤 1 返回的 id 清单 */);
+
+-- ══ 步骤 2：vocabulary 迁移（已执行 2026-08-26，恰 50 行 ✓）══
+-- 归属裁决依据：8.21/8.22/8.25 逐词与对方日报 newWords 比对（in_b_report 判据）。
+--   对方留存 10 行：8.21 四词(115~118) + 8.22 两词(121,122) + 8.23 三行 + 8.25 cue(126)；
+--   另有 leverage 盲插行 id 127（8.25 对方会话所写）已于 8.26 去重时删除。
+--   用户迁入 50 行：8.12~8.19（48）+ sooner/decision fatigue(119,120)。
+-- 守恒闭合：用户 65 = 15(8.10 已删) + 50；对方 19 = 8(8.10 已删) + 10(留存) + 1(去重已删) ✓
+-- UPDATE vocabulary SET user_id = '0f1b0fbc-9f79-4102-8cc9-c87a199e4f44'
+-- WHERE user_id = '641d79b5-9a4f-4f3b-8d76-1efcb5072b80'
+--   AND (date_added BETWEEN '2026-08-12' AND '2026-08-19' OR id IN (119,120))
+-- RETURNING id, date_added, word;
+-- 【逆操作】UPDATE vocabulary SET user_id = '641d79b5-9a4f-4f3b-8d76-1efcb5072b80'
+--   WHERE id IN (34,35,37,40,42,43,45,47,49,51,52,54,56,58,60,62,77,78,79,80,81,82,83,84,85,86,
+--                87,88,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,
+--                114,119,120);
+
+-- ══ 步骤 3：errors 迁移（预览确认后执行）══
+-- UPDATE errors SET user_id = '0f1b0fbc-9f79-4102-8cc9-c87a199e4f44'
+-- WHERE user_id = '641d79b5-9a4f-4f3b-8d76-1efcb5072b80' AND /* 预览锁定的精确条件 */;
+-- 【逆操作】UPDATE errors SET user_id = '641d79b5-9a4f-4f3b-8d76-1efcb5072b80' WHERE id IN (/* 同上 */);
+
+-- ══ 步骤 4：reports 迁移（已执行 2026-08-26，恰 6 行 ✓：5=8.12/7=8.13/9=8.15/11=8.16/13=8.17/33=8.19）══
+--   注意：reports 表列名是 date（不是 report_date）。
+-- UPDATE reports SET user_id = '0f1b0fbc-9f79-4102-8cc9-c87a199e4f44'
+-- WHERE user_id = '641d79b5-9a4f-4f3b-8d76-1efcb5072b80' AND id IN (5,7,9,11,13,33)
+-- RETURNING id, date;
+--   对方留存 4 篇：34(8.21)/36(8.22)/38(8.23)/39(8.25)。
+-- 【逆操作】UPDATE reports SET user_id = '641d79b5-9a4f-4f3b-8d76-1efcb5072b80' WHERE id IN (5,7,9,11,13,33);
+
+-- ══ 步骤 5：progress 还原对方行 + 为用户重建行 ══
+--   原始值来源：2026-08-26 合并前「SELECT * FROM progress」的两行完整贴回（对话记录 5355 行）。
+--   对方（641d79b5，合并前原值）：4 / 25 / fluency [7.8,7.8,8.2,8.2] / accuracy [6.2,6.8,6.8,6.8]
+--     weak_areas 13 项 ["时态一致性","冠词使用","被动语态","虚拟语气","时态","冠词","句子结构",
+--     "句式与搭配","动词与时态","冗余表达","主谓一致","固定搭配","用词搭配"]
+--     topics 5 项 ["The Impact of AI on Creative Industries","InvestmentInterviewReflection",
+--     "ImpromptuSpeaking","Workload_and_Gold","CareerTransition"]
+--     words_learned=19 / words_mastered=0 / errors_fixed=11
+--   用户（1b9ea5bc，合并前原值）：20 / 78 / fluency [0,7,7,7,0,0,0,0,0,0,0,0,0,0,0,0,6.4,6.2,6.2,7.1]
+--     / accuracy [0,6,6,7,0,0,0,0,0,0,0,0,0,0,0,0,6.2,6.4,6.3,6.2]
+--     weak_areas 16 项 ["时态一致性","冠词使用","被动语态","虚拟语气","现在完成时与过去时区分",
+--     "冠词使用一致性","条件句时态呼应","流利度与停顿","句式与搭配","自然表达","动词与时态",
+--     "表达习惯","名词与冠词","固定搭配","句式组织","自我修正与重复"]
+--     topics 9 项 ["The Impact of AI on Creative Industries","个人成长与职业规划",
+--     "Joe Rogan × Naval Ravikant: Wealth, Leverage & Happiness","Nolan's The Odyssey × Homer's Epic",
+--     "Nolan's Movies and His Style","AI时代职业选择","家庭晚餐系统","英语能力重建","Career Relocation"]
+--     words_learned=65 / words_mastered=0 / errors_fixed=22
+--   还原口径：数组类字段（fluency/accuracy/weak_areas/topics）按上表一字不差还原；
+--     计数类字段（words_learned/errors_fixed）按拆分后各账号表内实际行数对齐（v116 口径），
+--     历史值见上（65/22 与 19/11），8.10 全清与去重删除导致实际数 < 历史数属预期。
+-- 【逆操作】两行都删掉后按合并记录重做即可（字段值已在 merge_accounts_2026-08-26.sql 留档）。
+--
+-- 【已执行 2026-08-26，两条均 RETURNING 逐字核对 ✓】
+--   ① 对方行还原（覆盖合并后的 24/103/84/33）：
+--   UPDATE progress SET total_sessions=4, total_minutes=25,
+--     fluency_trend='[7.8,7.8,8.2,8.2]'::jsonb, accuracy_trend='[6.2,6.8,6.8,6.8]'::jsonb,
+--     weak_areas='[…13 项…]'::jsonb, topics='[…5 项…]'::jsonb,
+--     words_learned=10, words_mastered=0, errors_fixed=0, updated_at=NOW()
+--   WHERE user_id='641d79b5-9a4f-4f3b-8d76-1efcb5072b80' RETURNING *;
+--     → 4 / 25 / 10 / 0，数组逐字一致 ✓
+--   ② 用户行重建（UPSERT，防新账号已有自动生成行）：
+--   INSERT INTO progress (user_id,total_sessions,total_minutes,fluency_trend,accuracy_trend,
+--     weak_areas,topics,words_learned,words_mastered,errors_fixed)
+--   VALUES ('0f1b0fbc-9f79-4102-8cc9-c87a199e4f44',20,78,'[…20 点…]','[…20 点…]','[…16 项…]','[…9 项…]',50,0,18)
+--   ON CONFLICT (user_id) DO UPDATE SET … = EXCLUDED.…, updated_at=NOW() RETURNING *;
+--     → 20 / 78 / 50 / 18，数组逐字一致 ✓
+--   计数口径说明：words_learned=各账号词汇表实际行数（用户 50 / 对方 10）；
+--     errors_fixed=各账号 correct_in_review 实际行数（用户 18 / 对方 0）。
+--     对方历史 errors_fixed=11 的行已随 8.10 五条 + 残形清理删除，0 为当前真实值。
+
+-- ══ 步骤 6：为对方补回双胞胎副本 —— 已取消（2026-08-26 用户指令 8.10 全清，
+--    双胞胎幸存侧已随 8.10 一并删除，无副本可补；8.10 内容如需恢复走 ChatGPT 重导）══
+
+-- ══ 步骤 0：8.10 全清（2026-08-26 用户指令「8.10 的可以删掉，把两个账号的都删掉」）══
+--   范围：patterns 5 行（id 32/35/38/41/44，8.10 第三批双胞胎幸存侧）+ vocabulary 15 行
+--   + errors 5 行（全部 date_added='2026-08-10'）+ reports 1 篇（id 2，对方的 8.10 日报；
+--   用户自己那份 8.10 日报已在 8.26 合并时删除）。
+--   效果：拆分不再需要给对方补 8.10 副本；词汇表 8.12~8.19 + 8.21 两词(sooner/decision fatigue)
+--   归用户、8.21 四词/8.22 两词/8.23 三词/8.25 一词归对方。
+-- 【逆操作】8.10 内容来源于共享的 ChatGPT 对话，如需恢复 → 从 ChatGPT 重新导入 8.10 日报
+--   （Markdown 旧模板，导入后自动重建三表数据行；SM-2 曲线从零开始，可接受）。
+
+-- ══ 原则备忘 ══
+-- ① 每一步都先给只读预览 SELECT，用户核对确认后才给修改语句 —— 用户亲手粘贴执行，是第一道闸。
+-- ② 每一步修改语句都带 RETURNING，返回的行就是改动范围，与预览清单逐行比对 —— 眼见为实。
+-- ③ 每步后跑守恒校验：两账号行数之和 = 拆分前总数（补副本后按 +5/+9 精确加）。
+-- ④ 本次拆分不删除任何用户数据行 —— 最坏情况也只是归属不对，永远可以再改回来。

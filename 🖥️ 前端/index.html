@@ -12,7 +12,7 @@
   <link rel="preload" href="/bear-default.png" as="image">
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=115">
+  <link rel="stylesheet" href="/style.css?v=116">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -419,6 +419,11 @@
             <button id="btn-copy-report-template" class="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[var(--c-bg)] border border-[var(--c-border)] rounded-lg text-xs text-[var(--c-text-dim)] cursor-pointer transition-all active:bg-[var(--c-primary-light)] active:text-[var(--c-primary)] active:border-[var(--c-primary)] whitespace-nowrap"><i data-lucide="copy" class="w-3.5 h-3.5"></i> 复制日报模板</button>
           </div>
           <textarea id="dialog-report-input" rows="6" placeholder="将 ChatGPT 生成的内容粘贴到这里，粘贴后自动校验..." class="w-full min-h-[140px] bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-border)] rounded-2xl p-3.5 text-sm leading-relaxed resize-y mb-2.5 outline-none focus:border-[var(--c-primary)] focus:shadow-[0_0_0_3px_var(--c-primary-light)] placeholder:text-[var(--c-text-ultradim)]"></textarea>
+          <!-- v116 历史日报补导：入库日期选择器（默认今天；粘贴旧日报若识别到文内日期会自动填入，可手动改） -->
+          <div class="flex items-center justify-between gap-3 mb-2.5">
+            <label class="text-xs text-[var(--c-text-dim)] shrink-0" for="dialog-report-date">入库日期</label>
+            <input type="date" id="dialog-report-date" class="flex-1 bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-border)] rounded-xl px-3 py-2 text-sm outline-none focus:border-[var(--c-primary)]">
+          </div>
           <div id="dialog-preview" class="hidden"></div>
         </div>
         <div class="px-[18px] pb-5 pt-3 border-t border-[var(--c-border-light)]">
@@ -487,8 +492,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=115"></script>
-<script src="/parser.js?v=115"></script>
-<script src="/app.js?v=115"></script>
+<script src="/supabase-client.js?v=116"></script>
+<script src="/parser.js?v=116"></script>
+<script src="/app.js?v=116"></script>
 </body>
 </html>
