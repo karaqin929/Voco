@@ -1154,7 +1154,7 @@ function renderTodoList(speakDoneToday) {
   const ms = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds);
   const hasTodayReport = ms.hasRealTodayReport;
   // 句型 SRS 任务口径（v76 同源绑定，v104 纯库捞）：待办数字 = 句型复习页实际队列 getDueSentencesQueue 的 .length
-  // —— 库中 needsReview===true 全量（新卡无 next_review_date + 历史到期曲线），文本去重 + cap 15 与卡片页同一函数，绝不分叉
+  // —— 库中 needsReview===true 全量（v120 起：到期卡全出 + 新卡每日预算 10），文本去重与卡片页同一函数，绝不分叉
   const patternTaskCount = getDueSentencesQueue(_patternLibrary).length;
   const dueCount = ms.totalDueVocabCount;       // SM-2 到期全量（今日新词 + 历史到期词），与 tab=due 同源
   const reviewedToday = ms.reviewedVocabToday;  // 今日实际完成反馈（🟢/🔴）的词数（id 集合大小）
@@ -2494,7 +2494,7 @@ async function auditModule7() {
 
 // ── 模块八：句型卡数据完整性（v116 卡型三分类 correction / expression / broken）──
 // 断言 A 打标完整 + correction 无回声（原句≠正句）｜B 残缺卡隔离（incomplete + 绝不入队）
-// 断言 C SRS 队列纯净（全部含真实正确句 + 单日 ≤ PATTERN_SESSION_CAP）｜D 今日日报解析层过滤生效
+// 断言 C SRS 队列纯净（全部含真实正确句 + 单日 ≤ 总安全阀）｜D 今日日报解析层过滤生效
 async function auditModule8() {
   if (!_patternLibrary.length) { try { await loadSpeak(); } catch (e) { /* 网络失败交由 SKIP */ } }
   const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -2534,9 +2534,9 @@ async function auditModule8() {
 
   // 断言 C：队列纯净 —— 队内每张卡都有真实正确句，且未超单日上限
   const badQueue = queue.filter(q => !real(q.targetSentence));
-  const capOk = queue.length <= PATTERN_SESSION_CAP;
-  if (!brokenInQueue.length && !badQueue.length && capOk) _auditPass(`SRS 队列纯净：${queue.length} 张待复习卡全部含真实正确句，无 broken 混入，未超单日上限 ${PATTERN_SESSION_CAP} 句`);
-  else _auditFail(`SRS 队列污染：broken 混入 ${brokenInQueue.length} · 无正确句 ${badQueue.length} · 队满 ${queue.length}/${PATTERN_SESSION_CAP}`, brokenInQueue.concat(badQueue).map(q => q.targetSentence || String(q.id)).join(' · '));
+  const capOk = queue.length <= PATTERN_QUEUE_HARD_CAP;
+  if (!brokenInQueue.length && !badQueue.length && capOk) _auditPass(`SRS 队列纯净：${queue.length} 张待复习卡全部含真实正确句，无 broken 混入，未超安全阀 ${PATTERN_QUEUE_HARD_CAP} 句`);
+  else _auditFail(`SRS 队列污染：broken 混入 ${brokenInQueue.length} · 无正确句 ${badQueue.length} · 队满 ${queue.length}/${PATTERN_QUEUE_HARD_CAP}`, brokenInQueue.concat(badQueue).map(q => q.targetSentence || String(q.id)).join(' · '));
 
   // 断言 D：今日日报解析层过滤 —— _reportParsed 的 patterns / 核心句型无半截条目、无回声
   const rp = _reportParsed;
@@ -2812,7 +2812,11 @@ async function fireTopicGeneratorPrompt(btn) {
   let prompt = _PRE_COACH_CONTRACT;
 
   if (_selectedTopicTag) {
-    prompt += `\n\n今天我们探讨的主题领域是：【${_selectedTopicTag}】。`;
+    // v120：话题标签注入从「贴标签」升级为「开场指令」——把开场动作硬指派给 GPT：
+    // 第一句必须是该主题的开放性问题（禁无关寒暄），随后深挖、拉回主题。
+    // 旧版只贴一句「主题领域是：××」，GPT 常以 How are you 寒暄开场，话题落不了地
+    // （对比：话题复盘 Prompt 早已有「你先向我提问吧」，此处此前缺失同款指派）。
+    prompt += `\n\n【今日话题 · 由你开场】今天的对练围绕「${_selectedTopicTag}」展开。请由你先开口：第一句话就直接抛出与这个主题相关的开放性问题（问我的经历、计划或观点），引导我进入表达，严禁"How are you"这类与主题无关的寒暄开场。随后沿我的回答自然深挖：追问细节、分享你的观点、适时提出不同看法让我回应。我跑题或卡壳时，用新的问题把我拉回主题。`;
   }
   if (urlInput) {
     prompt += `\n\n请参考以下背景材料（你可以提取核心观点与我讨论）：\n${urlInput}`;
@@ -2899,6 +2903,10 @@ function dueErrorCards() {
   const today = getLocalToday();
   const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
   const real = s => { const t = norm(s); return !!t && t !== '历史表达' && t !== '历史错题' && t !== '历史导入内容'; };
+  // v120 防重复守卫（对齐句型/词汇两条链路）：同「原句+正句」重复行只出一张卡。
+  // 库里当前零重复（SQL 实测），但展示侧此前无判重——任何未来重复导入都会在任务 3 出双卡；
+  // 写回侧 v117 F9 已把重复行一并推进（练一张 = 全部重复行推曲线），此处只拦展示、零行为变化
+  const seen = new Set();
   return (_errorsAll || [])
     .filter(e => e && real(e.original) && e.type !== 'pronunciation'
       && !e.correct_in_review && !e.mastered
@@ -2912,7 +2920,13 @@ function dueErrorCards() {
       type: 'grammar',
       ref: e
     }))
-    .filter(c => real(c.correction) && norm(c.correction) !== norm(c.original));
+    .filter(c => {
+      if (!real(c.correction) || norm(c.correction) === norm(c.original)) return false;
+      const k = norm(c.original) + '|' + norm(c.correction);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
 }
 // 错题 SM-2 推进 + 落库（与 reviewPatternItem/reviewWordItem 同构）：again(0)/good(3) 均写回曲线；
 // 按「原句+正句」查 errors 表行更新 SM-2 列；库行缺失（今日新错题未入库/演示态）→ 仅本地快照，静默降级
@@ -3924,10 +3938,13 @@ function coreDeck(parsed) {
 // 新卡 = 库中无 next_review_date 的行（未复习 → 立即到期，isDueBySrs 判据），历史到期卡 = SM-2 曲线到期行；
 // 运行时解析临时拼凑（coreDeck + expressionDeck 拼接、expr-N/core-N 临时 id）已物理退役 —— 队列 item 一律库行 pat_N
 // 文本去重：同句多行（历史「导入行 + 复习 INSERT 行」双行遗留）只保留优先行；库级 dedupePatternsByText 已收敛，此处兜底
-// 排序：新卡优先（date_added 降序 → 今日新句最前）→ 到期卡（next_review_date 升序，最急先练）
-// v77 SM-2 漏斗：单日队列上限截断 slice(0, PATTERN_SESSION_CAP) —— 只取今日到期前 15 句，严禁整个数据库倒给前端；
-// 未入队的到期句次日仍在队列（SM-2 未推进 = 仍到期），逐日消化，绝无丢失
-const PATTERN_SESSION_CAP = 15;
+// v120 队列重排（用户决定「到期优先 + 新卡限量」，2026-08-27）：到期卡全部出队、不设上限——防遗忘是
+// SM-2 第一要务，该复习的一句不拖；新卡殿后按 date_added 降序、每日最多 NEW_PATTERNS_PER_SESSION 张
+// （当天导入句 date_added 最新 → 天然排新卡预算最前，当天导入当天练）；
+// PATTERN_QUEUE_HARD_CAP 总安全阀仅防极端情况，正常规模触不到。
+// 打卡完成 = 队列练完 = 到期卡清零 + 当日新卡预算消化（任务 2 数字 = 本函数长度，自动同源）
+const NEW_PATTERNS_PER_SESSION = 10;
+const PATTERN_QUEUE_HARD_CAP = 40;
 function getDueSentencesQueue(speakAll) {
   const seen = new Set();
   const newCards = [];
@@ -3942,7 +3959,7 @@ function getDueSentencesQueue(speakAll) {
   }
   newCards.sort((a, b) => String(b.date_added || '').localeCompare(String(a.date_added || '')));
   dueCards.sort((a, b) => String(a.next_review_date || '').localeCompare(String(b.next_review_date || '')));
-  return newCards.concat(dueCards).map(toPlayerItem).slice(0, PATTERN_SESSION_CAP);
+  return dueCards.concat(newCards.slice(0, NEW_PATTERNS_PER_SESSION)).map(toPlayerItem).slice(0, PATTERN_QUEUE_HARD_CAP);
 }
 
 // 词条 → 提词器句子：兼容两种数据形状（嵌套对象 targetSentence / 云端 better+original+scene）
@@ -4210,7 +4227,7 @@ async function loadMe() {
     document.getElementById('error-patterns-group').classList.add('hidden');
   }
 
-  // v101：不自然表达分析（根因分布 + 高频不自然句式，扫 reports 原始 JSON）
+  // v101：不自然表达分析（根因分布 + 各根因典型句式，扫 reports 原始 JSON；v120 起句式按根因组织）
   renderExpressionInsights();
 
   // v101：近 7 天四维度分线走势（Chart.js，莫兰迪色系）
@@ -4441,7 +4458,7 @@ async function showErrorDetail(pattern) {
 // ── 不自然表达分析（v101）────────────────────────────
 // 数据源：reports 表原始 JSON 的 expression 升级句（original→better，即「不像 local」的逐条记录）。
 // 根因口径：新版日报 GPT 打标 pattern 键（4 类枚举）；历史日报无 pattern → 启发式关键词回退归类。
-// 产出：根因分布条形 + 高频不自然句式 TOP 5（出现次数最多的原句，点按看最新升级方案）。
+// 产出：根因分布条形 + 各根因典型句式（v120 重构：句式降为例证、挂根因名下，替代原「高频句式 TOP 5」）。
 // 无需 SQL/表迁移：统计直接扫 reports 原始 JSON，历史数据零迁移即受益。
 const EXPRESSION_CAUSES = ['直译语序', '用词搭配', '冗余啰嗦', '表达习惯'];
 let _expressionStats = null;
@@ -4468,21 +4485,28 @@ async function renderExpressionInsights() {
     const mistakes = (j && Array.isArray(j.mistakes)) ? j.mistakes : [];
     for (const m of mistakes) {
       if (!m || m.type !== 'expression' || !m.original) continue;
-      const cause = EXPRESSION_CAUSES.includes(m.pattern) ? m.pattern : classifyExpressionCause(m.original, m.improved, m.explanation);
+      const explicit = EXPRESSION_CAUSES.includes(m.pattern);
+      const cause = explicit ? m.pattern : classifyExpressionCause(m.original, m.improved, m.explanation);
       count[cause] = (count[cause] || 0) + 1;
       days.add(r.date);
       const key = String(m.original).toLowerCase().replace(/\s+/g, ' ').trim();
-      if (!byText[key]) byText[key] = { key, original: m.original, better: m.improved || '', scene: m.explanation || '', n: 0 };
+      if (!byText[key]) byText[key] = { key, original: m.original, better: m.improved || '', scene: m.explanation || '', n: 0, cause };
       byText[key].n++;
       if (m.improved) byText[key].better = m.improved;   // 保留最新一次的正句
       if (m.explanation) byText[key].scene = m.explanation;
+      if (explicit) byText[key].cause = m.pattern;       // GPT 显式根因优先于启发式归类（同一句跨日重报时以最新显式标为准）
     }
   });
   const total = Object.values(count).reduce((a, b) => a + b, 0);
   if (!total) { grp.classList.add('hidden'); return; }
   grp.classList.remove('hidden');
-  const top = Object.values(byText).sort((a, b) => b.n - a.n).slice(0, 5);
-  _expressionStats = { top };
+  // v120（用户意见）：原「高频句式 TOP 5」删除——数据量小时上榜的全是 ×1 单次句，打「高频」旗号信息量为零。
+  // 重构为按根因组织：句式降级为「例证」，挂在其根因（pattern）名下，每个根因最多展示 2 条最典型句式。
+  const flat = Object.values(byText);
+  _expressionStats = { flat };
+  const byCause = {};
+  flat.forEach(t => { (byCause[t.cause] = byCause[t.cause] || []).push(t); });
+  const sortedCauses = Object.entries(count).sort((a, b) => b[1] - a[1]);
   const sorted = EXPRESSION_CAUSES.map(c => [c, count[c] || 0]).sort((a, b) => b[1] - a[1]);
   const max = Math.max(...sorted.map(([, n]) => n), 1);
   box.innerHTML = `
@@ -4497,22 +4521,29 @@ async function renderExpressionInsights() {
         <span class="w-[30px] text-[0.6875rem] text-[var(--c-text-ultradim)] shrink-0">${n}次</span>
       </div>`
     ).join('')}</div>
-    <div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">高频不自然句式 TOP ${top.length}</div>
-    ${top.map((t, i) => `
-      <div class="text-xs mb-2 cursor-pointer" data-idx="${i}" onclick="showExpressionDetail(Number(this.dataset.idx))">
-        <div class="line-through text-[var(--c-text-dim)]">${h(t.original)}</div>
-        <div class="text-[var(--c-primary)]">${h(t.better || '')}<span class="ml-1.5 text-[0.6875rem] text-[var(--c-text-ultradim)]">×${t.n}</span></div>
-      </div>`).join('')}
+    <div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">各根因典型句式</div>
+    ${sortedCauses.map(([causeName, c]) => {
+      const items = (byCause[causeName] || []).sort((a, b) => b.n - a.n).slice(0, 2);
+      if (!items.length) return '';
+      return `<div class="mb-3">
+        <div class="text-xs font-bold text-[var(--c-text)] mb-1.5">${causeName}<span class="ml-1.5 text-[0.6875rem] font-normal text-[var(--c-text-ultradim)]">${c} 次</span></div>
+        ${items.map(t => `
+          <div class="text-xs mb-1.5 cursor-pointer" onclick="showExpressionDetail(${flat.indexOf(t)})">
+            <div class="line-through text-[var(--c-text-dim)]">${h(t.original)}</div>
+            <div class="text-[var(--c-primary)]">${h(t.better || '')}<span class="ml-1.5 text-[0.6875rem] text-[var(--c-text-ultradim)]">×${t.n}</span></div>
+          </div>`).join('')}
+      </div>`;
+    }).join('')}
     <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-1 leading-relaxed">根因口径：新版日报由 GPT 标注 pattern，历史日报按内容启发式归类</div>`;
   refreshIcons(box);
 }
 
 function showExpressionDetail(idx) {
-  // v101 审计：按 TOP 数组下标取条目（原文本作 data-key 遇值内引号会断属性 —— 旧日报数据可含 " 字符）
-  const top = _expressionStats && _expressionStats.top;
-  const t = top && top[Number(idx)];
+  // v120：按根因组织后改经 _expressionStats.flat 下标取条目（沿用 index 方案——原文本作 data-key 遇值内引号会断属性）
+  const flat = _expressionStats && _expressionStats.flat;
+  const t = flat && flat[Number(idx)];
   if (!t) return;
-  let msg = `不自然表达（出现 ${t.n} 次）:\n\n你说: ${t.original}\n更自然: ${t.better || '—'}`;
+  let msg = `不自然表达 · ${t.cause}（出现 ${t.n} 次）:\n\n你说: ${t.original}\n更自然: ${t.better || '—'}`;
   if (t.scene) msg += `\n说明: ${t.scene}`;
   showToast(msg);
 }
