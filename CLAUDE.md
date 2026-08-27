@@ -47,11 +47,16 @@
 | `📋 日报模板/ChatGPT日报Prompt.md` | 新版 JSON 日报模板 |
 
 ## 版本机制（两个版本号，都是故意的）
-- **`?v=NN`**（当前 v119）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
-- **`voco-vNN`**（当前 voco-v129）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
+- **`?v=NN`**（当前 v120）：HTTP/Cloudflare 缓存击穿。写在 index.html/sw.js 的资源 URL 上。
+- **`voco-vNN`**（当前 voco-v130）：SW CacheStorage 名称——唯一能替换缓存中根文档 `/` 的手段（`/` 无法带 ?v=）。
 - 两者历史上漂移差 10（v50 ↔ voco-v60），无碍；**每次部署必须各自 +1**。
 - **版本号更新铁律（2026-08-18 用户指令）**：代码改完后**先问用户是否还有其他更新统一提交，得到确认后才 +1 版本号并 push**——禁止改完代码直接自推版本。（v98 批次为已部署 v97 的用户反馈 Bug 紧急修复，用户报 Bug 即隐含「修复并上线」授权。）
-- 当前线上：**v119 / voco-v129**（v119 小熊长按封杀全站扩展 + 体检工具自修三处 + 日期自动识别整体删除；v118 登录页熊头 PNG 化；v117 全盘审计修复十处；此前 v116 四合一 + v115 三合一及更早各批，详见下）。
+- 当前线上：**v120 / voco-v130**（v120 句型队列重排到期优先+新卡预算 10 + 错题防重复守卫 + 话题开场指令 + 不自然表达按根因组织；v119 小熊长按封杀全站扩展 + 体检工具自修三处 + 日期自动识别整体删除；v118 登录页熊头 PNG 化；v117 全盘审计修复十处；此前 v116 四合一 + v115 三合一及更早各批，详见下）。
+- **v120 批次（已部署 v120/voco-v130，2026-08-27，commit 398ee25，用户「先做整体审计然后发布」授权）**：
+  - **① 句型队列重排（Q1 收官，用户决定「到期优先 + 新卡限量」）**：`getDueSentencesQueue` 到期卡（next_review_date 升序）**全部出队、不设上限**——防遗忘是 SM-2 第一要务，该复习的一句不拖；新卡殿后按 date_added 降序、每日最多 `NEW_PATTERNS_PER_SESSION`=10 张（当天导入句 date_added 最新 → 天然排新卡预算最前，当天导入当天练）；`PATTERN_QUEUE_HARD_CAP`=40 总安全阀仅防极端情况，正常规模触不到。取代 v77 起 PATTERN_SESSION_CAP=15 漏斗（新卡优先截断 → 老卡排队无期）。打卡完成 = 队列练完 = 到期卡清零 + 当日新卡预算消化（任务 2 数字 = 本函数长度，自动同源）。
+  - **② 错题卡防重复守卫**：`dueErrorCards` 新增 seen-set（原句|正句判重），对齐句型/词汇两条链路——库中当前零重复（SQL 实测），纯防御未来重复导入；写回侧 v117 F9 已把重复行一并推进（练一张 = 全部重复行推曲线），此处只拦展示、零行为变化。
+  - **③ 灵感舱话题开场指令（用户检查「只是简单词的拼接，达不到效果」）**：话题标签注入从「贴标签」（今天我们探讨的主题领域是：【××】）升级为「开场指令」——GPT 第一句话必须是该主题的开放性问题（问经历/计划/观点，禁 How are you 类无关寒暄）+ 沿回答深挖 + 跑题卡壳拉回；对齐话题复盘 Prompt 早已有的「你先向我提问吧」同款指派。
+  - **④ 不自然表达分析重构（用户反馈「TOP 5 不知道想表达什么」）**：原「高频不自然句式 TOP 5」在数据量小时上榜全是 ×1 单次句、打「高频」旗号信息量为零 → 物理删除，改为「各根因典型句式」——句式降级为例证、挂其根因（pattern）名下，每根因最多 2 条最典型句式；点击详情标注所属根因；同句跨日重报以最新 GPT 显式根因为准。
 - **v118 登录页熊头 PNG 化（已部署 v118/voco-v128，2026-08-26，commit fd8a914，用户报 Bug → 修复上线）**：登录页小熊自 v5.0 起就是 index.html L140 硬编码 emoji（`<div class="login-icon">🐻</div>`）——清缓存永远修不好（曾误判 SW 缓存，实为设计残留）。修复：换真实 PNG `bear-head-default.png`（72px + onerror 回退 emoji）+ `<link rel="preload">` 预载。**教训：用户报 Bug 先 grep 实际代码，再谈缓存。**
 - **v119 批次（已部署 v119/voco-v129，2026-08-26，用户「改完就发布」授权）**：
   - **① 全站小熊长按封杀扩展（v116 熊条范围 → 全站五处小熊）**：加载页「Voco 小熊一路小跑」、登录页熊头、Profile 头像、首页空态/加载态小熊全部复用 `.bear-img` 类——三行 CSS 零视觉属性，document 级 contextmenu 守卫（仅命中 `.bear-img` 时 preventDefault）自动覆盖，`draggable="false"` 补齐；`showBearDay` 点击链路与「不用 pointer-events:none」照旧不碰。
@@ -68,7 +73,7 @@
   - **F8【高·打卡戳污染】** showSrsDone 历史视图（_ctxDate 非今日）跳过写 voco-speak-done——浏览历史不再误亮任务 2。
   - **F9【中·重复行永久到期】** reviewErrorItem limit(1) → 同「原句+正句」重复行全部到期行一并推进（对齐词汇 resolveVocabRows 口径）。
   - **F10** pickCalendarDay `!!(_dateScoreCache[ds] || {})` 恒真 → `!!_dateScoreCache[ds]`——月历跳无数据日恢复「未打卡」toast。
-  - 已知取舍（记录不修）：完成戳与写回成功脱钩（v115 设计）；due 复习不写 correct_in_review（v99 设计，SQL 清理脚本负责）；15 句截断 vs 打卡完成语义；入库非事务（文本查重自愈）；words_learned 非单调（实际行数口径）。
+  - 已知取舍（记录不修）：完成戳与写回成功脱钩（v115 设计）；due 复习不写 correct_in_review（v99 设计，SQL 清理脚本负责）；新卡池逐日消化 10 张/日（v120 起打卡完成 = 到期卡清零 + 当日预算消化，未入预算的新卡次日仍可练）；入库非事务（文本查重自愈）；words_learned 非单调（实际行数口径）。
 - **v116 四合一（已部署 v116/voco-v126，2026-08-26，commit e98805e）**：
   - **① 历史日报补导日期选择器（用户指令「补」——恢复 8.21/8.22/8.25 三篇被合并误删的日报文本）**：导入弹窗 textarea 下新增 `#dialog-report-date`（默认今天）；`_importDateTouched` 标记手动改动（一旦手动改过，文内自动识别不再覆盖）；`detectReportDate(text)` 三入口正则（Markdown 标题 `# YYYY-MM-DD` / JSON `"date":"…"` / 裸日期兜底）；`renderImportPreview` 预览卡明示「入库日期」；`importReport` 取 `getImportDate()` 传参——JSON 链路 `importJsonDailyReport(jsonReport, rawText, importDate)`、Markdown 链路覆写 `parsed.meta.date`；**updateProgress/topics 仅在 `date === getLocalToday()` 时执行**（历史导入绝不重复计今日 progress——两路径同款护栏）。入库即查重逻辑不变（当日已有日报行则拒绝重复导入）。
   - **② updateProgress 口径硬化**：`p.words_learned = vCount`（词汇表实际行数）；`p.errors_fixed = Math.max(p.errors_fixed || 0, eCount)`（correct_in_review 行数，**单调护栏只增不减**——历史导入跳过 updateProgress 后，此护栏保证后续正常打卡不会把计数值打低）。
@@ -181,7 +186,7 @@
   - 铁律升级：提升区/建议区**一切入口必须携带上下文日期**；锚定**只允许**「`core-N` + date」或「句文本 + date」两种契约，禁止传 patterns 数组序号 id。
   - **v87 全链路补漏（碎片合并覆盖 100%）**：`mergeLabelFragments` 感知「历史错题」占位符（占位 original = 缺失原句，同样并入上一条）；`_errorsAll` 在全局输入构建器（buildGlobalMissionInputs）处一次合并 → 错词交叉打标 / errRows 兜底 / 对练防御池 / due 混合卡组全部消费合并行；`loadProfile` eList 合并（成就 + 错误模式聚合计数不虚高）；`importJSON` 文件导入入库前合并（碎片行无法再进 DB）。至此 fragments 的**解析、渲染、聚合、入库四条路径全部收敛**，与日期无关。
 - v85 要点：
-  - 核心句型卡今日场景携带 `date=today`（renderContentCards `shadowDate = historyMode ? _viewDate : getLocalToday()`）→ `/shadowing?date=today` → `_ctxDate=today` → 队列 = 当日日报核心句型（coreDeck），**不再**落入 SM-2 到期混合队列（15 句）。navigateShadowing / handleRoute(/shadowing 分支) / loadSpeak 三处放开「today 排除」。**无 date 的 navigateShadowing() 仍是待办打卡专属入口**（到期队列）。
+  - 核心句型卡今日场景携带 `date=today`（renderContentCards `shadowDate = historyMode ? _viewDate : getLocalToday()`）→ `/shadowing?date=today` → `_ctxDate=today` → 队列 = 当日日报核心句型（coreDeck），**不再**落入 SM-2 到期混合队列（v120 起该队列 = 到期卡全出 + 新卡每日预算 10）。navigateShadowing / handleRoute(/shadowing 分支) / loadSpeak 三处放开「today 排除」。**无 date 的 navigateShadowing() 仍是待办打卡专属入口**（到期队列）。
   - 新学单词数口径统一：`getTodayMissionState.todayNewWordsCount = reportParsed.vocabulary.length`（原 `realVocab.filter(isNewToday).length` 含 DB 残留曾致首页 8 / 列表 6 分裂）。
   - `stampDailyTags` 无条件按 `date_added` 重算 isNewToday（防 DB 行残留穿透；mergeReportVocab 在打标后运行，日报词由它重新打 true 不受影响）。
 - v84 要点：
