@@ -1153,9 +1153,9 @@ function renderTodoList(speakDoneToday) {
   // ── 今日待办三闭环（Voco 2.0）：底部待办 = SM-2 记忆任务，数据一律取自全局任务状态中心 ──
   const ms = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds);
   const hasTodayReport = ms.hasRealTodayReport;
-  // 句型 SRS 任务口径（v76 同源绑定，v104 纯库捞）：待办数字 = 句型复习页实际队列 getDueSentencesQueue 的 .length
-  // —— 库中 needsReview===true 全量（v120 起：到期卡全出 + 新卡每日预算 10），文本去重与卡片页同一函数，绝不分叉
-  const patternTaskCount = getDueSentencesQueue(_patternLibrary).length;
+  // 句型 SRS 任务口径（v76 同源绑定，v104 纯库捞）：待办数字 = 句型复习页实际队列 getSpeakQueueForToday() 的 .length
+  // —— 当日快照冻结口径（同一天数字只减不增），文本去重与卡片页同一函数，绝不分叉
+  const patternTaskCount = getSpeakQueueForToday().length;
   const dueCount = ms.totalDueVocabCount;       // SM-2 到期全量（今日新词 + 历史到期词），与 tab=due 同源
   const reviewedToday = ms.reviewedVocabToday;  // 今日实际完成反馈（🟢/🔴）的词数（id 集合大小）
   // 任务 2 三态：
@@ -1163,7 +1163,9 @@ function renderTodoList(speakDoneToday) {
   // ② 有今日日报 → 「完成今日句型复习 (N句)」，N = 今日新句型 + 历史到期句（队列已混合）
   // ③ 无今日日报但有到期句 → 「完成句型复习 (N句)」，纯历史复习队列
   const patternTask = patternTaskCount === 0
-    ? { text: '句型复习打卡 · 暂无复习任务', sub: '导入日报获得新句型，或等待历史句型到期', done: false, disabled: true, action: null }
+    ? (speakDoneToday
+      ? { text: '句型复习打卡 · 今日句型复习已完成', sub: '今日队列已全部练完，明天继续', done: true, disabled: true, action: null }
+      : { text: '句型复习打卡 · 暂无复习任务', sub: '导入日报获得新句型，或等待历史句型到期', done: false, disabled: true, action: null })
     : {
         text: hasTodayReport ? `句型复习打卡 · 完成今日句型复习 (${patternTaskCount}句)` : `句型复习打卡 · 完成句型复习 (${patternTaskCount}句)`,
         sub: speakDoneToday ? '今日句型复习已完成' : (hasTodayReport ? '今日新句优先 + 历史到期句逐日消化' : '历史到期句型复习队列'),
@@ -2197,8 +2199,8 @@ async function auditModule2() {
   else {
     const dom1 = t1.textContent || '';
     const m1 = dom1.match(/[（(](\d+)句[)）]/);   // v107：半/全角括号双兼容（实际渲染为半角 `(N句)`，全角为正则盲区）
-    const queueLen = getDueSentencesQueue(_patternLibrary).length;
-    if (m1 && parseInt(m1[1], 10) === queueLen) _auditPass(`任务 2 数字一致：面板显示 ${queueLen} 句 === getDueSentencesQueue(_patternLibrary).length = ${queueLen}`);
+    const queueLen = getSpeakQueueForToday().length; // 与面板同源：当日快照口径（已复习一部分的日子 = 剩余队列）
+    if (m1 && parseInt(m1[1], 10) === queueLen) _auditPass(`任务 2 数字一致：面板显示 ${queueLen} 句 === getSpeakQueueForToday().length = ${queueLen}`);
     else if (/暂无复习任务/.test(dom1) && queueLen === 0) _auditPass('任务 2 数字一致：队列 0 → 防御态文案（0 = 0）');
     else if (!m1 && !queueLen) _auditSkip('任务 2 数字钩稽', '面板无数字且队列为 0，无可比对样本');
     else _auditFail('任务 2 数字分裂', `面板显示「${m1 ? m1[1] : '无数字'}」，实际 queue.length = ${queueLen}`);
@@ -2448,7 +2450,7 @@ async function auditModule6() {
   const clean = _viewDate === null && _historyParsed === null && _ctxDate === null && _speakView === '';
   if (clean) _auditPass('历史动线：退出后 _viewDate / _historyParsed / _ctxDate / _speakView 全部恢复今日初始化状态');
   else _auditFail('历史动线：退出后状态残留', `_viewDate=${_viewDate} _historyParsed=${!!_historyParsed} _ctxDate=${_ctxDate} _speakView=${_speakView}`);
-  const expectToday = getDueSentencesQueue(_speakAll).map(x => x.id);
+  const expectToday = getSpeakQueueForToday().map(x => x.id); // 与今日路径同源：当日快照口径（已复习一部分的日子 = 剩余队列）
   const got = _srsQueue.map(x => x.id);
   if (JSON.stringify(expectToday) === JSON.stringify(got)) _auditPass(`历史动线：回到今日打卡后 SRS 队列 = 今日纯库捞队列（${got.length} 项），零历史题库残留`);
   else _auditFail('历史动线：回到今日后队列被污染', `实际 ${got.length} 项 ≠ 今日应得 ${expectToday.length} 项`);
@@ -2783,25 +2785,30 @@ function hideInspirationDialog() {
 
 // v115 课前教练契约（用户指令）：替换原弱指令「注意纠正」。定位 = 专业私教人设 + 自然交流（全程英文）：
 // 纠错融入对话（有错就纠、没错不纠、绝不编造）、引导与深挖（点破错误规律/根因、适时小结 pattern），
-// 而非机械打卡流水线——分类记账等结构化工作全部留给课后日报 prompt，课上只要求「自然记住」
-const _PRE_COACH_CONTRACT = `作为我的英语口语私教，请开启今天的对话。你不是陪聊，也不是纠错机器，而是一位专业、敏锐的口语教练：我们像日常对话一样自然交流，你全程以教练的视角观察我的表现。
-全程使用英文：你的每一句话——对话、纠错、解释、引导、小结——都用英文说，不要用中文。
+// 而非机械打卡流水线——分类记账等结构化工作全部留给课后日报 prompt，课上只要求「自然记住」。
+// v121 批次（用户反馈「总是被打断」）：核心原则从「每句先纠错再接话」改为「对话第一、纠错第二」——
+// 绝不打断/不接话/不代说完 + 先回应内容再给反馈（用户 key points 融合）+ 复述练习四步协议 + 教思维而非修补
+const _PRE_COACH_CONTRACT = `作为我的英语口语私教和长期对话伙伴，请开启今天的对话。我们的目标是通过真实自然的对话帮我流利地道，而不是上课：像两个朋友日常聊天一样自然交流，你全程以教练的视角观察我的表现。
+全程使用英文：你的每一句话——对话、回应、纠错、解释、引导、小结——都用英文说；除非我明确要求用中文。
 
-【纠错是交流的一部分】
-1. 我每说完一句，你先用一两句话自然点出我上一句的问题（没有明显问题就说「这句没问题」然后继续），再顺着话题接下去——纠错融入对话，不生硬、不破坏交流氛围。
-2. 纠错时给出地道的说法、一句话说清原因，然后让我把正确版本重说一遍。
-3. 有错就纠、没错不纠：绝不编造错误，也绝不为了显得尽责而挑刺。
+【对话第一，纠错第二】
+1. 绝不打断我说话：不要抢话、不要接我的话、不要替我把句子说完——等我把一个完整的意思清楚表达完，你再开口。
+2. 我每说完一段，你先像聊天对象一样回应我的内容：回答我的问题、讨论我的观点、给我一个自然真实的反应；回应完之后，再给我简短反馈。
+3. 反馈只针对我真的犯的错误：有错就纠、没错不纠，绝不编造错误，也绝不为了显得尽责而挑刺；用一两句话解释原因，并给出更自然的说法，可以邀请我把正确版本自然地说一遍。
 
 【引导与深挖】
 4. 你是引导者，不是答案机：我卡壳时先给提示词，引导我自己说出来；发现我反复用简单词、回避复杂表达时，主动抛出升级挑战（例如："You just said 'very interesting' — try a more advanced word and say it again"）。
-5. 对我反复出现的错误，不要每次报完就走——要察觉背后的规律：是中式思维直译？时态意识缺失？还是词汇库存不够？适时点破根因（例如："I notice you keep translating word for word from Chinese — a native speaker would say ..."），帮我建立语感，而不是背一条条规则。
-6. 当某个错误再次出现、或课程进行到自然节点时，适时帮我小结当下的错误 pattern，让我带着觉察继续练。
+5. 对我反复出现的错误，不要每次报完就走——要察觉背后的规律：是中式思维直译？时态意识缺失？还是词汇库存不够？适时点破根因（例如："I notice you keep translating word for word from Chinese — a native speaker would say ..."），帮我建立语感。教的是英语背后的思维，不是一条条修补。
+6. 当某个错误再次出现、或对话进行到自然节点时，适时帮我小结当下的错误 pattern，让我带着觉察继续练。
+
+【复述练习协议】
+7. 如果我做复述练习，请安静听我讲完整个复述，中途绝不打断；等我说完后按顺序做四件事：① 先评价内容是否清晰完整；② 与上一次的复述对比（哪里进步、哪里遗漏）；③ 再纠正英文表达；④ 最后给出一两个下次优先改进的点。
 
 【自然衔接课后】
-7. 课堂上留意并记住值得沉淀的内容：我的典型错误、值得升级成金句的表达、我不会说的词。课后我会请你整理成学习日报——课堂上不需要你做任何记录动作，专注陪练即可。
+8. 课堂上留意并记住值得沉淀的内容：我的典型错误、值得升级成金句的表达、我不会说的词。课后我会请你整理成学习日报——课堂上不需要你做任何记录动作，专注陪练即可。
 
 【节奏与语气】
-8. 像真人私教一样说话：回应简短自然，一次不要说太多。`;
+9. 像真人朋友一样说话：回应简短自然，一次不要说太多；对话的自然感永远优先于纠错的覆盖率。`;
 
 // 组装并复制 Prompt（【我的】页 · 灵感舱居中模态调用）
 async function fireTopicGeneratorPrompt(btn) {
@@ -3759,8 +3766,8 @@ function renderSpeakRoute() {
     sentences = dp ? coreDeck(dp) : [];
   } else {
     // v104 SM-2 队列断层修复：队列纯库捞 —— 导入瞬间句子已正式入库，今日新句/历史到期句都在 _speakAll 库中，
-    // getDueSentencesQueue(_speakAll) 唯一事实源（新卡 = 无 next_review_date，到期卡 = 曲线到期），零运行时解析拼凑
-    sentences = getDueSentencesQueue(_speakAll);
+    // 唯一事实源 = getSpeakQueueForToday()（当日快照冻结包裹 getDueSentencesQueue：同一天数字只减不增，切页/重进绝不暴涨）
+    sentences = getSpeakQueueForToday();
   }
   // ?id= / ?sentence= 锚定仅决定起始卡片，绝不改变队列内容
   // （v104 起提升区四卡跳 ?view= 列表视图不再走锚定——锚定现仅 URL 通道可达；v117 审计模块二确认机制完好）
@@ -3782,6 +3789,7 @@ function renderSpeakRoute() {
       const anchorCard = (libHit && libHit.cardKind !== 'broken') ? toPlayerItem(libHit)
         : { id: 'sentence-anchor', targetSentence: anchorText, replacedSentence: '', explanation: '', isTodayCore: false, cardKind: 'expression' };
       sentences = [anchorCard].concat(sentences || []);
+      _speakQueueSnapshotAddAnchor(anchorText); // 快照同步：锚定句入今日队列首位，中途切页再回来也不丢
       startIndex = 0;
     }
   }
@@ -3960,6 +3968,70 @@ function getDueSentencesQueue(speakAll) {
   newCards.sort((a, b) => String(b.date_added || '').localeCompare(String(a.date_added || '')));
   dueCards.sort((a, b) => String(a.next_review_date || '').localeCompare(String(b.next_review_date || '')));
   return dueCards.concat(newCards.slice(0, NEW_PATTERNS_PER_SESSION)).map(toPlayerItem).slice(0, PATTERN_QUEUE_HARD_CAP);
+}
+
+// ═══════════════════════════════════════════════════════
+// 每日句型队列快照（根治「做一半点去其他页面，打卡数量不断增多、永远做不完」）
+// 问题根源：队列此前每次进页面都现场重捞 —— 已复习到期卡的 SM-2 写回异步未落地会原地复活、
+// 新卡预算每轮重抽 10 张（复习掉的预算槽被新句回填）、中途导入的日报句随时挤入 → 数字只增不减。
+// 修复：当天第一次进入今日队列时把队列 id 列表冻结进 localStorage（voco-speak-queue-<今日>），
+// 之后当天一切重建只认快照：答一张删一个 id（出队即重写），再进来只见剩余，数字只减不增；
+// 快照 = [] 即今日已练完（完成态），绝不回退到实时重捞。历史视图（?date=）不建、不读、不写快照。
+// 快照条目 {t:'pat',id}（重建时按 id 从 _patternLibrary 反查，解析/SM-2 字段恒新鲜——库行已删则静默跳过）；
+// {t:'anchor',text}（锚定句，唯一携带文本的条目）。快照上限 = 安全阀 40 条，体积可忽略。
+// ═══════════════════════════════════════════════════════
+function _speakQueueSnapshotKey() { return 'voco-speak-queue-' + getLocalToday(); }
+function _readSpeakQueueSnapshot() {
+  try {
+    const raw = localStorage.getItem(_speakQueueSnapshotKey());
+    if (!raw) return null;
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : null;
+  } catch (e) { return null; }
+}
+function _writeSpeakQueueSnapshot(entries) {
+  try { localStorage.setItem(_speakQueueSnapshotKey(), JSON.stringify(entries || [])); } catch (e) {}
+}
+// 今日队列唯一入口：有快照 → 按快照重建；无快照且现场队列非空 → 捞一次并冻结
+function getSpeakQueueForToday() {
+  const snap = _readSpeakQueueSnapshot();
+  if (snap) {
+    const out = [];
+    for (const e of snap) {
+      if (!e) continue;
+      if (e.t === 'anchor') {
+        if (e.text) out.push({ id: 'sentence-anchor', targetSentence: e.text, replacedSentence: '', explanation: '', isTodayCore: false, cardKind: 'expression' });
+      } else if (e.t === 'pat') {
+        const p = (_patternLibrary || []).find(x => x && String(x.id) === String(e.id));
+        if (p) out.push(toPlayerItem(p));
+      }
+    }
+    return out;
+  }
+  const live = getDueSentencesQueue(_patternLibrary);
+  // live = 0 时故意不冻结：此刻分不清「库未加载完」还是「真没卡」，留待队列真正成型（>0）时冻结
+  if (live.length > 0) {
+    _writeSpeakQueueSnapshot(live.map(it => (String(it.id) === 'sentence-anchor' ? { t: 'anchor', text: String(it.targetSentence || '') } : { t: 'pat', id: Number(it.id) })));
+  }
+  return live;
+}
+// 锚定句入今日快照首位：中途离开再回来，「练的就是点击的那一句」不丢
+function _speakQueueSnapshotAddAnchor(text) {
+  const snap = _readSpeakQueueSnapshot();
+  if (!snap) return; // 当天未冻结（今日路径先建快照再走锚定，正常到不了这里）
+  _writeSpeakQueueSnapshot([{ t: 'anchor', text: String(text || '') }].concat(snap.filter(e => !(e && e.t === 'anchor'))));
+}
+// 答一张删一张（仅今日语境调用；历史视图复习绝不碰今日快照）
+function _speakQueueSnapshotRemove(item) {
+  const snap = _readSpeakQueueSnapshot();
+  if (!snap) return;
+  const idStr = String(item && item.id);
+  const text = String(item && item.targetSentence || '');
+  _writeSpeakQueueSnapshot(snap.filter(e => {
+    if (!e) return false;
+    if (e.t === 'anchor') return text !== String(e.text || '');
+    return String(e.id) !== idStr;
+  }));
 }
 
 // 词条 → 提词器句子：兼容两种数据形状（嵌套对象 targetSentence / 云端 better+original+scene）
@@ -4147,6 +4219,8 @@ function rateSentenceCard(status) {
   _srsResults[status === 'again' ? 'forgot' : 'remembered'] += 1;
   _srsReviewed += 1;
   _srsQueue.splice(_srsIdx, 1); // 点击后自动从队列移除（与 PM 闭环要求一致）
+  const histAnswer = _ctxDate && _ctxDate !== getLocalToday();
+  if (!histAnswer) _speakQueueSnapshotRemove(item); // 快照同步：答一张删一张（历史视图复习绝不碰今日快照）
   if (_srsQueue.length === 0) { showSrsDone(); return; }
   _srsIdx = _srsIdx % _srsQueue.length;
   renderSrsCard();
@@ -4572,10 +4646,10 @@ const TEMPLATES = {
   "mistakes": [
     { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释", "category": "动词与时态" },
     { "type": "pronunciation", "original": "发音错误的词或句子", "improved": "正确发音写法", "explanation": "音标或发音要点" },
-    { "type": "expression", "original": "中式或普通的句子", "improved": "更地道高阶的表达", "explanation": "为什么这样说更好", "pattern": "直译语序" }
+    { "type": "expression", "original": "中式或普通的句子", "improved": "更地道高阶的表达", "explanation": "为什么这样说更好：重点词汇（固定搭配、高频词）与句型结构提示", "pattern": "直译语序" }
   ],
   "coreSentences": [
-    { "targetSentence": "高阶金句", "replacedSentence": "被替代的普通表达", "explanation": "使用场景或提示" }
+    { "targetSentence": "高阶金句", "replacedSentence": "被替代的普通表达", "explanation": "为什么这个更地道：重点词汇（固定搭配、高频词）与句型结构提示" }
   ],
   "newWords": [
     { "word": "单词", "phonetic": "/音标/", "meaning": "中文释义", "example": "包含该词的例句" }
@@ -4599,8 +4673,8 @@ const TEMPLATES = {
      "句式与搭配"（介词误用、固定搭配、词性误用、句式结构、其他语法问题）；
      explanation 必须写明具体的语法规则和改正要点（如「一般过去时用 went」），严禁用分类名代替解释。
    - "pronunciation"：发音错误（读错的词、重音、元音等）；
-   - "expression"：语法正确但不够地道的表达升级——type 为 expression 的项还必须包含第五个键 pattern（不自然根因，只允许以下四个值之一）："直译语序"（中文语序/逐字直译，如 I very like it）、"用词搭配"（用词不当、词性误用或搭配错误，如 learn knowledge）、"冗余啰嗦"（多余的重复或填充，如 more better）、"表达习惯"（语法没错但不符合母语者习惯的说法）。
-5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。
+   - "expression"：语法正确但不够地道的表达升级——type 为 expression 的项还必须包含第五个键 pattern（不自然根因，只允许以下四个值之一）："直译语序"（中文语序/逐字直译，如 I very like it）、"用词搭配"（用词不当、词性误用或搭配错误，如 learn knowledge）、"冗余啰嗦"（多余的重复或填充，如 more better）、"表达习惯"（语法没错但不符合母语者习惯的说法）。explanation 必须写「为什么这样说更好」：具体写出重点词汇与固定搭配、句型结构，作为复习时回忆整句的线索；只写场景、不给词汇与句型提示的 explanation 视为不合格。
+5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。explanation 必须写「为什么这个更地道」：具体写出①重点词汇与固定搭配（如「take the time to do sth」）；②句型结构/句式骨架，作为复习时回忆整句的线索。只写场景、不给词汇与句型提示的 explanation 视为不合格。
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
 7. coreSentences 与 newWords 不设数量上限：只把今天对话中真实出现、值得收录的内容整理出来——coreSentences 收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）；newWords 只收录「你不会的生词」：对话中你不认识、说不出、卡壳、查过、用错或被纠正过的词。严禁收录你本来就认识的常用词。宁缺毋滥：今天没有就输出空数组 []，绝不允许为了凑数量编造内容，也不允许因为觉得太少而凑词。
 8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。
@@ -5445,5 +5519,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=119');
+  navigator.serviceWorker.register('/sw.js?v=121');
 }
