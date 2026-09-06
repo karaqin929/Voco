@@ -1164,10 +1164,10 @@ function renderTodoList(speakDoneToday) {
   // ③ 无今日日报但有到期句 → 「完成句型复习 (N句)」，纯历史复习队列
   const patternTask = patternTaskCount === 0
     ? (speakDoneToday
-      ? { text: '句型复习打卡 · 今日句型复习已完成', sub: '今日队列已全部练完，明天继续', done: true, disabled: true, action: null }
-      : { text: '句型复习打卡 · 暂无复习任务', sub: '导入日报获得新句型，或等待历史句型到期', done: false, disabled: true, action: null })
+      ? { text: '句型打卡 · 今日句型复习已完成', sub: '今日队列已全部练完，明天继续', done: true, disabled: true, action: null }
+      : { text: '句型打卡 · 暂无复习任务', sub: '导入日报获得新句型，或等待历史句型到期', done: false, disabled: true, action: null })
     : {
-        text: hasTodayReport ? `句型复习打卡 · 完成今日句型复习 (${patternTaskCount}句)` : `句型复习打卡 · 完成句型复习 (${patternTaskCount}句)`,
+        text: hasTodayReport ? `句型打卡 · 完成今日句型复习 (${patternTaskCount}句)` : `句型打卡 · 完成句型复习 (${patternTaskCount}句)`,
         sub: speakDoneToday ? '今日句型复习已完成' : (hasTodayReport ? '今日新句优先 + 历史到期句逐日消化' : '历史到期句型复习队列'),
         done: !!speakDoneToday,
         disabled: false,
@@ -1192,12 +1192,12 @@ function renderTodoList(speakDoneToday) {
   const deckDone = deckTotal === 0 ? deckReviewed > 0 : !!vocabDoneStamp;
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
-    { text: '对练打卡 · 导入今日日报', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
+    { text: '对练打卡 · 完成今日对练', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
     // 任务 2（句型复习打卡）：句型 SRS 卡片队列 —— 点击直达今日到期队列；复习完最后一张卡片自动打卡 + SM-2 写回
     patternTask,
-    // 任务 3（复习打卡）：完成今日到期复习 —— v88 数字 = due tab 混合卡组真实长度（到期词 + 错题），
+    // 任务 3（复习打卡）：完成今日单词错题复习 —— v88 数字 = due tab 混合卡组真实长度（到期词 + 错题），
     // v103 完成判定 = deckDone（见上：DB 持久化复习记录，清空到期后仍可判定完成）
-    { text: `复习打卡 · 完成今日到期复习 (${deckTotal}张)`, sub: deckTotal === 0 ? (deckDone ? `已复习 ${deckReviewed} 张 · 今日全部完成` : '今日无到期词') : (deckDone ? `已复习 ${deckReviewed} 张 · 本地已记录完成 · 云端剩余 ${deckTotal} 张同步中` : `已复习 ${deckReviewed} 张 · 还剩 ${deckTotal} 张 · 词+错题混合卡组`), done: deckDone, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
+    { text: `复习打卡 · 完成今日单词错题复习 (${deckTotal}张)`, sub: deckTotal === 0 ? (deckDone ? `已复习 ${deckReviewed} 张 · 今日全部完成` : '今日无到期词') : (deckDone ? `已复习 ${deckReviewed} 张 · 本地已记录完成 · 云端剩余 ${deckTotal} 张同步中` : `已复习 ${deckReviewed} 张 · 还剩 ${deckTotal} 张 · 词+错题混合卡组`), done: deckDone, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -2496,7 +2496,7 @@ async function auditModule7() {
 
 // ── 模块八：句型卡数据完整性（v116 卡型三分类 correction / expression / broken）──
 // 断言 A 打标完整 + correction 无回声（原句≠正句）｜B 残缺卡隔离（incomplete + 绝不入队）
-// 断言 C SRS 队列纯净（全部含真实正确句 + 单日 ≤ 总安全阀）｜D 今日日报解析层过滤生效
+// 断言 C SRS 队列纯净（全部含真实正确句）｜D 今日日报解析层过滤生效
 async function auditModule8() {
   if (!_patternLibrary.length) { try { await loadSpeak(); } catch (e) { /* 网络失败交由 SKIP */ } }
   const norm = s => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -2534,11 +2534,10 @@ async function auditModule8() {
   if (!brokenLeak.length) _auditPass(`残缺卡隔离：${brokenRows.length} 张 broken 全部置 incomplete + needsReview=false（强制出队）`);
   else _auditFail(`残缺卡隔离：${brokenLeak.length} 张 broken 未被隔离（可能混入 SRS 队列）`, brokenLeak.map(p => `id=${p.id}`).join(' · '));
 
-  // 断言 C：队列纯净 —— 队内每张卡都有真实正确句，且未超单日上限
+  // 断言 C：队列纯净 —— 队内每张卡都有真实正确句（v122 起无单日上限：到期句全量 + 新卡预算，对齐词汇/错题口径）
   const badQueue = queue.filter(q => !real(q.targetSentence));
-  const capOk = queue.length <= PATTERN_QUEUE_HARD_CAP;
-  if (!brokenInQueue.length && !badQueue.length && capOk) _auditPass(`SRS 队列纯净：${queue.length} 张待复习卡全部含真实正确句，无 broken 混入，未超安全阀 ${PATTERN_QUEUE_HARD_CAP} 句`);
-  else _auditFail(`SRS 队列污染：broken 混入 ${brokenInQueue.length} · 无正确句 ${badQueue.length} · 队满 ${queue.length}/${PATTERN_QUEUE_HARD_CAP}`, brokenInQueue.concat(badQueue).map(q => q.targetSentence || String(q.id)).join(' · '));
+  if (!brokenInQueue.length && !badQueue.length) _auditPass(`SRS 队列纯净：${queue.length} 张待复习卡全部含真实正确句，无 broken 混入，无单日上限（到期全量 + 新卡预算 ${NEW_PATTERNS_PER_SESSION}）`);
+  else _auditFail(`SRS 队列污染：broken 混入 ${brokenInQueue.length} · 无正确句 ${badQueue.length} · 队列长度 ${queue.length}`, brokenInQueue.concat(badQueue).map(q => q.targetSentence || String(q.id)).join(' · '));
 
   // 断言 D：今日日报解析层过滤 —— _reportParsed 的 patterns / 核心句型无半截条目、无回声
   const rp = _reportParsed;
@@ -3948,11 +3947,11 @@ function coreDeck(parsed) {
 // 文本去重：同句多行（历史「导入行 + 复习 INSERT 行」双行遗留）只保留优先行；库级 dedupePatternsByText 已收敛，此处兜底
 // v120 队列重排（用户决定「到期优先 + 新卡限量」，2026-08-27）：到期卡全部出队、不设上限——防遗忘是
 // SM-2 第一要务，该复习的一句不拖；新卡殿后按 date_added 降序、每日最多 NEW_PATTERNS_PER_SESSION 张
-// （当天导入句 date_added 最新 → 天然排新卡预算最前，当天导入当天练）；
-// PATTERN_QUEUE_HARD_CAP 总安全阀仅防极端情况，正常规模触不到。
+// （当天导入句 date_added 最新 → 天然排新卡预算最前，当天导入当天练）。
+// v122（用户决定，2026-09-06）：删除 40 张总安全阀——无单日上限，到期句全量 + 新卡预算，与词汇/错题同口径。
+// 40 安全阀 v120 引入时判断「正常规模触不到」，实为 154 行库即触发（真实到期 99 句被截到 40），废除。
 // 打卡完成 = 队列练完 = 到期卡清零 + 当日新卡预算消化（任务 2 数字 = 本函数长度，自动同源）
 const NEW_PATTERNS_PER_SESSION = 10;
-const PATTERN_QUEUE_HARD_CAP = 40;
 function getDueSentencesQueue(speakAll) {
   const seen = new Set();
   const newCards = [];
@@ -3967,7 +3966,7 @@ function getDueSentencesQueue(speakAll) {
   }
   newCards.sort((a, b) => String(b.date_added || '').localeCompare(String(a.date_added || '')));
   dueCards.sort((a, b) => String(a.next_review_date || '').localeCompare(String(b.next_review_date || '')));
-  return dueCards.concat(newCards.slice(0, NEW_PATTERNS_PER_SESSION)).map(toPlayerItem).slice(0, PATTERN_QUEUE_HARD_CAP);
+  return dueCards.concat(newCards.slice(0, NEW_PATTERNS_PER_SESSION)).map(toPlayerItem);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3978,7 +3977,7 @@ function getDueSentencesQueue(speakAll) {
 // 之后当天一切重建只认快照：答一张删一个 id（出队即重写），再进来只见剩余，数字只减不增；
 // 快照 = [] 即今日已练完（完成态），绝不回退到实时重捞。历史视图（?date=）不建、不读、不写快照。
 // 快照条目 {t:'pat',id}（重建时按 id 从 _patternLibrary 反查，解析/SM-2 字段恒新鲜——库行已删则静默跳过）；
-// {t:'anchor',text}（锚定句，唯一携带文本的条目）。快照上限 = 安全阀 40 条，体积可忽略。
+// {t:'anchor',text}（锚定句，唯一携带文本的条目）。快照条数 = 当日队列长度（v122 起无上限），体积可忽略。
 // ═══════════════════════════════════════════════════════
 function _speakQueueSnapshotKey() { return 'voco-speak-queue-' + getLocalToday(); }
 function _readSpeakQueueSnapshot() {
@@ -4240,7 +4239,7 @@ function showSrsDone() {
         </div>
         <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">句型复习完成！</div>
         <div class="text-xs text-[var(--c-text-dim)] mb-1">记住了 ${_srsResults.remembered} · 还没记住 ${_srsResults.forgot}</div>
-        <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-6">已点亮首页【句型复习打卡】</div>
+        <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-6">已点亮首页【句型打卡】</div>
         <button onclick="navigateToTab('home')" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
           style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
           🏠 回到首页 <i data-lucide="arrow-right" class="w-4 h-4"></i>
@@ -4282,7 +4281,7 @@ async function loadMe() {
 
   const vList = vocab || [];
   // v86 全局加固：成就/错误模式聚合前的碎片合并 —— 一条知识 = 一行，聚合计数不再虚高
-  // v101 审计：语法弱点分析只计语法错题 —— 备份还原可能带回旧备份中的发音行，防御过滤（与 v99 错题体系口径一致）
+  // v101 审计（沿用到 v122）：错题聚合只计语法错题 —— 备份还原可能带回旧备份中的发音行，防御过滤（与 v99 错题体系口径一致）
   const eList = mergeLabelFragments((errors || []).filter(e => e && e.type !== 'pronunciation'));
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
   const streak = calcStreak(dates);
@@ -4295,104 +4294,286 @@ async function loadMe() {
 
   renderAchievements(prog, vList, eList, streak);
 
-  if (eList.length > 0) {
-    showErrorPatterns(eList);
-  } else {
-    document.getElementById('error-patterns-group').classList.add('hidden');
-  }
+  // v122：「语法弱点分析」「不自然表达分析」两个独立区块已删除（用户决定：没啥用）——
+  // 分布统计融合进下方「学习复盘 · 重心建议」的反复弱点聚合，口径统一为复盘窗口内 mistakes 聚合
 
-  // v101：不自然表达分析（根因分布 + 各根因典型句式，扫 reports 原始 JSON；v120 起句式按根因组织）
-  renderExpressionInsights();
-
-  // v101：近 7 天四维度分线走势（Chart.js，莫兰迪色系）
-  renderTrendChart();
+  // v122：学习复盘 · 重心建议（按次复盘报告，置于页尾；融合语法弱点分布 + 表达根因）
+  renderReviewSection();
 }
 
-// ── 近 7 天趋势图（v101 四维分线）：历史 reports → Chart.js 四维度折线 ──
-// 旧版单线综合均值在分数区间窄时是一条直线、无参考价值（用户反馈）。
-// 专业口语 App（Speak/ELSA 类）做法：分维度多线 —— 暴露「哪条腿短」而不是把差异抹平成一条均值线。
-// 口径与首页打分板完全一致：流利度/语法/词汇/地道与英文思维 四维度 norm100；
-// 词汇维度：新版日报 summary.vocabulary（0-10 私教评分），历史日报回退词数折算公式。
+// ── 学习复盘 · 重心建议（v122 按次复盘报告，取代 v101 近 7 天折线）──
+// 旧图根因（用户反馈「鸡肋」）：X 轴 = 日历日，练习 1-2 次/周 → 7 天窗口只有 1-2 个点，
+// 其余靠 spanGaps 连线补空，四维分数又在 60-80 窄区间重叠 → 无参考价值。
+// 新设计（用户确认，目标 = 复盘后能调整学习策略重心）：X 轴 = 练习次数（最近 N 次，默认 8，可选 4/16/全部），
+// 每次练习都是一个真实数据点；五块结构：① 范围与频率 ② 四维按次走势 ③ 逐维趋势结论
+// ④ 反复弱点聚合（weak_areas + 语法弱点分布 + 表达根因 + GPT 诊断原文——v122 融合原「语法弱点分析」「不自然表达分析」两区块）⑤ 重心建议（规则引擎 1-2 条）。
+// 数据全部来自 reports 表 + parseSmartReport，纯前端聚合，零后端改动。
 let _trendChart = null;
-async function renderTrendChart() {
+let _reviewSessions = null; // 全量会话缓存：切换范围不重拉库
+let _reviewRange = 8;       // 4 / 8 / 16 / 'all'
+async function loadReviewSessions() {
+  if (_reviewSessions) return _reviewSessions;
+  _reviewSessions = [];
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return _reviewSessions;
+    const { data: reports } = await sb.from('reports').select('date, content').order('date', { ascending: true }).limit(1000);
+    (reports || []).forEach(r => {
+      if (!r || !r.date || !isDailyReport(r)) return;
+      try {
+        const p = parseSmartReport(r.content);
+        if (!p || !p.summary || typeof p.summary.fluency !== 'number') return;
+        _reviewSessions.push({
+          date: r.date,
+          fluency: norm100(p.summary.fluency),
+          accuracy: norm100(p.summary.accuracy),
+          naturalness: (typeof p.summary.naturalness === 'number' && isFinite(p.summary.naturalness))
+            ? norm100(p.summary.naturalness)
+            : norm100(Math.round((p.summary.fluency || 0) * 0.8)),
+          vocabulary: (typeof p.summary.vocabulary === 'number' && isFinite(p.summary.vocabulary))
+            ? norm100(p.summary.vocabulary)
+            : Math.min((p.vocabulary || []).length * 20, 100),
+          weakAreas: String(p.summary.weak_areas || '').split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean),
+          nextSteps: Array.isArray(p.summary.nextSteps) ? p.summary.nextSteps : [],
+          insights: (p.coach_insights && typeof p.coach_insights === 'object') ? p.coach_insights : null,
+          mistakes: Array.isArray(p.mistakes) ? p.mistakes : []
+        });
+      } catch (e) { /* 单篇解析失败 → 跳过该篇，绝不拖垮整块 */ }
+    });
+  } catch (e) { /* 拉库失败 → 空态 */ }
+  return _reviewSessions;
+}
+const _REVIEW_DIMS = [
+  { key: 'fluency', label: '流利度', color: '#8A9B6E' },        // 莫兰迪鼠尾草绿
+  { key: 'accuracy', label: '语法', color: '#B08884' },          // 灰玫瑰
+  { key: 'vocabulary', label: '词汇', color: '#8898B0' },        // 灰蓝
+  { key: 'naturalness', label: '地道与思维', color: '#B4A090' }  // 暖杏陶土
+];
+function _insightKeyForDim(dimKey) {
+  if (dimKey === 'accuracy') return 'grammar';
+  if (dimKey === 'vocabulary') return 'vocabulary';
+  if (dimKey === 'naturalness') return 'expression';
+  return null; // fluency 无对应诊断键
+}
+function _insightKeyForTag(tag) {
+  if (/时态|语法|冠词|介词|动词|名词|单复数|句式|搭配/.test(tag)) return 'grammar';
+  if (/词汇/.test(tag)) return 'vocabulary';
+  if (/表达|地道|直译|思维|冗余|啰嗦|习惯/.test(tag)) return 'expression';
+  return null;
+}
+function _daysBetween(a, b) { // 'YYYY-MM-DD' 字符串
+  return Math.max(1, Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000));
+}
+function _md(d) { return String(d || '').slice(5).replace('-', '/'); }
+
+async function renderReviewSection() {
   const canvas = document.getElementById('trendChart');
-  if (!canvas || typeof Chart === 'undefined') return; // CDN 未加载 → 静默降级，不阻塞 Profile
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) return;
-  const { data: reports } = await sb.from('reports').select('date, content').order('date', { ascending: false }).limit(1000);
-  // 最近 7 个本地日历日（含今天），getLocalToday 时区安全
-  const days = [];
-  for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(fmtLocalDate(d)); }
-  const dims = { f: [], a: [], n: [], v: [] };
-  (reports || []).forEach(r => {
-    if (!r.date || !days.includes(r.date) || !isDailyReport(r)) return;
-    const dayIdx = days.indexOf(r.date);
-    if (dims.f[dayIdx] !== undefined) return; // 同日多报 → 只取第一条
-    try {
-      const p = parseSmartReport(r.content);
-      dims.f[dayIdx] = norm100(p.summary.fluency);
-      dims.a[dayIdx] = norm100(p.summary.accuracy);
-      // v101 审计：naturalness 用 typeof 判定而非真值 —— 旧 Markdown 日报无该键才回退 fluency×0.8，避免 0 分被回退吞掉
-      dims.n[dayIdx] = (typeof p.summary.naturalness === 'number' && isFinite(p.summary.naturalness))
-        ? norm100(p.summary.naturalness)
-        : norm100(Math.round((p.summary.fluency || 0) * 0.8));
-      dims.v[dayIdx] = (typeof p.summary.vocabulary === 'number' && isFinite(p.summary.vocabulary))
-        ? norm100(p.summary.vocabulary)
-        : Math.min((p.vocabulary || []).length * 20, 100);
-    } catch (e) { /* 单日解析失败 → 该日留空（gap），绝不拖垮整图 */ }
-  });
-  const mkSeries = (label, color, arr) => ({
-    label,
-    data: arr.map(v => (v === undefined ? null : v)),
-    borderColor: color, backgroundColor: color,
-    pointBackgroundColor: color, pointBorderColor: '#FFFDF9',
-    pointBorderWidth: 1.2, pointRadius: 3, pointHoverRadius: 5,
-    borderWidth: 2, fill: false, tension: 0.4, spanGaps: true, clip: false  // v105：spanGaps 跨缺卡日连线（修复断点孤岛）；clip:false 满分圆点/线可溢出绘图区绘制，绝不被容器裁切
-  });
-  if (_trendChart) _trendChart.destroy();
-  _trendChart = new Chart(canvas.getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: days.map(d => d.slice(5).replace('-', '/')),
-      datasets: [
-        mkSeries('流利度', '#8A9B6E', dims.f),      // 莫兰迪鼠尾草绿
-        mkSeries('语法', '#B08884', dims.a),        // 灰玫瑰
-        mkSeries('词汇', '#8898B0', dims.v),        // 灰蓝
-        mkSeries('地道与思维', '#B4A090', dims.n)   // 暖杏陶土
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      // v103：顶部留白 16px——满分（100）线此前画在绘图区最顶行，线/点上半被图表裁剪区切掉（词汇维度旧公式极易满 100）；
-      // 左右 6px 同理防首/末日数据点半裁。容器同步加高 16px（index.html h-[180px]→h-[196px]），绘图区高度不变
-      // v105 削顶双保险：dataset 级 clip:false（圆点即使顶格绘制也不被裁切）；Y 轴 max:100 保持不变
-      layout: { padding: { top: 16, left: 6, right: 6, bottom: 0 } },
-      scales: {
-        y: {
-          min: 0, max: 100,
-          ticks: { stepSize: 20, color: '#A49A87', font: { size: 10 } },
-          grid: { color: 'rgba(164,154,135,0.18)' }
-        },
-        x: {
-          ticks: { color: '#A49A87', font: { size: 10 } },
-          grid: { display: false }
-        }
+  const wrap = document.getElementById('reviewChartWrap');
+  const metaEl = document.getElementById('reviewMeta');
+  const dimsEl = document.getElementById('reviewDimRows');
+  const weakEl = document.getElementById('reviewWeaknesses');
+  const focusEl = document.getElementById('reviewFocus');
+  if (!canvas || !metaEl || !dimsEl || !weakEl || !focusEl) return;
+  const sel = document.getElementById('reviewRangeSel');
+  if (sel && !sel.dataset.wired) {
+    sel.dataset.wired = '1';
+    sel.addEventListener('change', () => {
+      _reviewRange = sel.value === 'all' ? 'all' : parseInt(sel.value, 10);
+      renderReviewSection();
+    });
+  }
+  const all = await loadReviewSessions();
+  const n = (_reviewRange === 'all') ? all.length : Math.min(_reviewRange, all.length);
+  const sessions = all.slice(-n);
+  const last = sessions[sessions.length - 1];
+  if (!last) {
+    if (wrap) wrap.classList.add('hidden');
+    if (_trendChart) { _trendChart.destroy(); _trendChart = null; }
+    metaEl.innerHTML = '<div class="text-[0.75rem] text-[var(--c-text-dim)] text-center py-8 leading-relaxed">还没有可复盘的日报数据<br/>导入日报后，这里会自动生成走势结论、弱点聚合与重心建议</div>';
+    dimsEl.innerHTML = ''; weakEl.innerHTML = ''; focusEl.innerHTML = '';
+    return;
+  }
+  // ① 范围与频率
+  let metaText = '', metaSub = '';
+  if (sessions.length === 1) {
+    metaText = `仅有 1 次练习记录（${_md(last.date)}）`;
+    metaSub = '再积累几次练习，这里就能给出趋势与重心建议';
+  } else {
+    const spanDays = _daysBetween(sessions[0].date, last.date);
+    const avgGap = spanDays / (sessions.length - 1);
+    metaText = `最近 ${sessions.length} 次练习（${_md(sessions[0].date)} – ${_md(last.date)}）· 平均 ${avgGap.toFixed(1)} 天一次`;
+    if (avgGap >= 3) metaSub = '练习间隔偏长：到期卡每天都在累积，见下方重心建议';
+  }
+  metaEl.innerHTML = `<div class="text-[0.75rem] font-semibold text-[var(--c-text)]">${metaText}</div>${metaSub ? `<div class="text-[0.6875rem] text-[var(--c-text-dim)] mt-0.5">${metaSub}</div>` : ''}`;
+  // ② 四维按次走势（每个练习次 = 一个真实数据点，无空洞）
+  if (sessions.length >= 2 && wrap) {
+    wrap.classList.remove('hidden');
+    const mkSeries = (label, color, key) => ({
+      label,
+      data: sessions.map(s => { const v = s[key]; return (typeof v === 'number' && isFinite(v)) ? v : null; }),
+      borderColor: color, backgroundColor: color,
+      pointBackgroundColor: color, pointBorderColor: '#FFFDF9',
+      pointBorderWidth: 1.2, pointRadius: 3, pointHoverRadius: 5,
+      borderWidth: 2, fill: false, tension: 0.35, clip: false  // clip:false 满分圆点/线可溢出绘图区绘制，绝不被容器裁切
+    });
+    if (_trendChart) _trendChart.destroy();
+    _trendChart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: sessions.map(s => _md(s.date)),
+        datasets: _REVIEW_DIMS.map(d => mkSeries(d.label, d.color, d.key))
       },
-      plugins: {
-        legend: { display: true, position: 'bottom', labels: { color: '#8C8478', font: { size: 10 }, boxWidth: 14, boxHeight: 3, padding: 12 } },
-        tooltip: {
-          backgroundColor: '#4A4438',
-          titleColor: '#F5F1E8',
-          bodyColor: '#F5F1E8',
-          padding: 10,
-          callbacks: {
-            label: ctx => (ctx.parsed.y == null ? `${ctx.dataset.label}：暂无数据` : `${ctx.dataset.label} ${ctx.parsed.y} / 100`)
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        // 顶部留白 16px——满分（100）线此前画在绘图区最顶行被裁切；X 轴按次：autoSkip + maxTicksLimit 防密集标签重叠
+        layout: { padding: { top: 16, left: 6, right: 6, bottom: 0 } },
+        scales: {
+          y: {
+            min: 0, max: 100,
+            ticks: { stepSize: 20, color: '#A49A87', font: { size: 10 } },
+            grid: { color: 'rgba(164,154,135,0.18)' }
+          },
+          x: {
+            ticks: { color: '#A49A87', font: { size: 10 }, autoSkip: true, maxTicksLimit: 8 },
+            grid: { display: false }
+          }
+        },
+        plugins: {
+          legend: { display: true, position: 'bottom', labels: { color: '#8C8478', font: { size: 10 }, boxWidth: 14, boxHeight: 3, padding: 12 } },
+          tooltip: {
+            backgroundColor: '#4A4438',
+            titleColor: '#F5F1E8',
+            bodyColor: '#F5F1E8',
+            padding: 10,
+            callbacks: {
+              label: ctx => `${ctx.dataset.label} ${ctx.parsed.y} / 100`
+            }
           }
         }
       }
+    });
+  } else if (wrap) {
+    wrap.classList.add('hidden');
+    if (_trendChart) { _trendChart.destroy(); _trendChart = null; }
+  }
+  // ③ 逐维趋势结论（相对上一次；含连续 2 次上升/下降与四维最低标记）
+  const prev = sessions.length >= 2 ? sessions[sessions.length - 2] : null;
+  const prev2 = sessions.length >= 3 ? sessions[sessions.length - 3] : null;
+  const curVals = _REVIEW_DIMS.map(d => last[d.key]).filter(v => typeof v === 'number' && isFinite(v));
+  const minVal = curVals.length ? Math.min(...curVals) : null;
+  const minCount = minVal == null ? 0 : curVals.filter(v => v === minVal).length;
+  dimsEl.innerHTML = _REVIEW_DIMS.map(d => {
+    const cur = Math.round(last[d.key]);
+    const parts = [];
+    if (!prev) {
+      parts.push('<span class="text-[var(--c-text-ultradim)]">首次记录</span>');
+    } else {
+      const d1 = last[d.key] - prev[d.key];
+      const d2 = prev2 ? prev[d.key] - prev2[d.key] : 0;
+      if (prev2 && d1 < -0.5 && d2 < -0.5) parts.push('<span class="text-[var(--c-red)]">↓ 连续下降，警惕</span>');
+      else if (prev2 && d1 > 0.5 && d2 > 0.5) parts.push('<span class="text-emerald-500">↑ 连续 2 次上升</span>');
+      else if (d1 > 0.5) parts.push(`<span class="text-emerald-500">↑ +${Math.round(d1)}</span>`);
+      else if (d1 < -0.5) parts.push(`<span class="text-[var(--c-red)]">↓ ${Math.round(d1)}</span>`);
+      else parts.push('<span class="text-[var(--c-text-dim)]">→ 平稳</span>');
     }
+    if (minVal != null && last[d.key] === minVal && minCount === 1) {
+      parts.push('<span class="text-[var(--c-text-dim)]">· 四维最低</span>');
+    }
+    return `<div class="flex items-center gap-2 text-[0.75rem] leading-relaxed">
+      <span class="w-2 h-2 rounded-full shrink-0" style="background:${d.color}"></span>
+      <span class="font-semibold text-[var(--c-text)] w-[76px] shrink-0">${d.label}</span>
+      <span class="font-bold text-[var(--c-text)] w-[30px] shrink-0">${cur}</span>
+      <span class="text-[0.6875rem]">${parts.join(' ')}</span>
+    </div>`;
+  }).join('');
+  // ④ 反复弱点聚合（窗口 = 所选范围最近 5 次；v122 融合原「语法弱点分析」+「不自然表达分析」两个独立区块，
+  // 口径统一为窗口内 mistakes 聚合：weak_areas 标签 / 语法类别 / 表达根因 三行并列，附最新 GPT 诊断原文）
+  const winSess = sessions.slice(-5);
+  const tagCount = {};
+  const gramCount = {};
+  const exprCount = {};
+  winSess.forEach(s => {
+    s.weakAreas.forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; });
+    s.mistakes.forEach(m => {
+      if (m.type === 'grammar' && m.category) gramCount[m.category] = (gramCount[m.category] || 0) + 1;
+      if (m.type === 'expression') {
+        const cause = EXPRESSION_CAUSES.includes(m.pattern) ? m.pattern : classifyExpressionCause(m.original, m.improved || m.better, m.explanation || m.scene);
+        exprCount[cause] = (exprCount[cause] || 0) + 1;
+      }
+    });
   });
+  const topTags = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topGram = Object.entries(gramCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const topExpr = Object.entries(exprCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const lines = [];
+  if (topTags.length) lines.push(`<div class="text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">反复弱点：${topTags.map(([t, c]) => `<b class="text-[var(--c-text)]">${t} ×${c}</b>`).join(' · ')}</div>`);
+  if (topGram.length) lines.push(`<div class="text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">语法弱点分布：${topGram.map(([t, c]) => `<b class="text-[var(--c-text)]">${t} ×${c}</b>`).join(' · ')}</div>`);
+  if (topExpr.length) lines.push(`<div class="text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">不自然表达根因：${topExpr.map(([t, c]) => `<b class="text-[var(--c-text)]">${t} ×${c}</b>`).join(' · ')}</div>`);
+  if (lines.length) {
+    const withInsight = winSess.filter(s => s.insights).pop();
+    if (withInsight && withInsight.insights) {
+      const ins = withInsight.insights;
+      let key = topTags.length ? _insightKeyForTag(topTags[0][0]) : (topGram.length ? 'grammar' : (topExpr.length ? 'expression' : null));
+      if (!key || !ins[key]) key = ins.grammar ? 'grammar' : (ins.vocabulary ? 'vocabulary' : (ins.expression ? 'expression' : null));
+      if (key && ins[key]) lines.push(`<div class="mt-1.5 text-[0.6875rem] text-[var(--c-text-dim)] italic leading-relaxed">${_md(withInsight.date)} GPT 诊断：「${ins[key]}」</div>`);
+    }
+    weakEl.innerHTML = `<div class="text-[0.6875rem] font-semibold text-[var(--c-text-dim)] mb-1">反复弱点</div>` + lines.join('');
+  } else {
+    weakEl.innerHTML = '';
+  }
+  // ⑤ 重心建议（规则引擎，最多 2 条）
+  const advices = [];
+  const gramCats = {}; let gramTotal = 0;
+  sessions.forEach(s => s.mistakes.forEach(m => {
+    if (m.type === 'grammar' && m.category) { gramCats[m.category] = (gramCats[m.category] || 0) + 1; gramTotal++; }
+  }));
+  if (gramTotal >= 3) {
+    const topCat = Object.entries(gramCats).sort((a, b) => b[1] - a[1])[0];
+    if (topCat && topCat[1] / gramTotal >= 0.6) {
+      advices.push({ ic: 'crosshair', text: `未来一周先清「${topCat[0]}」：近 ${sessions.length} 次练习的语法错题 ${gramTotal} 条里 ${topCat[1]} 条集中于此（${Math.round(topCat[1] / gramTotal * 100)}%）——复习页错题卡已按类别分组，连对 5 次即出队。` });
+    }
+  }
+  if (prev2) {
+    for (const d of _REVIEW_DIMS) {
+      const d1 = last[d.key] - prev[d.key];
+      const d2 = prev[d.key] - prev2[d.key];
+      if (d1 < -0.5 && d2 < -0.5) {
+        advices.push({ ic: 'trending-down', text: `「${d.label}」连续 2 次下降（${Math.round(prev2[d.key])} → ${Math.round(prev[d.key])} → ${Math.round(last[d.key])}）：对练时主动自查，下次日报的 GPT 诊断会点名根因。` });
+        break;
+      }
+    }
+  }
+  if (!advices.length && minVal != null) {
+    const lowDim = _REVIEW_DIMS.find(d => last[d.key] === minVal);
+    if (lowDim) {
+      const ik = _insightKeyForDim(lowDim.key);
+      const withInsight = sessions.filter(s => s.insights && ik && s.insights[ik]).pop();
+      const quote = (withInsight && ik && withInsight.insights[ik])
+        ? `（${_md(withInsight.date)} GPT 诊断：「${withInsight.insights[ik]}」）。`
+        : '——对练时主动尝试高阶表达，让 GPT 给出升级挑战。';
+      advices.push({ ic: 'target', text: `重心建议：「${lowDim.label}」当前 ${Math.round(minVal)} 分，四维最低${quote}` });
+    }
+  }
+  const stepCount = {};
+  sessions.forEach(s => s.nextSteps.forEach(st => { stepCount[st] = (stepCount[st] || 0) + 1; }));
+  const hotStep = Object.entries(stepCount).sort((a, b) => b[1] - a[1])[0];
+  if (advices.length < 2 && hotStep && hotStep[1] >= 2) {
+    advices.push({ ic: 'sparkles', text: `GPT 在最近 ${sessions.length} 次里 ${hotStep[1]} 次建议「${hotStep[0]}」——这是被反复点名的方向，值得优先尝试。` });
+  }
+  if (advices.length < 2 && sessions.length >= 2) {
+    const spanDays = _daysBetween(sessions[0].date, last.date);
+    const avgGap = spanDays / (sessions.length - 1);
+    if (avgGap >= 3) {
+      advices.push({ ic: 'alarm-clock', text: `平均 ${avgGap.toFixed(1)} 天练一次：复习卡每天持续到期，建议每周至少 3 次短练（15 分钟就够），而不是攒成一次长练——频率比单次时长更影响记忆曲线。` });
+    }
+  }
+  focusEl.innerHTML = advices.slice(0, 2).map(a =>
+    `<div class="flex gap-2 items-start rounded-xl bg-[var(--c-bg)] border border-[var(--c-border-light)] px-3 py-2.5">
+      <span class="text-[var(--c-primary)] shrink-0 mt-0.5">${icon(a.ic, 'w-3.5 h-3.5')}</span>
+      <span class="text-[0.6875rem] text-[var(--c-text)] leading-relaxed">${a.text}</span>
+    </div>`).join('');
+  refreshIcons();
 }
 
 // ── Level System ───────────────────────────────────────
@@ -4481,7 +4662,7 @@ function resolveGrammarCategory(e) {
   return classifyGrammarCategory(e.original, e.correction || e.improved || '', e.rule || e.explanation || '');
 }
 
-// 语法三类聚合（纯函数）：「语法弱点分析」只在此维度计数，输出键只可能是三个语法桶
+// 语法三类聚合（纯函数）：输出键只可能是三个语法桶（提升区语法行降级统计 + 旧数据口径共用）
 function aggregateGrammarCategories(errors) {
   const count = {};
   (errors || []).forEach(e => {
@@ -4492,50 +4673,10 @@ function aggregateGrammarCategories(errors) {
   return Object.entries(count).sort((a, b) => b[1] - a[1]);
 }
 
-function showErrorPatterns(errors) {
-  const grp = document.getElementById('error-patterns-group');
-  grp.classList.remove('hidden');
-  const epDiv = document.getElementById('error-patterns');
-  const sorted = aggregateGrammarCategories(errors);
-  const max = sorted[0]?.[1] || 1;
-  const fixedCount = errors.filter(e => e.correct_in_review).length;
-  const fixRate = errors.length > 0 ? Math.round((fixedCount / errors.length) * 100) : 0;
-  // 建议生成：三类均为真实弱点，直接取排名最高者
-  const topPick = (sorted[0] || [])[0] || '无';
-
-  epDiv.innerHTML = `
-    <div class="flex gap-3 mb-4">${[
-      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${errors.length}</strong>个错误</div>`,
-      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${fixRate}%</strong>已纠正</div>`
-    ].join('')}</div>
-    <div class="mb-3"><div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">语法弱点分布</div>${sorted.map(([name, count]) =>
-      `<div class="flex items-center gap-2.5 mb-2 cursor-pointer" onclick="showErrorDetail('${name}')">
-        <span class="whitespace-nowrap min-w-[72px] text-xs text-[var(--c-text-dim)] text-right shrink-0">${name}</span>
-        <div class="flex-1 h-2 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-500" style="width:${(count/max)*100}%;"></div></div>
-        <span class="w-[30px] text-[0.6875rem] text-[var(--c-text-ultradim)] shrink-0">${count}次</span>
-      </div>`
-    ).join('')}</div>
-    <div class="text-xs text-[var(--c-primary)] px-3 py-2 bg-[var(--c-primary-light)] rounded-lg inline-flex items-center gap-1">${icon('lightbulb','w-3.5 h-3.5')} 建议优先练习 <strong>${topPick}</strong> 类语法错误</div>`;
-  refreshIcons(epDiv);
-}
-
-async function showErrorDetail(pattern) {
-  // v101：按语法三类匹配（errors 表 v99 起只收语法错题，分类口径与分布条一致 —— resolveGrammarCategory 统一入口）
-  const { data: errors } = await sb.from('errors').select('*');
-  const matches = (errors || []).filter(e => resolveGrammarCategory(e) === pattern);
-  const items = matches.slice(0, 5);
-  let msg = `${pattern} 类语法错误 (共 ${matches.length} 个):\n\n`;
-  items.forEach(e => { msg += `• ${e.original} → ${e.correction}${e.rule ? ' (' + e.rule + ')' : ''}\n`; });
-  showToast(msg);
-}
-
-// ── 不自然表达分析（v101）────────────────────────────
-// 数据源：reports 表原始 JSON 的 expression 升级句（original→better，即「不像 local」的逐条记录）。
-// 根因口径：新版日报 GPT 打标 pattern 键（4 类枚举）；历史日报无 pattern → 启发式关键词回退归类。
-// 产出：根因分布条形 + 各根因典型句式（v120 重构：句式降为例证、挂根因名下，替代原「高频句式 TOP 5」）。
-// 无需 SQL/表迁移：统计直接扫 reports 原始 JSON，历史数据零迁移即受益。
+// ── 表达根因枚举 + 启发式归类 ────────────────────────
+// v122：「不自然表达分析」独立区块删除（用户决定：没啥用）——根因分布融合进「学习复盘 · 重心建议」的反复弱点聚合。
+// 保留 EXPRESSION_CAUSES（提升区表达行 + 复盘根因统计共用）与 classifyExpressionCause（复盘对历史日报无 pattern 记录回退归类，与旧区块同口径）。
 const EXPRESSION_CAUSES = ['直译语序', '用词搭配', '冗余啰嗦', '表达习惯'];
-let _expressionStats = null;
 
 function classifyExpressionCause(original, better, scene) {
   const t = [scene, original, better].filter(Boolean).join(' ').toLowerCase();
@@ -4543,83 +4684,6 @@ function classifyExpressionCause(original, better, scene) {
   if (/搭配|collocation|用词|词性|词汇|word choice/.test(t)) return '用词搭配';
   if (/冗余|重复|啰嗦|赘|多余|redundant/.test(t)) return '冗余啰嗦';
   return '表达习惯'; // 语法没错但不地道 → 默认归入习惯/语用
-}
-
-async function renderExpressionInsights() {
-  const grp = document.getElementById('expression-insights-group');
-  const box = document.getElementById('expression-insights');
-  if (!grp || !box) return;
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) return;
-  const { data: reports } = await sb.from('reports').select('date, content').limit(1000);
-  const count = {}; const byText = {}; const days = new Set();
-  (reports || []).forEach(r => {
-    let j = null;
-    try { j = JSON.parse(normalizeSmartQuotes(sanitizeJsonInput(String(r.content || '')))); } catch (e) { return; }
-    const mistakes = (j && Array.isArray(j.mistakes)) ? j.mistakes : [];
-    for (const m of mistakes) {
-      if (!m || m.type !== 'expression' || !m.original) continue;
-      const explicit = EXPRESSION_CAUSES.includes(m.pattern);
-      const cause = explicit ? m.pattern : classifyExpressionCause(m.original, m.improved, m.explanation);
-      count[cause] = (count[cause] || 0) + 1;
-      days.add(r.date);
-      const key = String(m.original).toLowerCase().replace(/\s+/g, ' ').trim();
-      if (!byText[key]) byText[key] = { key, original: m.original, better: m.improved || '', scene: m.explanation || '', n: 0, cause };
-      byText[key].n++;
-      if (m.improved) byText[key].better = m.improved;   // 保留最新一次的正句
-      if (m.explanation) byText[key].scene = m.explanation;
-      if (explicit) byText[key].cause = m.pattern;       // GPT 显式根因优先于启发式归类（同一句跨日重报时以最新显式标为准）
-    }
-  });
-  const total = Object.values(count).reduce((a, b) => a + b, 0);
-  if (!total) { grp.classList.add('hidden'); return; }
-  grp.classList.remove('hidden');
-  // v120（用户意见）：原「高频句式 TOP 5」删除——数据量小时上榜的全是 ×1 单次句，打「高频」旗号信息量为零。
-  // 重构为按根因组织：句式降级为「例证」，挂在其根因（pattern）名下，每个根因最多展示 2 条最典型句式。
-  const flat = Object.values(byText);
-  _expressionStats = { flat };
-  const byCause = {};
-  flat.forEach(t => { (byCause[t.cause] = byCause[t.cause] || []).push(t); });
-  const sortedCauses = Object.entries(count).sort((a, b) => b[1] - a[1]);
-  const sorted = EXPRESSION_CAUSES.map(c => [c, count[c] || 0]).sort((a, b) => b[1] - a[1]);
-  const max = Math.max(...sorted.map(([, n]) => n), 1);
-  box.innerHTML = `
-    <div class="flex gap-3 mb-4">${[
-      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${total}</strong>次不自然升级</div>`,
-      `<div class="flex-1 px-3 py-3 bg-[var(--c-bg)] rounded-lg text-center text-xs text-[var(--c-text-dim)]"><strong class="block text-xl text-[var(--c-text)] mb-0.5">${days.size}</strong>天记录</div>`
-    ].join('')}</div>
-    <div class="mb-3"><div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">不自然根因分布</div>${sorted.map(([name, n]) =>
-      `<div class="flex items-center gap-2.5 mb-2">
-        <span class="whitespace-nowrap min-w-[72px] text-xs text-[var(--c-text-dim)] text-right shrink-0">${name}</span>
-        <div class="flex-1 h-2 bg-[var(--c-border-light)] rounded-full overflow-hidden"><div class="h-full bg-[var(--c-primary)] rounded-full transition-all duration-500" style="width:${(n/max)*100}%;"></div></div>
-        <span class="w-[30px] text-[0.6875rem] text-[var(--c-text-ultradim)] shrink-0">${n}次</span>
-      </div>`
-    ).join('')}</div>
-    <div class="text-xs font-semibold text-[var(--c-text-dim)] mb-2">各根因典型句式</div>
-    ${sortedCauses.map(([causeName, c]) => {
-      const items = (byCause[causeName] || []).sort((a, b) => b.n - a.n).slice(0, 2);
-      if (!items.length) return '';
-      return `<div class="mb-3">
-        <div class="text-xs font-bold text-[var(--c-text)] mb-1.5">${causeName}<span class="ml-1.5 text-[0.6875rem] font-normal text-[var(--c-text-ultradim)]">${c} 次</span></div>
-        ${items.map(t => `
-          <div class="text-xs mb-1.5 cursor-pointer" onclick="showExpressionDetail(${flat.indexOf(t)})">
-            <div class="line-through text-[var(--c-text-dim)]">${h(t.original)}</div>
-            <div class="text-[var(--c-primary)]">${h(t.better || '')}<span class="ml-1.5 text-[0.6875rem] text-[var(--c-text-ultradim)]">×${t.n}</span></div>
-          </div>`).join('')}
-      </div>`;
-    }).join('')}
-    <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mt-1 leading-relaxed">根因口径：新版日报由 GPT 标注 pattern，历史日报按内容启发式归类</div>`;
-  refreshIcons(box);
-}
-
-function showExpressionDetail(idx) {
-  // v120：按根因组织后改经 _expressionStats.flat 下标取条目（沿用 index 方案——原文本作 data-key 遇值内引号会断属性）
-  const flat = _expressionStats && _expressionStats.flat;
-  const t = flat && flat[Number(idx)];
-  if (!t) return;
-  let msg = `不自然表达 · ${t.cause}（出现 ${t.n} 次）:\n\n你说: ${t.original}\n更自然: ${t.better || '—'}`;
-  if (t.scene) msg += `\n说明: ${t.scene}`;
-  showToast(msg);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -5519,5 +5583,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=121');
+  navigator.serviceWorker.register('/sw.js?v=122');
 }

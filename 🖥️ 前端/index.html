@@ -13,7 +13,7 @@
   <link rel="preload" href="/bear-active.png" as="image">
   <link rel="preload" href="/bear-head-active.png" as="image">
   <link rel="preload" href="/bear-head-default.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=121">
+  <link rel="stylesheet" href="/style.css?v=122">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -338,15 +338,6 @@
       </div>
     </div>
 
-    <!-- Group: 7-Day Trend (Voco 2.0 评分趋势) -->
-    <div class="mb-4">
-      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i> 近 7 天评分走势</div>
-      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] p-4" style="box-shadow:var(--c-shadow-sm)">
-        <div class="relative h-[196px]"><canvas id="trendChart"></canvas></div>
-        <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] text-center mt-2">四维度分线走势：流利度 / 语法 / 词汇 / 地道与英文思维（0–100），缺日报的日子留空</div>
-      </div>
-    </div>
-
     <!-- Group: Data Management -->
     <div class="mb-4">
       <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="database" class="w-3.5 h-3.5"></i> 数据管理</div>
@@ -386,16 +377,24 @@
       </div>
     </div>
 
-    <!-- Error Patterns -->
-    <div id="error-patterns-group" class="hidden mb-4">
-      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="search" class="w-3.5 h-3.5"></i> 语法弱点分析</div>
-      <div class="bg-[var(--c-surface)] rounded-2xl p-4 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" id="error-patterns"></div>
-    </div>
-
-    <!-- Expression Insights -->
-    <div id="expression-insights-group" class="hidden mb-4">
-      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i> 不自然表达分析</div>
-      <div class="bg-[var(--c-surface)] rounded-2xl p-4 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)" id="expression-insights"></div>
+    <!-- Group: 学习复盘 · 重心建议（v122：按次复盘报告，置于页尾作收束；融合原「语法弱点分析」+「不自然表达分析」） -->
+    <div class="mb-4">
+      <div class="flex items-center justify-between mb-2 px-0.5">
+        <div class="text-xs font-bold text-[var(--c-text-dim)]"><i data-lucide="compass" class="w-3.5 h-3.5"></i> 学习复盘 · 重心建议</div>
+        <select id="reviewRangeSel" class="text-[0.6875rem] text-[var(--c-text-dim)] bg-transparent border border-[var(--c-border-light)] rounded-lg px-2 py-1 outline-none cursor-pointer">
+          <option value="4">最近 4 次</option>
+          <option value="8" selected>最近 8 次</option>
+          <option value="16">最近 16 次</option>
+          <option value="all">全部</option>
+        </select>
+      </div>
+      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] p-4" style="box-shadow:var(--c-shadow-sm)">
+        <div id="reviewMeta" class="mb-1"></div>
+        <div id="reviewChartWrap" class="relative h-[196px]"><canvas id="trendChart"></canvas></div>
+        <div id="reviewDimRows" class="mt-3 flex flex-col gap-1.5"></div>
+        <div id="reviewWeaknesses" class="mt-3"></div>
+        <div id="reviewFocus" class="mt-3 flex flex-col gap-2"></div>
+      </div>
     </div>
 
     <!-- Footer -->
@@ -495,8 +494,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=121"></script>
-<script src="/parser.js?v=121"></script>
-<script src="/app.js?v=121"></script>
+<script src="/supabase-client.js?v=122"></script>
+<script src="/parser.js?v=122"></script>
+<script src="/app.js?v=122"></script>
 </body>
 </html>
