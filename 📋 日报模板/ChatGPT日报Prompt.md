@@ -1,4 +1,4 @@
-# 📝 完美日报生成指令（唯一权威版 · v105：新增 coach_insights 私教洞察四维诊断）
+# 📝 完美日报生成指令（唯一权威版 · v123：评分示例去锚定——占位值 0 取代示例分数）
 
 > **和 ChatGPT 结束对练时，把下面整段指令发过去**（或直接点 App 内「导入日报」弹窗的「复制模板」按钮——两者完全同步）。
 > 生成的 JSON **原样粘贴进 Voco「导入日报」对话框**即可解析入库。
@@ -12,17 +12,17 @@
 
 ```json
 {
-  "speakingRatio": 62,
+  "speakingRatio": 0,
   "summary": {
     "topic": "今天对话的核心主题标签",
     "dailyThought": { "en": "英文一句反思金句", "zh": "对话后的反思（中文，第一人称，一段话）" },
     "strengths": ["优点1", "优点2", "优点3"],
     "nextSteps": ["下一次练习建议1", "建议2"],
-    "fluency": 7,
-    "accuracy": 6.5,
-    "naturalness": 6,
-    "vocabulary": 7,
-    "weak_areas": "时态, 冠词"
+    "fluency": 0,
+    "accuracy": 0,
+    "naturalness": 0,
+    "vocabulary": 0,
+    "weak_areas": "弱点标签1, 弱点标签2"
   },
   "mistakes": [
     { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释", "category": "动词与时态" },
@@ -46,7 +46,7 @@
 
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
 1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords、coach_insights 这 6 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
-2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 62。这是从对话内容推导出的客观统计，严禁凭空编造或照抄示例值 62。
+2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 60。这是从对话内容推导出的客观统计，严禁凭空编造或照抄占位值 0。
 3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
    - "grammar"：语法硬伤——还必须包含第五个键 category（语法弱点分类，只允许以下三个值之一，按错误的本质归类）：
@@ -62,9 +62,10 @@
 8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。
 
 【评分与点评铁律】（专业口语私教评审）：
+- 示例结构中的 0（speakingRatio / fluency / accuracy / naturalness / vocabulary）与 "弱点标签1, 弱点标签2" 只是占位符、示意字段类型——严禁直接输出占位值 0、严禁照抄占位文字。
 - 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）；vocabulary 词汇丰富度（用词是否丰富准确：是否反复依赖简单词、是否用上对话中学到的新表达）。
 - weak_areas：归纳今天暴露最明显的 1-3 个弱点（中文标签，逗号分隔）。
-- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / 7 / "时态, 单复数"。
+- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄占位值 0 / "弱点标签1, 弱点标签2"。
 - summary.dailyThought：en 用英文一句话总结今天最值得改进的一点；zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
 
 【引号铁律】——违反任何一条 = 整份日报报废，系统直接拒收：
@@ -79,7 +80,8 @@
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
 □ 顶层 6 个键齐全（含 coach_insights），summary 的 9 个键齐全，空内容用 [] 不用 null；
 □ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
-□ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是示例值 62；
+□ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是占位值 0；
+□ 四项评分与 weak_areas 都基于今日对话真实表现打分归纳，没有输出占位值 0、没有照抄占位文字；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 无任何以 ” 开头的字符串——开闭引号必须同为半角直引号 "（逐字段检查 phonetic 音标字段）；
 □ newWords 的每个词都是我今天不会/卡壳/被纠正的生词，没有一个是我本来就认识的常用词；

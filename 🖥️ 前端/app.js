@@ -2787,6 +2787,10 @@ function hideInspirationDialog() {
 // 而非机械打卡流水线——分类记账等结构化工作全部留给课后日报 prompt，课上只要求「自然记住」。
 // v121 批次（用户反馈「总是被打断」）：核心原则从「每句先纠错再接话」改为「对话第一、纠错第二」——
 // 绝不打断/不接话/不代说完 + 先回应内容再给反馈（用户 key points 融合）+ 复述练习四步协议 + 教思维而非修补
+// v123 批次（用户反馈「布置练习后 GPT 立刻接下一个话题」）：① 契约新增【练习交接协议】第 8 条——布置练习
+// （重说正确版/升级挑战/复述）后必须停下等用户完成，完成前严禁续聊/切话题/新问题填场（原 8/9 顺延为 9/10）；
+// ② 话题段「跑题/卡壳」拆分处置——跑题顺内容带回主题、卡壳不换话题只给提示词引导说出正确句（与契约第 4 条一致；
+// 原「卡壳用新问题拉回主题」与第 1/4 条冲突，是「练习后立刻接新话题」的帮凶）；③ 话题段补「静默准备练习不算卡壳」。
 const _PRE_COACH_CONTRACT = `作为我的英语口语私教和长期对话伙伴，请开启今天的对话。我们的目标是通过真实自然的对话帮我流利地道，而不是上课：像两个朋友日常聊天一样自然交流，你全程以教练的视角观察我的表现。
 全程使用英文：你的每一句话——对话、回应、纠错、解释、引导、小结——都用英文说；除非我明确要求用中文。
 
@@ -2803,11 +2807,14 @@ const _PRE_COACH_CONTRACT = `作为我的英语口语私教和长期对话伙伴
 【复述练习协议】
 7. 如果我做复述练习，请安静听我讲完整个复述，中途绝不打断；等我说完后按顺序做四件事：① 先评价内容是否清晰完整；② 与上一次的复述对比（哪里进步、哪里遗漏）；③ 再纠正英文表达；④ 最后给出一两个下次优先改进的点。
 
+【练习交接协议】
+8. 每当你布置练习任务——邀请我重说正确版、抛出升级挑战、安排复述——布置完就必须停下来等我完成：在我完成之前，严禁继续对话、严禁切换话题、严禁用新问题填场。我完成后，先给我简短确认或评价，再自然接回对话。
+
 【自然衔接课后】
-8. 课堂上留意并记住值得沉淀的内容：我的典型错误、值得升级成金句的表达、我不会说的词。课后我会请你整理成学习日报——课堂上不需要你做任何记录动作，专注陪练即可。
+9. 课堂上留意并记住值得沉淀的内容：我的典型错误、值得升级成金句的表达、我不会说的词。课后我会请你整理成学习日报——课堂上不需要你做任何记录动作，专注陪练即可。
 
 【节奏与语气】
-9. 像真人朋友一样说话：回应简短自然，一次不要说太多；对话的自然感永远优先于纠错的覆盖率。`;
+10. 像真人朋友一样说话：回应简短自然，一次不要说太多；对话的自然感永远优先于纠错的覆盖率。`;
 
 // 组装并复制 Prompt（【我的】页 · 灵感舱居中模态调用）
 async function fireTopicGeneratorPrompt(btn) {
@@ -2822,7 +2829,8 @@ async function fireTopicGeneratorPrompt(btn) {
     // 第一句必须是该主题的开放性问题（禁无关寒暄），随后深挖、拉回主题。
     // 旧版只贴一句「主题领域是：××」，GPT 常以 How are you 寒暄开场，话题落不了地
     // （对比：话题复盘 Prompt 早已有「你先向我提问吧」，此处此前缺失同款指派）。
-    prompt += `\n\n【今日话题 · 由你开场】今天的对练围绕「${_selectedTopicTag}」展开。请由你先开口：第一句话就直接抛出与这个主题相关的开放性问题（问我的经历、计划或观点），引导我进入表达，严禁"How are you"这类与主题无关的寒暄开场。随后沿我的回答自然深挖：追问细节、分享你的观点、适时提出不同看法让我回应。我跑题或卡壳时，用新的问题把我拉回主题。`;
+    // v123：跑题/卡壳拆分处置（跑题带回主题、卡壳给提示词不换话题）+ 静默准备练习不算卡壳——详见契约头部 v123 注释。
+    prompt += `\n\n【今日话题 · 由你开场】今天的对练围绕「${_selectedTopicTag}」展开。请由你先开口：第一句话就直接抛出与这个主题相关的开放性问题（问我的经历、计划或观点），引导我进入表达，严禁"How are you"这类与主题无关的寒暄开场。随后沿我的回答自然深挖：追问细节、分享你的观点、适时提出不同看法让我回应。我跑题时，顺着刚才的内容自然把话题带回主题；我卡壳时，不要切换话题——先给提示词引导我把正确的句子说出来（与对话契约第 4 条一致），等我把话说完再接。我静默准备练习时不算卡壳——练习交接期间等我完成再继续。`;
   }
   if (urlInput) {
     prompt += `\n\n请参考以下背景材料（你可以提取核心观点与我讨论）：\n${urlInput}`;
@@ -3472,7 +3480,9 @@ function renderDueDeck() {
   showDueCard();
 }
 
-// 未展开（正面）：词卡仅英文+音标（遮挡中文释义与例句）；错题卡按正向输入原则——原句小字灰显对照 + 中性回忆引导（v99 起错题只剩语法，类型徽章已删除）
+// 未展开（正面）：词卡仅英文+音标（遮挡中文释义与例句）；错题卡 v123 起与句型卡 v115 同构——
+// 原句小字灰显对照 + rule 提示词直搬（📖 灰底框），rule 为空才回落中性回忆引导；
+// 正反提示词重复可接受（v115 句型卡先例，用户明确）。此前错题卡正面是 v99 起的中性引导设计、从没升级过。
 // 中央统一 [眼睛图标 点击显示答案]（v79 去 emoji，Lucide 图标 + 纯文本）；展开后（背面）底部切换 [没记住] [记住了]（v76 统一 ReviewButton 模板）
 function showDueCard() {
   const item = _dueDeck[_dueIdx];
@@ -3481,7 +3491,7 @@ function showDueCard() {
   const front = item.kind === 'word'
     ? `<div class="text-xl font-bold text-[var(--c-text)]">${h(item.word)}</div>${item.phonetic ? `<div class="text-sm text-[var(--c-primary)] mt-1">${h(item.phonetic)}</div>` : ''}`
     : `<div class="text-xs text-[var(--c-text-ultradim)]">原句：${h(item.error.original)}</div>
-          <div class="flex items-center justify-center gap-1.5 text-xs text-[var(--c-text-dim)] mt-4">${icon('lightbulb','w-4 h-4')} 回忆正确的英文表达</div>`;
+          ${item.error.rule ? `<div class="text-xs text-[var(--c-text-dim)] text-left mt-3 p-2.5 bg-[var(--c-bg)] rounded-lg leading-relaxed">${h(item.error.rule)}</div>` : `<div class="flex items-center justify-center gap-1.5 text-xs text-[var(--c-text-dim)] mt-4">${icon('lightbulb','w-4 h-4')} 回忆正确的英文表达</div>`}`;
   document.getElementById('due-card').innerHTML = `
     <div id="due-card-body" class="bg-[var(--c-surface)] rounded-2xl p-6 border border-[var(--c-border-light)] text-center transition-all duration-300" style="box-shadow:var(--c-shadow-sm)">
       ${front}
@@ -4695,17 +4705,17 @@ const TEMPLATES = {
 只输出一段纯 JSON 文本：从第一个 { 开始、到最后一个 } 结束。前后严禁出现任何说明文字、标题、Markdown 代码块标记（\`\`\`）。全篇所有引号必须是英文半角直引号 "——严禁弯引号 “ ” ‘ ’，尤其严禁用 ” 同时作开闭引号（详见【引号铁律】）。JSON 结构必须严格如下：
 
 {
-  "speakingRatio": 62,
+  "speakingRatio": 0,
   "summary": {
     "topic": "今天对话的核心主题标签",
     "dailyThought": { "en": "英文一句反思金句", "zh": "对话后的反思（中文，第一人称，一段话）" },
     "strengths": ["优点1", "优点2", "优点3"],
     "nextSteps": ["下一次练习建议1", "建议2"],
-    "fluency": 7,
-    "accuracy": 6.5,
-    "naturalness": 6,
-    "vocabulary": 7,
-    "weak_areas": "时态, 冠词"
+    "fluency": 0,
+    "accuracy": 0,
+    "naturalness": 0,
+    "vocabulary": 0,
+    "weak_areas": "弱点标签1, 弱点标签2"
   },
   "mistakes": [
     { "type": "grammar", "original": "错误的句子", "improved": "正确的句子", "explanation": "简短的语法解释", "category": "动词与时态" },
@@ -4728,7 +4738,7 @@ const TEMPLATES = {
 
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
 1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords、coach_insights 这 6 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
-2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 62。这是从对话内容推导出的客观统计，严禁凭空编造或照抄示例值 62。
+2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 60。这是从对话内容推导出的客观统计，严禁凭空编造或照抄占位值 0。
 3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
    - "grammar"：语法硬伤——还必须包含第五个键 category（语法弱点分类，只允许以下三个值之一，按错误的本质归类）：
@@ -4744,9 +4754,10 @@ const TEMPLATES = {
 8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。
 
 【评分与点评铁律】（专业口语私教评审）：
+- 示例结构中的 0（speakingRatio / fluency / accuracy / naturalness / vocabulary）与 "弱点标签1, 弱点标签2" 只是占位符、示意字段类型——严禁直接输出占位值 0、严禁照抄占位文字。
 - 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）；vocabulary 词汇丰富度（用词是否丰富准确：是否反复依赖简单词、是否用上对话中学到的新表达）。
 - weak_areas：归纳今天暴露最明显的 1-3 个弱点（中文标签，逗号分隔）。
-- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄示例值 7 / 6.5 / 6 / 7 / "时态, 单复数"。
+- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄占位值 0 / "弱点标签1, 弱点标签2"。
 - summary.dailyThought：en 用英文一句话总结今天最值得改进的一点；zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
 
 【引号铁律】——违反任何一条 = 整份日报报废，系统直接拒收：
@@ -4761,13 +4772,18 @@ const TEMPLATES = {
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
 □ 顶层 6 个键齐全（含 coach_insights），summary 的 9 个键齐全，空内容用 [] 不用 null；
 □ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
-□ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是示例值 62；
+□ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是占位值 0；
+□ 四项评分与 weak_areas 都基于今日对话真实表现打分归纳，没有输出占位值 0、没有照抄占位文字；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 无任何以 ” 开头的字符串——开闭引号必须同为半角直引号 "（逐字段检查 phonetic 音标字段）；
 □ newWords 的每个词都是我今天不会/卡壳/被纠正的生词，没有一个是我本来就认识的常用词；
 □ coach_insights 四句诊断都基于今日对话的具体表现，严厉专业、直接指出问题，无空泛套话；
 □ 所有键名与上面示例结构一字不差。`
 };
+// v123 评分示例去锚定（用户指令，2026-09-08）：示例分数 7/6.5/6/7 对 GPT 有锚定效应（实测分数挤在 6-7 带）——
+//            示例结构中的 speakingRatio/fluency/accuracy/naturalness/vocabulary 全部改占位值 0、weak_areas 改
+//            "弱点标签1, 弱点标签2"，并在【评分与点评铁律】+【输出前自检】双重声明「0 仅为占位符、严禁输出」。
+//            打分链路本身始终动态（GPT 按当日对话证据打 0-10，代码仅 ×10 归一化），本次只消除示例锚点。
 // v97：TEMPLATES.topic / TEMPLATES.insight 已物理删除——话题卡与弱点分析模板功能彻底下线，TEMPLATES 只保留 report。
 
 function copyTemplate(type) {
@@ -5583,5 +5599,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=122');
+  navigator.serviceWorker.register('/sw.js?v=123');
 }
