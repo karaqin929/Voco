@@ -4742,7 +4742,7 @@ const TEMPLATES = {
 5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。explanation 必须写「为什么这个更地道」：具体写出①重点词汇与固定搭配（如「take the time to do sth」）；②句型结构/句式骨架，作为复习时回忆整句的线索。只写场景、不给词汇与句型提示的 explanation 视为不合格。
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
 7. coreSentences 不设数量上限：收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）。newWords 也不设数量上限（宁多勿漏），但收录标准是「你当天需要帮助才说出的词」，三条铁轨：① 必收——对话中你有任何求助痕迹的词：卡壳说不出、问过它的意思、查过、我给了提示词之后你才说出来、说错被纠正，满足任意一条就收录，轻微卡壳也算，绝不漏掉一个真生词；② 排除——你独立流利说出、全程没有任何求助或卡壳迹象的词，即使再高级、再专业也严禁收进 newWords（它们不是生词）；你独立用出的高级表达，请以整句形式收进 coreSentences 金句库，不要用 newWords 记；③ 拿不准有没有求助过时，默认收录（宁多勿漏）。严禁编造对话中根本没出现过的词。
-8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。
+8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。coach_insights 里推荐的每个具体词汇/整块表达（如 build stamina、incline walking），必须同时在对应数组里有落点：当天求助过才说出的进 newWords、说错或直译被纠正的进 mistakes（expression 类）、值得内化的高阶表达进 coreSentences——洞察段落严禁成为这些词的唯一归宿。
 
 【评分与点评铁律】（专业口语私教评审）：
 - 示例结构中的 0（speakingRatio / fluency / accuracy / naturalness / vocabulary）与 "弱点标签1, 弱点标签2" 只是占位符、示意字段类型——严禁直接输出占位值 0、严禁照抄占位文字。
@@ -4768,7 +4768,9 @@ const TEMPLATES = {
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 无任何以 ” 开头的字符串——开闭引号必须同为半角直引号 "（逐字段检查 phonetic 音标字段）；
 □ newWords 的每个词都有当天求助或卡壳的互动证据（或属于拿不准的情形）——没有一个是我当天独立流利说出的词，拿不准时宁多勿漏先收录；
+□ 今天所有求助过才说出的词都收进了 newWords——即使它已经出现在 mistakes 或洞察里也要收（词卡记生词、错题卡记错误，双落点不冲突），没有只在洞察或错题里出现的漏网求助词；
 □ coach_insights 四句诊断都基于今日对话的具体表现，严厉专业、直接指出问题，无空泛套话；
+□ coach_insights 中提到的每个具体目标词汇/表达，都能在 newWords / mistakes / coreSentences 里找到对应落点——洞察不是词汇的唯一归宿；
 □ 所有键名与上面示例结构一字不差。`
 };
 // v123 评分示例去锚定（用户指令，2026-09-08）：示例分数 7/6.5/6/7 对 GPT 有锚定效应（实测分数挤在 6-7 带）——
@@ -4780,6 +4782,9 @@ const TEMPLATES = {
 //             ② 排除：独立流利说出、全程无求助的词严禁收进 newWords（高级表达以整句形式归 coreSentences 金句库）
 //             ③ 拿不准默认收录。自检条目同步升级为
 //             「求助证据」判据。仅改模板文本（app.js + ChatGPT日报Prompt.md 双文件一字不差），解析/入库逻辑零改动。
+// v124 追加·洞察落点链接（用户反馈「洞察推荐的 build stamina 没有任何落点」，2026-09-09）：铁律 #8 末尾加
+//             「洞察里推荐的词汇必须在对应数组有落点」（求助→newWords / 说错直译→mistakes expression / 高阶→coreSentences，
+//             洞察严禁成为唯一归宿）+ 自检两条（洞察词汇落点核查 + 求助词完整性——即使已出现在 mistakes 也要收进 newWords）。
 // v97：TEMPLATES.topic / TEMPLATES.insight 已物理删除——话题卡与弱点分析模板功能彻底下线，TEMPLATES 只保留 report。
 
 function copyTemplate(type) {
