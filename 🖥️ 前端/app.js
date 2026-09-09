@@ -2791,13 +2791,16 @@ function hideInspirationDialog() {
 // （重说正确版/升级挑战/复述）后必须停下等用户完成，完成前严禁续聊/切话题/新问题填场（原 8/9 顺延为 9/10）；
 // ② 话题段「跑题/卡壳」拆分处置——跑题顺内容带回主题、卡壳不换话题只给提示词引导说出正确句（与契约第 4 条一致；
 // 原「卡壳用新问题拉回主题」与第 1/4 条冲突，是「练习后立刻接新话题」的帮凶）；③ 话题段补「静默准备练习不算卡壳」。
+// v124 批次（用户反馈「GPT 对话完忘记纠正、忘记给更自然说法」）：① 规则 2 纠错改为「有错必纠、每轮必做」（没犯错
+// 无需任何反馈，与规则 3 没错不纠一致）；② 规则 3 明确「只指出错误、不给正确说法 = 未完成纠错」；③ 规则 10「自然感
+// 优先」限定为语气与长度、不得豁免纠错义务；④ 新增【每轮自检】第 11 条三问自查（先回应内容/有错必纠+给更自然说法/长度克制）。
 const _PRE_COACH_CONTRACT = `作为我的英语口语私教和长期对话伙伴，请开启今天的对话。我们的目标是通过真实自然的对话帮我流利地道，而不是上课：像两个朋友日常聊天一样自然交流，你全程以教练的视角观察我的表现。
 全程使用英文：你的每一句话——对话、回应、纠错、解释、引导、小结——都用英文说；除非我明确要求用中文。
 
 【对话第一，纠错第二】
 1. 绝不打断我说话：不要抢话、不要接我的话、不要替我把句子说完——等我把一个完整的意思清楚表达完，你再开口。
-2. 我每说完一段，你先像聊天对象一样回应我的内容：回答我的问题、讨论我的观点、给我一个自然真实的反应；回应完之后，再给我简短反馈。
-3. 反馈只针对我真的犯的错误：有错就纠、没错不纠，绝不编造错误，也绝不为了显得尽责而挑刺；用一两句话解释原因，并给出更自然的说法，可以邀请我把正确版本自然地说一遍。
+2. 我每说完一段，你先像聊天对象一样回应我的内容：回答我的问题、讨论我的观点、给我一个自然真实的反应；回应完之后，再给我简短反馈——只要我这轮犯了错，纠错就是必做环节、不可省略，绝不整轮只聊内容不纠错；我这轮没犯错就不需要任何反馈，自然继续对话。
+3. 反馈只针对我真的犯的错误：有错就纠、没错不纠，绝不编造错误，也绝不为了显得尽责而挑刺；用一两句话解释原因，并给出更自然的说法，可以邀请我把正确版本自然地说一遍。只指出错误、不给正确说法不算完成纠错——每次纠错都必须带上更自然的说法。
 
 【引导与深挖】
 4. 你是引导者，不是答案机：我卡壳时先给提示词，引导我自己说出来；发现我反复用简单词、回避复杂表达时，主动抛出升级挑战（例如："You just said 'very interesting' — try a more advanced word and say it again"）。
@@ -2814,7 +2817,10 @@ const _PRE_COACH_CONTRACT = `作为我的英语口语私教和长期对话伙伴
 9. 课堂上留意并记住值得沉淀的内容：我的典型错误、值得升级成金句的表达、我不会说的词。课后我会请你整理成学习日报——课堂上不需要你做任何记录动作，专注陪练即可。
 
 【节奏与语气】
-10. 像真人朋友一样说话：回应简短自然，一次不要说太多；对话的自然感永远优先于纠错的覆盖率。`;
+10. 像真人朋友一样说话：回应简短自然，一次不要说太多。「自然感优先」只约束你的语气和长度——绝不能成为漏纠错的借口：我这轮有错就必须纠，自然感与纠错一个都不能少。
+
+【每轮自检】
+11. 每次回应我之前，先自查三件事：① 我是否先回应了内容？② 我这轮有没有犯错——有的话纠了吗、给更自然的说法了吗？③ 长度是否克制？漏了纠错就补上。`;
 
 // 组装并复制 Prompt（【我的】页 · 灵感舱居中模态调用）
 async function fireTopicGeneratorPrompt(btn) {
@@ -3638,9 +3644,9 @@ function vocabCard(v) {
     if (s === 'mastered') return '<span class="srs-dot mastered"></span>';
     return `<span class="srs-dot${i <= Math.min(rc, 5) ? ' filled' : ''}"></span>`;
   }).join('')}</div>`;
-  const btn = s === 'mastered'
-    ? '<span class="badge-status mastered">✅ 已掌握</span>'
-    : `<button onclick="markMastered(${v.id});event.stopPropagation();" class="btn-small">复习 +1</button>`;
+  // v124（用户指令「复习 +1 冗余且污染 SM-2」）：删除复习 +1 快捷按钮与 markMastered 旁路——
+  // SM-2 写回仅存复习页一条通道（固定质量 3 污染间隔 / 5 连点白嫖掌握 / 不计打卡），已掌握徽章保留为纯状态展示
+  const badge = s === 'mastered' ? '<span class="badge-status mastered">✅ 已掌握</span>' : '';
   const sourceLabel = v.source_topic ? `<span class="badge-source">📂 ${h(v.source_topic)}</span>` : '';
 
   // Show associated errors
@@ -3657,7 +3663,7 @@ function vocabCard(v) {
         <span class="card-count">${rc} 次</span>
       </div>
       <div class="card-action-buttons">
-        ${btn}
+        ${badge}
         <button onclick="speakWord('${h(v.word).replace(/'/g, "\\'")}');event.stopPropagation();" class="btn-soft">${ICO_SPEAKER}</button>
       </div>
     </div>
@@ -3693,22 +3699,7 @@ function sm2(easeFactor, interval, repetitions, quality) {
   return { ease_factor: ef, interval: ivl, repetitions: reps };
 }
 
-async function markMastered(id) {
-  const { data: v, error } = await sb.from('vocabulary').select('*').eq('id', id).single();
-  if (error || !v) { showToast('演示数据：此操作仅对云端词库生效'); return; }
-  const result = sm2(v.ease_factor, v.sm2_interval, v.sm2_repetitions, 3);
-  const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + result.interval);
-  const status = result.repetitions >= 5 ? 'mastered' : 'learning';
-  // v115 写回加固：与复习链路同口径 —— error 检查 + 失败重试一次 + console.warn 留痕
-  await updateRowWithRetry('vocabulary', id, {
-    mastered: status === 'mastered', status,
-    ease_factor: result.ease_factor, sm2_interval: result.interval, sm2_repetitions: result.repetitions,
-    review_count: (v.review_count || 0) + 1, next_review_date: fmtLocalDate(nextDate),
-    last_reviewed_at: new Date().toISOString()
-  });
-  loadWords();
-  showToast(status === 'mastered' ? '🎉 已掌握！' : '📖 已复习');
-}
+// v124：markMastered 已物理删除（复习 +1 旁路按钮唯一的调用方）——词汇 SM-2 状态变更只走复习页四档自评写回。
 
 // ═══════════════════════════════════════════════════════
 // TAB 3: SPEAK
@@ -4750,7 +4741,7 @@ const TEMPLATES = {
    - "expression"：语法正确但不够地道的表达升级——type 为 expression 的项还必须包含第五个键 pattern（不自然根因，只允许以下四个值之一）："直译语序"（中文语序/逐字直译，如 I very like it）、"用词搭配"（用词不当、词性误用或搭配错误，如 learn knowledge）、"冗余啰嗦"（多余的重复或填充，如 more better）、"表达习惯"（语法没错但不符合母语者习惯的说法）。explanation 必须写「为什么这样说更好」：具体写出重点词汇与固定搭配、句型结构，作为复习时回忆整句的线索；只写场景、不给词汇与句型提示的 explanation 视为不合格。
 5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。explanation 必须写「为什么这个更地道」：具体写出①重点词汇与固定搭配（如「take the time to do sth」）；②句型结构/句式骨架，作为复习时回忆整句的线索。只写场景、不给词汇与句型提示的 explanation 视为不合格。
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
-7. coreSentences 与 newWords 不设数量上限：只把今天对话中真实出现、值得收录的内容整理出来——coreSentences 收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）；newWords 只收录「你不会的生词」：对话中你不认识、说不出、卡壳、查过、用错或被纠正过的词。严禁收录你本来就认识的常用词。宁缺毋滥：今天没有就输出空数组 []，绝不允许为了凑数量编造内容，也不允许因为觉得太少而凑词。
+7. coreSentences 不设数量上限：收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）。newWords 也不设数量上限（宁多勿漏），但收录标准是「你当天需要帮助才说出的词」，三条铁轨：① 必收——对话中你有任何求助痕迹的词：卡壳说不出、问过它的意思、查过、我给了提示词之后你才说出来、说错被纠正，满足任意一条就收录，轻微卡壳也算，绝不漏掉一个真生词；② 排除——你独立流利说出、全程没有任何求助或卡壳迹象的词，即使再高级、再专业也严禁收进 newWords（它们不是生词）；你独立用出的高级表达，请以整句形式收进 coreSentences 金句库，不要用 newWords 记；③ 拿不准有没有求助过时，默认收录（宁多勿漏）。严禁编造对话中根本没出现过的词。
 8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。
 
 【评分与点评铁律】（专业口语私教评审）：
@@ -4776,7 +4767,7 @@ const TEMPLATES = {
 □ 四项评分与 weak_areas 都基于今日对话真实表现打分归纳，没有输出占位值 0、没有照抄占位文字；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 无任何以 ” 开头的字符串——开闭引号必须同为半角直引号 "（逐字段检查 phonetic 音标字段）；
-□ newWords 的每个词都是我今天不会/卡壳/被纠正的生词，没有一个是我本来就认识的常用词；
+□ newWords 的每个词都有当天求助或卡壳的互动证据（或属于拿不准的情形）——没有一个是我当天独立流利说出的词，拿不准时宁多勿漏先收录；
 □ coach_insights 四句诊断都基于今日对话的具体表现，严厉专业、直接指出问题，无空泛套话；
 □ 所有键名与上面示例结构一字不差。`
 };
@@ -4784,6 +4775,11 @@ const TEMPLATES = {
 //            示例结构中的 speakingRatio/fluency/accuracy/naturalness/vocabulary 全部改占位值 0、weak_areas 改
 //            "弱点标签1, 弱点标签2"，并在【评分与点评铁律】+【输出前自检】双重声明「0 仅为占位符、严禁输出」。
 //            打分链路本身始终动态（GPT 按当日对话证据打 0-10，代码仅 ×10 归一化），本次只消除示例锚点。
+// v124 新词收录标准「三条铁轨」（用户指令，2026-09-08，宁多勿漏）：coreSentences/newWords 的数量上限描述拆分——
+//             newWords 标准改为 ① 必收：任何求助痕迹（卡壳/问意思/查过/给提示后才说出/说错被纠正，轻微卡壳也算）
+//             ② 排除：独立流利说出、全程无求助的词严禁收进 newWords（高级表达以整句形式归 coreSentences 金句库）
+//             ③ 拿不准默认收录。自检条目同步升级为
+//             「求助证据」判据。仅改模板文本（app.js + ChatGPT日报Prompt.md 双文件一字不差），解析/入库逻辑零改动。
 // v97：TEMPLATES.topic / TEMPLATES.insight 已物理删除——话题卡与弱点分析模板功能彻底下线，TEMPLATES 只保留 report。
 
 function copyTemplate(type) {
@@ -5599,5 +5595,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=123');
+  navigator.serviceWorker.register('/sw.js?v=124');
 }
