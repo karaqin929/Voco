@@ -1156,7 +1156,8 @@ function renderTodoList(speakDoneToday) {
   // 句型 SRS 任务口径（v76 同源绑定，v104 纯库捞）：待办数字 = 句型复习页实际队列 getSpeakQueueForToday() 的 .length
   // —— 当日快照冻结口径（同一天数字只减不增），文本去重与卡片页同一函数，绝不分叉
   const patternTaskCount = getSpeakQueueForToday().length;
-  const dueCount = ms.totalDueVocabCount;       // SM-2 到期全量（今日新词 + 历史到期词），与 tab=due 同源
+  // v126 每日配额：积压只显示「队列还有 N 句」，不再把全量数字怼脸上（历史积压 ≠ 今日必须做完）
+  const patternBacklogCount = Math.max(0, getDueSentencesQueueRaw(_patternLibrary).length - patternTaskCount);
   const reviewedToday = ms.reviewedVocabToday;  // 今日实际完成反馈（🟢/🔴）的词数（id 集合大小）
   // 任务 2 三态：
   // ① patternTaskCount === 0（无新句无到期）→ 置灰防御态「暂无句型复习任务」，无空心圆圈、无 chevron、不可点击 —— 根治 (0句) 弱智态
@@ -1168,7 +1169,7 @@ function renderTodoList(speakDoneToday) {
       : { text: '句型打卡 · 暂无复习任务', sub: '导入日报获得新句型，或等待历史句型到期', done: false, disabled: true, action: null })
     : {
         text: hasTodayReport ? `句型打卡 · 完成今日句型复习 (${patternTaskCount}句)` : `句型打卡 · 完成句型复习 (${patternTaskCount}句)`,
-        sub: speakDoneToday ? '今日句型复习已完成' : (hasTodayReport ? '今日新句优先 + 历史到期句逐日消化' : '历史到期句型复习队列'),
+        sub: speakDoneToday ? '今日句型复习已完成' : (hasTodayReport ? `今日新句优先 + 历史到期句逐日消化${patternBacklogCount > 0 ? ` · 队列还有 ${patternBacklogCount} 句` : ''}` : `历史到期句型复习队列${patternBacklogCount > 0 ? ` · 队列还有 ${patternBacklogCount} 句` : ''}`),
         done: !!speakDoneToday,
         disabled: false,
         // v82：打卡 = 今日语境 —— 先清除历史视图残留（_viewDate/_historyParsed），
@@ -1178,18 +1179,21 @@ function renderTodoList(speakDoneToday) {
   // 任务 3 数字口径（v88 QA 数量一致性 + v97 错题诚实口径）：due tab 卡组 buildDueDeck = 到期词 + 未纠正错题，
   // 数字必须数整副卡组 —— 此前只数词 → 「外面 N 词，点进去 N+M 张卡」的数字分裂；
   // v97：错题无 SM-2 记忆曲线（errors 表无 SRS 字段），改为「未纠正=到期」——已纠正（correct_in_review）不再历史全量回炉
-  const todayErrTaskCount = dueErrorCards().length;
-  const deckTotal = dueCount + todayErrTaskCount;
+  // v126 每日配额：面板数字 = 今日剂量 min(20, 合并 FIFO 全量)，积压以「队列还有 N 张（约 X 天）」呈现
+  const mergedDueCount = buildDueDeckMerged().length;
+  const dueDose = Math.min(DAILY_REVIEW_QUOTA, mergedDueCount);
+  const dueBacklog = Math.max(0, mergedDueCount - DAILY_REVIEW_QUOTA);
   // v103 完成判定修复：旧实现 deckReviewed 用 _reviewedErrorIds（会话内存 Set，刷新即清零）且 done 需 deckTotal>0——
   // 全部复习完后 dueCount/todayErrTaskCount 归 0，deckTotal>0 恒 false → 任务永远无法显示完成（用户实测：复习完所有词+错题仍不完成）。
   // 新口径：词与错题的「今日已复习数」一律取 DB 持久化 last_reviewed_at（reviewWordItem/reviewErrorItem 均落库），刷新/重开不丢；
-  // deckTotal===0 且今日确有复习记录 → 完成；deckTotal===0 且今日无记录（今天本来就没有到期）→ 保持未完成，防默认值误判
+  // v126 配额口径：mergedDueCount===0（全量无到期）且今日确有复习记录 → 完成；===0 且今日无记录 → 保持未完成，防默认值误判；
+  // 全量 >0 时完成 = 今日配额练完（vocabDoneStamp），积压不影响打卡
   const errReviewedToday = (_errorsAll || []).filter(e => e.last_reviewed_at && localDateOf(e.last_reviewed_at) === getLocalToday()).length;
   const deckReviewed = reviewedToday + errReviewedToday;
   // v115 完成判定兜底：本地完成戳（endDueReview 写入）——云端写回偶发延迟/失败时不吞掉用户的完成事实
   let vocabDoneStamp = '';
   try { vocabDoneStamp = localStorage.getItem('voco-vocab-done') === getLocalToday() ? getLocalToday() : ''; } catch (e) { vocabDoneStamp = ''; }
-  const deckDone = deckTotal === 0 ? deckReviewed > 0 : !!vocabDoneStamp;
+  const deckDone = mergedDueCount === 0 ? deckReviewed > 0 : !!vocabDoneStamp;
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
     { text: '对练打卡 · 完成今日对练', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
@@ -1197,7 +1201,7 @@ function renderTodoList(speakDoneToday) {
     patternTask,
     // 任务 3（复习打卡）：完成今日单词错题复习 —— v88 数字 = due tab 混合卡组真实长度（到期词 + 错题），
     // v103 完成判定 = deckDone（见上：DB 持久化复习记录，清空到期后仍可判定完成）
-    { text: `复习打卡 · 完成今日单词错题复习 (${deckTotal}张)`, sub: deckTotal === 0 ? (deckDone ? `已复习 ${deckReviewed} 张 · 今日全部完成` : '今日无到期词') : (deckDone ? `已复习 ${deckReviewed} 张 · 本地已记录完成 · 云端剩余 ${deckTotal} 张同步中` : `已复习 ${deckReviewed} 张 · 还剩 ${deckTotal} 张 · 词+错题混合卡组`), done: deckDone, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
+    { text: `复习打卡 · 完成今日单词错题复习 (${dueDose}张)`, sub: mergedDueCount === 0 ? (deckDone ? `已复习 ${deckReviewed} 张 · 今日全部完成` : '今日无到期词') : (deckDone ? `今日配额已完成 · 已复习 ${deckReviewed} 张` : (dueBacklog > 0 ? `今日 ${dueDose} 张 · 队列还有 ${dueBacklog} 张（约 ${Math.ceil(dueBacklog / DAILY_REVIEW_QUOTA)} 天消化完）` : `今日 ${dueDose} 张 · 词+错题混合卡组`)), done: deckDone, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -2214,17 +2218,17 @@ async function auditModule2() {
     }
     await _auditGoHome();
   }
-  // 2.3 任务 3（复习）：面板数字 === 到期词 + 错题；点击后 buildDueDeck 实际卡组长度一致
+  // 2.3 任务 3（复习）：面板数字 === 今日配额 min(20, 合并 FIFO 全量)；点击后 buildDueDeck 实际卡组长度一致
   if (!_wordsAll.length) { try { await loadWords(); await _auditGoHome(); } catch (e) { /* 网络失败交由 SKIP */ } }
   const t2 = document.querySelectorAll('#home-quests [data-todo-idx]')[2];
   if (!t2) { _auditSkip('任务 3 数字钩稽', 'To-Do List 未渲染'); return; }
   const dom2 = t2.textContent || '';
   const m2 = dom2.match(/[（(](\d+)张[)）]/);   // v107：同上，半/全角括号双兼容
-  const ms = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds);
-  const deckTotal = ms.totalDueVocabCount + dueErrorCards().length;
-  if (m2 && parseInt(m2[1], 10) === deckTotal) _auditPass(`任务 3 数字一致：面板显示 ${deckTotal} 张 === 到期词 ${ms.totalDueVocabCount} + 到期错题 ${deckTotal - ms.totalDueVocabCount}`);
+  const mergedFull = buildDueDeckMerged().length;
+  const deckTotal = Math.min(DAILY_REVIEW_QUOTA, mergedFull); // v126 配额口径：面板 = 今日剂量
+  if (m2 && parseInt(m2[1], 10) === deckTotal) _auditPass(`任务 3 数字一致：面板显示 ${deckTotal} 张 === 合并 FIFO 全量 ${mergedFull} 张的今日配额`);
   else if (!m2) _auditSkip('任务 3 数字钩稽', '面板未渲染数字');
-  else _auditFail('任务 3 数字分裂', `面板显示「${m2[1]}」，实际 deckTotal = ${deckTotal}`);
+  else _auditFail('任务 3 数字分裂', `面板显示「${m2[1]}」，实际今日配额 deckTotal = ${deckTotal}`);
   if (m2 && t2) {
     t2.click();
     await _auditWaitFor(() => location.pathname === '/review' && _wordsFilter === 'due', 25, 300);
@@ -2529,14 +2533,14 @@ async function auditModule8() {
   // 断言 B：残缺卡隔离 —— broken 必须 incomplete=true 且 needsReview=false，绝不混入 SRS 队列
   const brokenRows = lib.filter(p => p.cardKind === 'broken');
   const brokenLeak = brokenRows.filter(p => p.incomplete !== true || p.needsReview === true);
-  const queue = getDueSentencesQueue(lib);
+  const queue = getDueSentencesQueueRaw(lib); // v126：断言 C 用 Raw 全量口径——对外队列配额 20 切片会收窄本巡检半径
   const brokenInQueue = queue.filter(q => q.cardKind === 'broken' || !q.targetSentence);
   if (!brokenLeak.length) _auditPass(`残缺卡隔离：${brokenRows.length} 张 broken 全部置 incomplete + needsReview=false（强制出队）`);
   else _auditFail(`残缺卡隔离：${brokenLeak.length} 张 broken 未被隔离（可能混入 SRS 队列）`, brokenLeak.map(p => `id=${p.id}`).join(' · '));
 
-  // 断言 C：队列纯净 —— 队内每张卡都有真实正确句（v122 起无单日上限：到期句全量 + 新卡预算，对齐词汇/错题口径）
+  // 断言 C：队列纯净 —— 全量待复习卡每张都有真实正确句（Raw 口径；对外队列 v126 起每日配额 20：到期优先 + 新卡预算 10 补足额度）
   const badQueue = queue.filter(q => !real(q.targetSentence));
-  if (!brokenInQueue.length && !badQueue.length) _auditPass(`SRS 队列纯净：${queue.length} 张待复习卡全部含真实正确句，无 broken 混入，无单日上限（到期全量 + 新卡预算 ${NEW_PATTERNS_PER_SESSION}）`);
+  if (!brokenInQueue.length && !badQueue.length) _auditPass(`SRS 队列纯净：${queue.length} 张待复习卡（Raw 全量口径）全部含真实正确句，无 broken 混入；对外队列每日配额 ${DAILY_REVIEW_QUOTA}（到期优先 + 新卡预算 ${NEW_PATTERNS_PER_SESSION} 补足）`);
   else _auditFail(`SRS 队列污染：broken 混入 ${brokenInQueue.length} · 无正确句 ${badQueue.length} · 队列长度 ${queue.length}`, brokenInQueue.concat(badQueue).map(q => q.targetSentence || String(q.id)).join(' · '));
 
   // 断言 D：今日日报解析层过滤 —— _reportParsed 的 patterns / 核心句型无半截条目、无回声
@@ -2677,7 +2681,7 @@ let _reviewedVocabTodayIds = new Set(); // 加载层上收：今日实际完成 
 // ═══════════════════════════════════════════════════════
 // Voco 2.0 全局任务状态中心（SSOT）—— 用户骨架强制签名
 // getTodayMissionState(vocabAll, reportParsed, reviewedVocabIds)   ← v104 收敛：patternsAll/patternLibrary 参数随句型口径纯库捞迁移而删除
-// 所有页面数字（首页待办 / 数据卡 / 复习页 Tab）唯一事实源；UI 层严禁自行 .filter/.length/Mock 兜底
+// 首页待办数字的事实源；复习卡组口径 v126 起由 buildDueDeckMerged()（词+错题合并 FIFO + 每日配额）承接，UI 层严禁自行 .filter/.length/Mock 兜底
 // 骨架适配说明（Vanilla JS 无模块系统，export 关键字去除）：
 //   · todayStr 用 getLocalToday()（v64 本地时区）—— 骨架里的 toISOString().split('T')[0] 会重新引入 UTC 穿透
 //   · 真实数据结构日期在 reportParsed.meta.date（骨架的 reportParsed.date 为兼容读取）
@@ -2693,28 +2697,14 @@ function getTodayMissionState(vocabAll, reportParsed, reviewedVocabIds = new Set
   // 1. 时间轴拦截：校验是否为今日真实报告
   const hasRealTodayReport = isTodayParsedGate(reportParsed);
 
-  // 2. 隔离 Mock 数据：过滤掉所有带有 mock 标记的假数据（mockWords id 已统一 mock-N 前缀）
-  const realVocab = (vocabAll || []).filter(v => !String(v.id).startsWith('mock-'));
-
-  // 3. 今日增量计数（v104：面板/提升区已改 getDayCounts(parsed) SSOT 直取，计数字段无消费者 → 删除）
-
-  // 4. SM-2 记忆任务（真实待复习总数：needsReview 全量，含今日新词 + 历史到期词，与复习页 tab=due 同源）
-  const dueVocabList = realVocab.filter(v => v.needsReview);
-  const totalDueVocabCount = dueVocabList.length;
-
-  // 5. 今日已实际完成复习的数量（id 集合大小）
+  // 2. 今日已实际完成复习的数量（id 集合大小）
   const reviewedVocabToday = reviewedVocabIds.size;
 
-  // 6. 句型 SRS 任务口径（v104 纯库捞）：整体迁移至 getDueSentencesQueue(_patternLibrary) ——
-  //    待办任务 2 数字与卡片页队列共用同一函数，此处不再重复计算（duePatternList/totalPatternTaskCount 已删除）
+  // v126 起删除块：realVocab 隔离 / dueVocabList / totalDueVocabCount / isReviewFinished（含 v103 完成判定旧口径）消费者归零——
+  // 复习计数与完成判定全部迁移至 buildDueDeckMerged()（词+错题合并 FIFO + 每日配额），此处不再重复计算
   return {
     hasRealTodayReport,
-    totalDueVocabCount,
-    reviewedVocabToday,
-    dueVocabList, // 真实待复习词表（totalDueVocabCount 同源数组；v82 后对战胶囊已移除，无外部取词消费）
-    // v103 完成判定修复（与任务 3 同口径）：全部复习完后 dueCount 归 0，旧守卫 dueCount>0 恒 false → 永远无法完成；
-    // 新口径：dueCount===0 且今日确有复习记录 → 完成；dueCount===0 且今日无记录 → 未完成（防默认值误判）
-    isReviewFinished: totalDueVocabCount === 0 && reviewedVocabToday > 0
+    reviewedVocabToday
   };
 }
 
@@ -2789,38 +2779,41 @@ function hideInspirationDialog() {
 // 绝不打断/不接话/不代说完 + 先回应内容再给反馈（用户 key points 融合）+ 复述练习四步协议 + 教思维而非修补
 // v123 批次（用户反馈「布置练习后 GPT 立刻接下一个话题」）：① 契约新增【练习交接协议】第 8 条——布置练习
 // （重说正确版/升级挑战/复述）后必须停下等用户完成，完成前严禁续聊/切话题/新问题填场（原 8/9 顺延为 9/10）；
-// ② 话题段「跑题/卡壳」拆分处置——跑题顺内容带回主题、卡壳不换话题只给提示词引导说出正确句（与契约第 4 条一致；
+// ② 话题段「跑题/卡壳」拆分处置——跑题顺内容带回主题、卡壳不换话题只给提示词引导说出正确句（与契约第 4 条一致，v125 契约重编号后现为第 3 条；
 // 原「卡壳用新问题拉回主题」与第 1/4 条冲突，是「练习后立刻接新话题」的帮凶）；③ 话题段补「静默准备练习不算卡壳」。
 // v124 批次（用户反馈「GPT 对话完忘记纠正、忘记给更自然说法」）：① 规则 2 纠错改为「有错必纠、每轮必做」（没犯错
 // 无需任何反馈，与规则 3 没错不纠一致）；② 规则 3 明确「只指出错误、不给正确说法 = 未完成纠错」；③ 规则 10「自然感
 // 优先」限定为语气与长度、不得豁免纠错义务；④ 新增【每轮自检】第 11 条三问自查（先回应内容/有错必纠+给更自然说法/长度克制）。
+// v125 批次（用户反馈「v124 契约后 GPT 整场忘记纠正、被提醒后也不按先回应再纠错的顺序」→ 诊断：长对话指令衰减 +
+// 位置效应——契约在 prompt 最前、话题段在最后，纠错规则注意力最弱；规则越长衰减越快）：
+// ① 契约精简 11 条 → 9 条：原 2/3 合并（先回应内容 → 有错必纠每轮必做 / 没错不反馈 → 解释原因 + 更自然说法），
+// 原【每轮自检】11 删除——自查式规则在长对话里最先失效，其职责由 prompt 末尾【每轮固定格式】锚句取代（位置比自查可靠）；
+// 原 4-9 顺延为 3-8、原 10 → 9（节奏与语气，删与 2 重复的收尾句「自然感与纠错一个都不能少」，保留纠错不得豁免）；
+// ② 话题段交叉引用「与对话契约第 4 条一致」→ 第 3 条（引导者重新编号）；
+// ③ 组装末尾（「现在，请开始今天的对练」之后）新增【每轮固定格式】锚句——近因效应把纠错循环放在注意力最强位置。
 const _PRE_COACH_CONTRACT = `作为我的英语口语私教和长期对话伙伴，请开启今天的对话。我们的目标是通过真实自然的对话帮我流利地道，而不是上课：像两个朋友日常聊天一样自然交流，你全程以教练的视角观察我的表现。
 全程使用英文：你的每一句话——对话、回应、纠错、解释、引导、小结——都用英文说；除非我明确要求用中文。
 
 【对话第一，纠错第二】
 1. 绝不打断我说话：不要抢话、不要接我的话、不要替我把句子说完——等我把一个完整的意思清楚表达完，你再开口。
-2. 我每说完一段，你先像聊天对象一样回应我的内容：回答我的问题、讨论我的观点、给我一个自然真实的反应；回应完之后，再给我简短反馈——只要我这轮犯了错，纠错就是必做环节、不可省略，绝不整轮只聊内容不纠错；我这轮没犯错就不需要任何反馈，自然继续对话。
-3. 反馈只针对我真的犯的错误：有错就纠、没错不纠，绝不编造错误，也绝不为了显得尽责而挑刺；用一两句话解释原因，并给出更自然的说法，可以邀请我把正确版本自然地说一遍。只指出错误、不给正确说法不算完成纠错——每次纠错都必须带上更自然的说法。
+2. 我每说完一段，你先像聊天对象一样自然回应我的内容：回答我的问题、讨论我的观点、给我一个自然真实的反应；回应完之后，再给简短反馈。反馈只针对我真的犯的错误：有错就纠——每轮必做、不可省略，绝不整轮只聊内容不纠错；没错不纠——不反馈，自然继续对话；绝不编造错误，也绝不为了显得尽责而挑刺。每次纠错：用一两句话解释原因 + 给出更自然的说法（只指出错误、不给正确说法不算完成纠错），可以邀请我把正确版本自然地说一遍。
 
 【引导与深挖】
-4. 你是引导者，不是答案机：我卡壳时先给提示词，引导我自己说出来；发现我反复用简单词、回避复杂表达时，主动抛出升级挑战（例如："You just said 'very interesting' — try a more advanced word and say it again"）。
-5. 对我反复出现的错误，不要每次报完就走——要察觉背后的规律：是中式思维直译？时态意识缺失？还是词汇库存不够？适时点破根因（例如："I notice you keep translating word for word from Chinese — a native speaker would say ..."），帮我建立语感。教的是英语背后的思维，不是一条条修补。
-6. 当某个错误再次出现、或对话进行到自然节点时，适时帮我小结当下的错误 pattern，让我带着觉察继续练。
+3. 你是引导者，不是答案机：我卡壳时先给提示词，引导我自己说出来；发现我反复用简单词、回避复杂表达时，主动抛出升级挑战（例如："You just said 'very interesting' — try a more advanced word and say it again"）。
+4. 对我反复出现的错误，不要每次报完就走——要察觉背后的规律：是中式思维直译？时态意识缺失？还是词汇库存不够？适时点破根因（例如："I notice you keep translating word for word from Chinese — a native speaker would say ..."），帮我建立语感。教的是英语背后的思维，不是一条条修补。
+5. 当某个错误再次出现、或对话进行到自然节点时，适时帮我小结当下的错误 pattern，让我带着觉察继续练。
 
 【复述练习协议】
-7. 如果我做复述练习，请安静听我讲完整个复述，中途绝不打断；等我说完后按顺序做四件事：① 先评价内容是否清晰完整；② 与上一次的复述对比（哪里进步、哪里遗漏）；③ 再纠正英文表达；④ 最后给出一两个下次优先改进的点。
+6. 如果我做复述练习，请安静听我讲完整个复述，中途绝不打断；等我说完后按顺序做四件事：① 先评价内容是否清晰完整；② 与上一次的复述对比（哪里进步、哪里遗漏）；③ 再纠正英文表达；④ 最后给出一两个下次优先改进的点。
 
 【练习交接协议】
-8. 每当你布置练习任务——邀请我重说正确版、抛出升级挑战、安排复述——布置完就必须停下来等我完成：在我完成之前，严禁继续对话、严禁切换话题、严禁用新问题填场。我完成后，先给我简短确认或评价，再自然接回对话。
+7. 每当你布置练习任务——邀请我重说正确版、抛出升级挑战、安排复述——布置完就必须停下来等我完成：在我完成之前，严禁继续对话、严禁切换话题、严禁用新问题填场。我完成后，先给我简短确认或评价，再自然接回对话。
 
 【自然衔接课后】
-9. 课堂上留意并记住值得沉淀的内容：我的典型错误、值得升级成金句的表达、我不会说的词。课后我会请你整理成学习日报——课堂上不需要你做任何记录动作，专注陪练即可。
+8. 课堂上留意并记住值得沉淀的内容：我的典型错误、值得升级成金句的表达、我不会说的词。课后我会请你整理成学习日报——课堂上不需要你做任何记录动作，专注陪练即可。
 
 【节奏与语气】
-10. 像真人朋友一样说话：回应简短自然，一次不要说太多。「自然感优先」只约束你的语气和长度——绝不能成为漏纠错的借口：我这轮有错就必须纠，自然感与纠错一个都不能少。
-
-【每轮自检】
-11. 每次回应我之前，先自查三件事：① 我是否先回应了内容？② 我这轮有没有犯错——有的话纠了吗、给更自然的说法了吗？③ 长度是否克制？漏了纠错就补上。`;
+9. 像真人朋友一样说话：回应简短自然，一次不要说太多。「自然感优先」只约束你的语气和长度——绝不是漏纠错的借口：我这轮有错就必须纠。`;
 
 // 组装并复制 Prompt（【我的】页 · 灵感舱居中模态调用）
 async function fireTopicGeneratorPrompt(btn) {
@@ -2836,7 +2829,7 @@ async function fireTopicGeneratorPrompt(btn) {
     // 旧版只贴一句「主题领域是：××」，GPT 常以 How are you 寒暄开场，话题落不了地
     // （对比：话题复盘 Prompt 早已有「你先向我提问吧」，此处此前缺失同款指派）。
     // v123：跑题/卡壳拆分处置（跑题带回主题、卡壳给提示词不换话题）+ 静默准备练习不算卡壳——详见契约头部 v123 注释。
-    prompt += `\n\n【今日话题 · 由你开场】今天的对练围绕「${_selectedTopicTag}」展开。请由你先开口：第一句话就直接抛出与这个主题相关的开放性问题（问我的经历、计划或观点），引导我进入表达，严禁"How are you"这类与主题无关的寒暄开场。随后沿我的回答自然深挖：追问细节、分享你的观点、适时提出不同看法让我回应。我跑题时，顺着刚才的内容自然把话题带回主题；我卡壳时，不要切换话题——先给提示词引导我把正确的句子说出来（与对话契约第 4 条一致），等我把话说完再接。我静默准备练习时不算卡壳——练习交接期间等我完成再继续。`;
+    prompt += `\n\n【今日话题 · 由你开场】今天的对练围绕「${_selectedTopicTag}」展开。请由你先开口：第一句话就直接抛出与这个主题相关的开放性问题（问我的经历、计划或观点），引导我进入表达，严禁"How are you"这类与主题无关的寒暄开场。随后沿我的回答自然深挖：追问细节、分享你的观点、适时提出不同看法让我回应。我跑题时，顺着刚才的内容自然把话题带回主题；我卡壳时，不要切换话题——先给提示词引导我把正确的句子说出来（与对话契约第 3 条一致），等我把话说完再接。我静默准备练习时不算卡壳——练习交接期间等我完成再继续。`;
   }
   if (urlInput) {
     prompt += `\n\n请参考以下背景材料（你可以提取核心观点与我讨论）：\n${urlInput}`;
@@ -2845,7 +2838,7 @@ async function fireTopicGeneratorPrompt(btn) {
     prompt += `\n\n这是我的一些初步想法和疑问，请结合这些引导我展开讨论：\n"${thoughtsInput}"`;
   }
 
-  prompt += "\n\n现在，请开始今天的对练。";
+  prompt += "\n\n现在，请开始今天的对练。\n\n【每轮固定格式】先自然回应我的内容 → 我这轮有错就纠：一两句原因 + 更自然的说法 → 继续对话；我这轮没犯错就不纠、不反馈。";
 
   // v97：「加入对练防御」功能已全面下线（用户指令：冗余功能彻底去除）——Prompt 不再注入任何防御内容
   const copied = await copyToClipboardWithFallback(prompt);
@@ -3087,7 +3080,8 @@ function renderWordsSubTabs(activeMode) {
   // v88：due 标签的错题部分必须用「今日语境」错题数 —— 点击 due tab 后 switchWordsView 清 _ctxDate，
   // 卡组 buildDueDeck = 今日到期词 + 今日错题；沿用历史日错题数会与卡组口径分裂
   // v99：错题部分 = dueErrorCards()（真 SM-2 曲线到期口径，与卡组完全同源）
-  const dueCount = getTodayMissionState(_wordsAll, _reportParsed, _reviewedVocabTodayIds).totalDueVocabCount + dueErrorCards().length;
+  // v126 每日配额：Tab 数字 = 今日剂量 min(20, 合并 FIFO 全量)，与任务 3 面板同源（buildDueDeckMerged）
+  const dueCount = Math.min(DAILY_REVIEW_QUOTA, buildDueDeckMerged().length);
   const tabs = [
     { key: 'all', label: '全部词汇', count: _wordsAll.length },
     { key: 'grammar', label: '语法错题', count: grammarCount },
@@ -3246,15 +3240,28 @@ function renderErrorCards(items) {
 // ── 模块三：待复习混合记忆引擎（Active Recall + SM-2 双阶段交互）──────────
 // 队列 = needsReview===true 的单词 + 语法错题，统一卡组流式打卡；
 // 正面遮罩（词卡仅英文+音标 / 错题 = 动态徽章 + 原句小字灰显 + 回忆引导）→ [点击显示答案] → 背面完整解析 + 双反馈按钮
-function buildDueDeck() {
-  const words = _wordsAll.filter(v => v.needsReview === true)
-    .sort((a, b) => (a.next_review_date || '0000') < (b.next_review_date || '0000') ? -1 : 1)
-    .map(v => ({ kind: 'word', id: 'w-' + v.id, word: v.word, phonetic: v.phonetic || '', meaning: v.meaning || '', example: v.example || '', ref: v }));
+// v126 每日配额（用户反馈「一周没练回来 108 张太劝退」）：词+错题按到期日合并 FIFO（无日期=今天到期排最前——
+// 根治旧「先全部词、后全部错题」排序下词积压 ≥20 时错题永不出队的饿死问题），每日剂量 20 张。
+// SM-2 只调度、评分才推进：延迟 ≠ 跳过——没轮到的卡原地排队，间隔从实际复习日起算（写回层零改动，Anki 同款积压模型）
+const DAILY_REVIEW_QUOTA = 20;
+function buildDueDeckMerged() {
+  const today = getLocalToday();
+  const words = _wordsAll
+    .filter(v => v.needsReview === true && isDueBySrs(v, today)) // 日期重核：会话内已复习的词（needsReview 是加载时打的标签）自动出队
+    .map(v => ({ kind: 'word', id: 'w-' + v.id, word: v.word, phonetic: v.phonetic || '', meaning: v.meaning || '', example: v.example || '', ref: v, dueKey: v.next_review_date || '0000-00-00' }));
   // v99 错题真 SM-2：dueErrorCards() = errors 表曲线到期行（新卡立即到期 + 间隔推进 + mastered/已纠正出队）
   const errs = dueErrorCards()
     .filter(e => e && e.id && !_reviewedErrorIds.has(String(e.id)))
-    .map(e => ({ kind: 'error', id: e.id, error: e }));
-  return [...words, ...errs];
+    .map(e => ({ kind: 'error', id: e.id, error: e, dueKey: (e.ref && e.ref.next_review_date) || '0000-00-00' }));
+  return words.concat(errs).sort((a, b) => (a.dueKey < b.dueKey ? -1 : 1));
+}
+// 今日配额口径（v126）：合并 FIFO 前 20 张；「继续加练」= 完成后直接再建（已复习卡被日期重核排除，天然无重复、无跳卡）
+function buildDueDeck() {
+  return buildDueDeckMerged().slice(0, DAILY_REVIEW_QUOTA);
+}
+// 今日配额之外的积压量（任务面板 / 完成页「队列还有 N 张」同源口径）
+function dueDeckBacklogCount() {
+  return Math.max(0, buildDueDeckMerged().length - DAILY_REVIEW_QUOTA);
 }
 
 // ═══ v115 写回加固（due-review 50→24 复活根因修复）═══
@@ -3558,15 +3565,20 @@ async function rateDueCard(rating) {
 }
 
 function endDueReview() {
-  // v115 完成判定兜底：整副卡组清空时打本地完成戳（写回全部落库前的即时完成凭据，自过期=按日期比对）
+  // v115 完成判定兜底：配额卡组清空时打本地完成戳（写回全部落库前的即时完成凭据，自过期=按日期比对）
   try { localStorage.setItem('voco-vocab-done', getLocalToday()); } catch (e) { /* 隐私模式忽略 */ }
+  // v126：完成 = 今日配额练完（积压不影响打卡）；有积压 → 「继续加练」再来一组，练不练都算今日已打卡
+  const backlog = dueDeckBacklogCount();
   const container = document.getElementById('words-content');
   container.innerHTML = `
     <div class="bg-[var(--c-surface)] rounded-2xl p-8 text-center border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
       <div class="text-4xl mb-3">🎉</div>
-      <div class="text-base font-bold text-[var(--c-text)] mb-2">复习完成！</div>
-      <div class="text-sm text-[var(--c-text-dim)] mb-4">记住了 <strong>${_dueResults.remembered}</strong> 个 · 没记住 <strong>${_dueResults.forgot}</strong> 个</div>
-      <button class="btn-primary" style="width:auto;padding:10px 24px;" onclick="loadWords()">再来一轮</button>
+      <div class="text-base font-bold text-[var(--c-text)] mb-2">${backlog > 0 ? '今日配额复习完成！' : '复习完成！'}</div>
+      <div class="text-sm text-[var(--c-text-dim)] mb-1">记住了 <strong>${_dueResults.remembered}</strong> 个 · 没记住 <strong>${_dueResults.forgot}</strong> 个</div>
+      <div class="text-xs text-[var(--c-text-ultradim)] mb-4">${backlog > 0 ? `队列还有 ${backlog} 张 · 每天 ${DAILY_REVIEW_QUOTA} 张约 ${Math.ceil(backlog / DAILY_REVIEW_QUOTA)} 天消化完` : '今日队列已全部清空，太棒了'}</div>
+      ${backlog > 0
+        ? `<button class="btn-primary" style="width:auto;padding:10px 24px;" onclick="renderDueDeck()">继续加练（再来 ${Math.min(DAILY_REVIEW_QUOTA, backlog)} 张）</button>`
+        : `<button class="btn-primary" style="width:auto;padding:10px 24px;" onclick="loadWords()">回到词汇库</button>`}
     </div>`;
 }
 
@@ -3952,8 +3964,10 @@ function coreDeck(parsed) {
 // v122（用户决定，2026-09-06）：删除 40 张总安全阀——无单日上限，到期句全量 + 新卡预算，与词汇/错题同口径。
 // 40 安全阀 v120 引入时判断「正常规模触不到」，实为 154 行库即触发（真实到期 99 句被截到 40），废除。
 // 打卡完成 = 队列练完 = 到期卡清零 + 当日新卡预算消化（任务 2 数字 = 本函数长度，自动同源）
+// v126（用户决定，2026-09-14）每日配额：Raw = 到期 FIFO 全量 + 新卡预算 10（积压统计 / 加练组重捞口径）；
+// 对外队列 = Raw 前 20 张（到期优先、新卡补足额度）——积压「延迟 ≠ 跳过」，SM-2 只调度、评分才推进
 const NEW_PATTERNS_PER_SESSION = 10;
-function getDueSentencesQueue(speakAll) {
+function getDueSentencesQueueRaw(speakAll) {
   const seen = new Set();
   const newCards = [];
   const dueCards = [];
@@ -3969,6 +3983,9 @@ function getDueSentencesQueue(speakAll) {
   dueCards.sort((a, b) => String(a.next_review_date || '').localeCompare(String(b.next_review_date || '')));
   return dueCards.concat(newCards.slice(0, NEW_PATTERNS_PER_SESSION)).map(toPlayerItem);
 }
+function getDueSentencesQueue(speakAll) {
+  return getDueSentencesQueueRaw(speakAll).slice(0, DAILY_REVIEW_QUOTA);
+}
 
 // ═══════════════════════════════════════════════════════
 // 每日句型队列快照（根治「做一半点去其他页面，打卡数量不断增多、永远做不完」）
@@ -3978,7 +3995,7 @@ function getDueSentencesQueue(speakAll) {
 // 之后当天一切重建只认快照：答一张删一个 id（出队即重写），再进来只见剩余，数字只减不增；
 // 快照 = [] 即今日已练完（完成态），绝不回退到实时重捞。历史视图（?date=）不建、不读、不写快照。
 // 快照条目 {t:'pat',id}（重建时按 id 从 _patternLibrary 反查，解析/SM-2 字段恒新鲜——库行已删则静默跳过）；
-// {t:'anchor',text}（锚定句，唯一携带文本的条目）。快照条数 = 当日队列长度（v122 起无上限），体积可忽略。
+// {t:'anchor',text}（锚定句，唯一携带文本的条目）。快照条数 = 当日队列长度（v126 起 = 今日配额 ≤20，加练组另行追加），体积可忽略。
 // ═══════════════════════════════════════════════════════
 function _speakQueueSnapshotKey() { return 'voco-speak-queue-' + getLocalToday(); }
 function _readSpeakQueueSnapshot() {
@@ -4032,6 +4049,37 @@ function _speakQueueSnapshotRemove(item) {
     if (e.t === 'anchor') return text !== String(e.text || '');
     return String(e.id) !== idStr;
   }));
+  _speakQueueSnapshotMarkDone(item); // v126：答一张记一张——加练组重捞时排除已练条目
+}
+// ── v126 加练记账：当日已练条目留痕（pat 按库行 id、锚定句按文本），加练组 = Raw 队列 − 已练 − 快照在队 ──
+function _speakQueueDoneKey() { return 'voco-speak-queue-done-' + getLocalToday(); }
+function _speakQueueDoneSet() {
+  try { const raw = localStorage.getItem(_speakQueueDoneKey()); return new Set(raw ? JSON.parse(raw) : []); } catch (e) { return new Set(); }
+}
+function _speakQueueSnapshotMarkDone(item) {
+  try {
+    const key = _speakQueueDoneKey();
+    const arr = JSON.parse(localStorage.getItem(key) || '[]');
+    const entry = String(item && item.id) === 'sentence-anchor'
+      ? 'anchor|' + String(item && item.targetSentence || '')
+      : 'pat|' + String(item && item.id);
+    if (entry && entry !== 'pat|null' && !arr.includes(entry)) { arr.push(entry); localStorage.setItem(key, JSON.stringify(arr)); }
+  } catch (e) { /* 隐私模式忽略 */ }
+}
+// 「继续加练」：配额完成后从全量队列捞下一组 20（排除已练 + 快照在队），追加进今日快照续练——练不练都算今日已打卡
+function continueSpeakQueueExtra() {
+  const done = _speakQueueDoneSet();
+  const snap = _readSpeakQueueSnapshot() || [];
+  const pending = new Set(snap.filter(e => e && e.t === 'pat').map(e => String(e.id)));
+  const extra = getDueSentencesQueueRaw(_patternLibrary).filter(it => {
+    const key = String(it.id) === 'sentence-anchor' ? ('anchor|' + String(it.targetSentence || '')) : ('pat|' + String(it.id));
+    if (done.has(key)) return false;
+    if (String(it.id) !== 'sentence-anchor' && pending.has(String(it.id))) return false;
+    return true;
+  }).slice(0, DAILY_REVIEW_QUOTA);
+  if (!extra.length) { showToast('没有更多可加练的句子了 🎉'); return; }
+  _writeSpeakQueueSnapshot(snap.concat(extra.map(it => (String(it.id) === 'sentence-anchor' ? { t: 'anchor', text: String(it.targetSentence || '') } : { t: 'pat', id: Number(it.id) }))));
+  renderSentenceReview(extra, 0);
 }
 
 // 词条 → 提词器句子：兼容两种数据形状（嵌套对象 targetSentence / 云端 better+original+scene）
@@ -4230,6 +4278,17 @@ function showSrsDone() {
   // v117 审计修复：历史日期视图（?date= 非今日）复习完队列绝不写今日打卡戳——否则浏览历史顺带把任务 2 点亮
   const hist = _ctxDate && _ctxDate !== getLocalToday();
   if (!hist) { try { localStorage.setItem('voco-speak-done', getLocalToday()); } catch (e) {} } // 点亮首页【句型复习打卡】
+  // v126 加练口径：历史视图只读无加练；今日视图计算「已练 + 快照在队」之外的剩余句数
+  let restCount = 0;
+  if (!hist) {
+    const done = _speakQueueDoneSet();
+    const snap = _readSpeakQueueSnapshot() || [];
+    const pending = new Set(snap.filter(e => e && e.t === 'pat').map(e => String(e.id)));
+    restCount = getDueSentencesQueueRaw(_patternLibrary).filter(it => {
+      const key = String(it.id) === 'sentence-anchor' ? ('anchor|' + String(it.targetSentence || '')) : ('pat|' + String(it.id));
+      return !done.has(key) && (String(it.id) === 'sentence-anchor' || !pending.has(String(it.id)));
+    }).length;
+  }
   const container = document.getElementById('speak-player');
   container.innerHTML = `
     <div class="flex items-center justify-center" style="min-height:calc(100dvh - 92px)">
@@ -4238,13 +4297,23 @@ function showSrsDone() {
         <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-[var(--c-green-light)] flex items-center justify-center" style="box-shadow:inset 0 0 0 1px var(--c-green)">
           <i data-lucide="party-popper" class="w-5 h-5 text-[var(--c-green)]"></i>
         </div>
-        <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">句型复习完成！</div>
+        <div class="text-base font-bold text-[var(--c-text)] mb-2 tracking-wide">${hist ? '句型复习完成！' : '今日句型配额完成！'}</div>
         <div class="text-xs text-[var(--c-text-dim)] mb-1">记住了 ${_srsResults.remembered} · 还没记住 ${_srsResults.forgot}</div>
-        <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-6">已点亮首页【句型打卡】</div>
-        <button onclick="navigateToTab('home')" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
+        <div class="text-[0.6875rem] text-[var(--c-text-ultradim)] mb-6">${hist ? '历史句型浏览完毕' : (restCount > 0 ? `队列还有 ${restCount} 句 · 每天 ${DAILY_REVIEW_QUOTA} 句约 ${Math.ceil(restCount / DAILY_REVIEW_QUOTA)} 天消化完` : '今日队列已全部清空 · 已点亮首页【句型打卡】')}</div>
+        ${hist
+          ? `<button onclick="navigateToTab('home')" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
           style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
           🏠 回到首页 <i data-lucide="arrow-right" class="w-4 h-4"></i>
-        </button>
+        </button>`
+          : (restCount > 0
+            ? `<button onclick="continueSpeakQueueExtra()" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
+          style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
+          继续加练（再来 ${Math.min(DAILY_REVIEW_QUOTA, restCount)} 句） <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>`
+            : `<button onclick="navigateToTab('home')" class="inline-flex items-center gap-1.5 px-6 py-3 rounded-2xl border-0 cursor-pointer text-sm font-bold text-white transition-all duration-200 active:scale-[0.97]"
+          style="background:linear-gradient(135deg,var(--c-primary),var(--c-green));box-shadow:0 8px 18px -8px rgba(0,0,0,0.35)">
+          🏠 回到首页 <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>`)}
       </div>
     </div>`;
   refreshIcons(container);
@@ -4743,6 +4812,7 @@ const TEMPLATES = {
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
 7. coreSentences 不设数量上限：收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）。newWords 也不设数量上限（宁多勿漏），但收录标准是「你当天需要帮助才说出的词」，三条铁轨：① 必收——对话中你有任何求助痕迹的词：卡壳说不出、问过它的意思、查过、我给了提示词之后你才说出来、说错被纠正，满足任意一条就收录，轻微卡壳也算，绝不漏掉一个真生词；② 排除——你独立流利说出、全程没有任何求助或卡壳迹象的词，即使再高级、再专业也严禁收进 newWords（它们不是生词）；你独立用出的高级表达，请以整句形式收进 coreSentences 金句库，不要用 newWords 记；③ 拿不准有没有求助过时，默认收录（宁多勿漏）。严禁编造对话中根本没出现过的词。
 8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。coach_insights 里推荐的每个具体词汇/整块表达（如 build stamina、incline walking），必须同时在对应数组里有落点：当天求助过才说出的进 newWords、说错或直译被纠正的进 mistakes（expression 类）、值得内化的高阶表达进 coreSentences——洞察段落严禁成为这些词的唯一归宿。
+9. 所有 explanation 不要写全英文：用中文解释，英文只保留在具体词汇、语法错误、固定搭配或句型骨架本身等等。
 
 【评分与点评铁律】（专业口语私教评审）：
 - 示例结构中的 0（speakingRatio / fluency / accuracy / naturalness / vocabulary）与 "弱点标签1, 弱点标签2" 只是占位符、示意字段类型——严禁直接输出占位值 0、严禁照抄占位文字。
@@ -4771,6 +4841,7 @@ const TEMPLATES = {
 □ 今天所有求助过才说出的词都收进了 newWords——即使它已经出现在 mistakes 或洞察里也要收（词卡记生词、错题卡记错误，双落点不冲突），没有只在洞察或错题里出现的漏网求助词；
 □ coach_insights 四句诊断都基于今日对话的具体表现，严厉专业、直接指出问题，无空泛套话；
 □ coach_insights 中提到的每个具体目标词汇/表达，都能在 newWords / mistakes / coreSentences 里找到对应落点——洞察不是词汇的唯一归宿；
+□ 所有 explanation 都没有写全英文（中文解释，英文只保留在词汇、语法错误、搭配或句型骨架本身等等）；
 □ 所有键名与上面示例结构一字不差。`
 };
 // v123 评分示例去锚定（用户指令，2026-09-08）：示例分数 7/6.5/6/7 对 GPT 有锚定效应（实测分数挤在 6-7 带）——
@@ -4785,6 +4856,8 @@ const TEMPLATES = {
 // v124 追加·洞察落点链接（用户反馈「洞察推荐的 build stamina 没有任何落点」，2026-09-09）：铁律 #8 末尾加
 //             「洞察里推荐的词汇必须在对应数组有落点」（求助→newWords / 说错直译→mistakes expression / 高阶→coreSentences，
 //             洞察严禁成为唯一归宿）+ 自检两条（洞察词汇落点核查 + 求助词完整性——即使已出现在 mistakes 也要收进 newWords）。
+// v125 追加·explanation 语言风格（9.14 起 explanation 漂移成全英文；查证旧版模板从未规定语言——风格是模板中文语境自然形成，无旧文案可恢复）：
+//             新增轻量铁律 #9（不要写全英文：用中文解释，英文只保留词汇、语法错误、搭配/句型骨架本身等等，无例句句式固化）+ 自检一条。双文件一字不差。
 // v97：TEMPLATES.topic / TEMPLATES.insight 已物理删除——话题卡与弱点分析模板功能彻底下线，TEMPLATES 只保留 report。
 
 function copyTemplate(type) {
@@ -5600,5 +5673,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=124');
+  navigator.serviceWorker.register('/sw.js?v=126');
 }
