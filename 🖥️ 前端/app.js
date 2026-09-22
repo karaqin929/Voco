@@ -1180,9 +1180,11 @@ function renderTodoList(speakDoneToday) {
   // 数字必须数整副卡组 —— 此前只数词 → 「外面 N 词，点进去 N+M 张卡」的数字分裂；
   // v97：错题无 SM-2 记忆曲线（errors 表无 SRS 字段），改为「未纠正=到期」——已纠正（correct_in_review）不再历史全量回炉
   // v126 每日配额：面板数字 = 今日剂量 min(20, 合并 FIFO 全量)，积压以「队列还有 N 张（约 X 天）」呈现
+  // v127 每日快照：面板数字 = 今日剩余（getDueQueueForToday 冻结口径，答一张删一张只减不增——与句型任务 2 同构）；
+  // 积压 = 实时全量 − 快照剩余（已复习卡写回后退出全量，积压恒定）
   const mergedDueCount = buildDueDeckMerged().length;
-  const dueDose = Math.min(DAILY_REVIEW_QUOTA, mergedDueCount);
-  const dueBacklog = Math.max(0, mergedDueCount - DAILY_REVIEW_QUOTA);
+  const dueDose = getDueQueueForToday().list.length;
+  const dueBacklog = Math.max(0, mergedDueCount - dueDose);
   // v103 完成判定修复：旧实现 deckReviewed 用 _reviewedErrorIds（会话内存 Set，刷新即清零）且 done 需 deckTotal>0——
   // 全部复习完后 dueCount/todayErrTaskCount 归 0，deckTotal>0 恒 false → 任务永远无法显示完成（用户实测：复习完所有词+错题仍不完成）。
   // 新口径：词与错题的「今日已复习数」一律取 DB 持久化 last_reviewed_at（reviewWordItem/reviewErrorItem 均落库），刷新/重开不丢；
@@ -1201,7 +1203,7 @@ function renderTodoList(speakDoneToday) {
     patternTask,
     // 任务 3（复习打卡）：完成今日单词错题复习 —— v88 数字 = due tab 混合卡组真实长度（到期词 + 错题），
     // v103 完成判定 = deckDone（见上：DB 持久化复习记录，清空到期后仍可判定完成）
-    { text: `复习打卡 · 完成今日单词错题复习 (${dueDose}张)`, sub: mergedDueCount === 0 ? (deckDone ? `已复习 ${deckReviewed} 张 · 今日全部完成` : '今日无到期词') : (deckDone ? `今日配额已完成 · 已复习 ${deckReviewed} 张` : (dueBacklog > 0 ? `今日 ${dueDose} 张 · 队列还有 ${dueBacklog} 张（约 ${Math.ceil(dueBacklog / DAILY_REVIEW_QUOTA)} 天消化完）` : `今日 ${dueDose} 张 · 词+错题混合卡组`)), done: deckDone, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
+    { text: mergedDueCount === 0 ? (deckDone ? '复习打卡 · 今日单词错题复习已完成' : '复习打卡 · 今日无到期内容') : (deckDone ? '复习打卡 · 今日单词错题复习已完成' : `复习打卡 · 完成今日单词错题复习 (${dueDose}张)`), sub: mergedDueCount === 0 ? (deckDone ? `已复习 ${deckReviewed} 张 · 今日全部完成` : '今日无到期词') : (deckDone ? `今日配额已完成 · 已复习 ${deckReviewed} 张` : (dueBacklog > 0 ? `今日 ${dueDose} 张 · 队列还有 ${dueBacklog} 张（约 ${Math.ceil(dueBacklog / DAILY_REVIEW_QUOTA)} 天消化完）` : `今日 ${dueDose} 张 · 词+错题混合卡组`)), done: deckDone, action: () => { _viewDate = null; _historyParsed = null; _ctxDate = null; navigateReview('due'); } }
   ];
   const done = todos.filter(q=>q.done).length;
   const container = document.getElementById('home-quests');
@@ -2218,24 +2220,24 @@ async function auditModule2() {
     }
     await _auditGoHome();
   }
-  // 2.3 任务 3（复习）：面板数字 === 今日配额 min(20, 合并 FIFO 全量)；点击后 buildDueDeck 实际卡组长度一致
+  // 2.3 任务 3（复习）：面板数字 === 今日快照剩余（未冻结 = 今日配额 min(20, 合并 FIFO 全量)）；点击后 due 卡组长度一致（v127 快照同源）
   if (!_wordsAll.length) { try { await loadWords(); await _auditGoHome(); } catch (e) { /* 网络失败交由 SKIP */ } }
   const t2 = document.querySelectorAll('#home-quests [data-todo-idx]')[2];
   if (!t2) { _auditSkip('任务 3 数字钩稽', 'To-Do List 未渲染'); return; }
   const dom2 = t2.textContent || '';
   const m2 = dom2.match(/[（(](\d+)张[)）]/);   // v107：同上，半/全角括号双兼容
   const mergedFull = buildDueDeckMerged().length;
-  const deckTotal = Math.min(DAILY_REVIEW_QUOTA, mergedFull); // v126 配额口径：面板 = 今日剂量
-  if (m2 && parseInt(m2[1], 10) === deckTotal) _auditPass(`任务 3 数字一致：面板显示 ${deckTotal} 张 === 合并 FIFO 全量 ${mergedFull} 张的今日配额`);
-  else if (!m2) _auditSkip('任务 3 数字钩稽', '面板未渲染数字');
-  else _auditFail('任务 3 数字分裂', `面板显示「${m2[1]}」，实际今日配额 deckTotal = ${deckTotal}`);
+  const deckTotal = getDueQueueForToday().list.length; // v127 快照口径：面板 = 今日剩余（冻结后答一张删一张只减不增）
+  if (m2 && parseInt(m2[1], 10) === deckTotal) _auditPass(`任务 3 数字一致：面板显示 ${deckTotal} 张 === 今日快照剩余（合并 FIFO 全量 ${mergedFull} 张）`);
+  else if (!m2) _auditSkip('任务 3 数字钩稽', '面板未渲染数字（今日已完成或无到期）');
+  else _auditFail('任务 3 数字分裂', `面板显示「${m2[1]}」，实际今日快照剩余 deckTotal = ${deckTotal}`);
   if (m2 && t2) {
     t2.click();
     await _auditWaitFor(() => location.pathname === '/review' && _wordsFilter === 'due', 25, 300);
     if (_wordsFilter === 'due') {
-      const real = buildDueDeck().length;
-      if (real === deckTotal) _auditPass(`任务 3 点击后 due 混合卡组生成：buildDueDeck().length = ${real} === 面板 ${deckTotal}`);
-      else _auditFail('任务 3 点击后卡组与面板数字不一致', `buildDueDeck().length = ${real}，面板 = ${deckTotal}`);
+      const real = getDueQueueForToday().list.length;
+      if (real === deckTotal) _auditPass(`任务 3 点击后 due 混合卡组生成：今日快照剩余 = ${real} === 面板 ${deckTotal}`);
+      else _auditFail('任务 3 点击后卡组与面板数字不一致', `今日快照剩余 = ${real}，面板 = ${deckTotal}`);
     } else _auditFail('任务 3 点击后未进入 due 卡组页', `_wordsFilter = ${_wordsFilter}`);
   }
   await _auditGoHome();
@@ -2791,12 +2793,15 @@ function hideInspirationDialog() {
 // 原 4-9 顺延为 3-8、原 10 → 9（节奏与语气，删与 2 重复的收尾句「自然感与纠错一个都不能少」，保留纠错不得豁免）；
 // ② 话题段交叉引用「与对话契约第 4 条一致」→ 第 3 条（引导者重新编号）；
 // ③ 组装末尾（「现在，请开始今天的对练」之后）新增【每轮固定格式】锚句——近因效应把纠错循环放在注意力最强位置。
+// 2026-09-22 用户报「每纠必练打断对话」：规则 2 末句「可以邀请我把正确版本自然地说一遍」被 GPT 当作每轮许可——每纠必练，
+// 与练习交接协议（布置后停下等完成）叠加成每轮硬打断。收口：练习触发条件收紧为「同一错误再次出现 / 对话自然节点」，
+// 平时纠完即走、自然节奏；锚句同步加注「纠完即走，只有重复错误才停下来练习」。
 const _PRE_COACH_CONTRACT = `作为我的英语口语私教和长期对话伙伴，请开启今天的对话。我们的目标是通过真实自然的对话帮我流利地道，而不是上课：像两个朋友日常聊天一样自然交流，你全程以教练的视角观察我的表现。
 全程使用英文：你的每一句话——对话、回应、纠错、解释、引导、小结——都用英文说；除非我明确要求用中文。
 
 【对话第一，纠错第二】
 1. 绝不打断我说话：不要抢话、不要接我的话、不要替我把句子说完——等我把一个完整的意思清楚表达完，你再开口。
-2. 我每说完一段，你先像聊天对象一样自然回应我的内容：回答我的问题、讨论我的观点、给我一个自然真实的反应；回应完之后，再给简短反馈。反馈只针对我真的犯的错误：有错就纠——每轮必做、不可省略，绝不整轮只聊内容不纠错；没错不纠——不反馈，自然继续对话；绝不编造错误，也绝不为了显得尽责而挑刺。每次纠错：用一两句话解释原因 + 给出更自然的说法（只指出错误、不给正确说法不算完成纠错），可以邀请我把正确版本自然地说一遍。
+2. 我每说完一段，你先像聊天对象一样自然回应我的内容：回答我的问题、讨论我的观点、给我一个自然真实的反应；回应完之后，再给简短反馈。反馈只针对我真的犯的错误：有错就纠——每轮必做、不可省略，绝不整轮只聊内容不纠错；没错不纠——不反馈，自然继续对话；绝不编造错误，也绝不为了显得尽责而挑刺。每次纠错：用一两句话解释原因 + 给出更自然的说法（只指出错误、不给正确说法不算完成纠错）。纠正完就自然继续对话，绝不每纠一次就停下来让我复述正确版——练习要有节制：只有同一个错误再次出现（重复出问题），或对话进行到自然节点时，才停下来做一次针对性练习，让我把正确说法放进当下场景里自然地说一遍；平时像真人私教一样保持对话的自然节奏与停顿，不要每纠必练打断对话。
 
 【引导与深挖】
 3. 你是引导者，不是答案机：我卡壳时先给提示词，引导我自己说出来；发现我反复用简单词、回避复杂表达时，主动抛出升级挑战（例如："You just said 'very interesting' — try a more advanced word and say it again"）。
@@ -2838,7 +2843,7 @@ async function fireTopicGeneratorPrompt(btn) {
     prompt += `\n\n这是我的一些初步想法和疑问，请结合这些引导我展开讨论：\n"${thoughtsInput}"`;
   }
 
-  prompt += "\n\n现在，请开始今天的对练。\n\n【每轮固定格式】先自然回应我的内容 → 我这轮有错就纠：一两句原因 + 更自然的说法 → 继续对话；我这轮没犯错就不纠、不反馈。";
+  prompt += "\n\n现在，请开始今天的对练。\n\n【每轮固定格式】先自然回应我的内容 → 我这轮有错就纠：一两句原因 + 更自然的说法 → 继续对话（纠完即走，只有重复错误才停下来练习）；我这轮没犯错就不纠、不反馈。";
 
   // v97：「加入对练防御」功能已全面下线（用户指令：冗余功能彻底去除）——Prompt 不再注入任何防御内容
   const copied = await copyToClipboardWithFallback(prompt);
@@ -3081,7 +3086,8 @@ function renderWordsSubTabs(activeMode) {
   // 卡组 buildDueDeck = 今日到期词 + 今日错题；沿用历史日错题数会与卡组口径分裂
   // v99：错题部分 = dueErrorCards()（真 SM-2 曲线到期口径，与卡组完全同源）
   // v126 每日配额：Tab 数字 = 今日剂量 min(20, 合并 FIFO 全量)，与任务 3 面板同源（buildDueDeckMerged）
-  const dueCount = Math.min(DAILY_REVIEW_QUOTA, buildDueDeckMerged().length);
+  // v127 每日快照：Tab 数字 = 今日剩余（与任务 3 面板、due 卡组同源 getDueQueueForToday，答一张删一张只减不增）
+  const dueCount = getDueQueueForToday().list.length;
   const tabs = [
     { key: 'all', label: '全部词汇', count: _wordsAll.length },
     { key: 'grammar', label: '语法错题', count: grammarCount },
@@ -3255,13 +3261,87 @@ function buildDueDeckMerged() {
     .map(e => ({ kind: 'error', id: e.id, error: e, dueKey: (e.ref && e.ref.next_review_date) || '0000-00-00' }));
   return words.concat(errs).sort((a, b) => (a.dueKey < b.dueKey ? -1 : 1));
 }
-// 今日配额口径（v126）：合并 FIFO 前 20 张；「继续加练」= 完成后直接再建（已复习卡被日期重核排除，天然无重复、无跳卡）
+// 今日配额口径（v126）：合并 FIFO 前 20 张；快照未冻结时的现场卡组（冻结后一律走 getDueQueueForToday）
 function buildDueDeck() {
   return buildDueDeckMerged().slice(0, DAILY_REVIEW_QUOTA);
 }
+
+// ═══════════════════════════════════════════════════════
+// 每日单词+错题卡组快照（v127，2026-09-22 用户报「复习一半退出再回来，又变回 20 张」）
+// 问题根源：卡组此前每次进页面都现场 buildDueDeck() 重捞前 20——已复习卡的 SM-2 写回异步未落地会原地复活、
+// 「继续加练」语义在重进后被重置为「从头再来一组」，数字只增不减（句型侧 v121 快照已根治，本侧同病不同医，
+// 这正是「句型复习剩 18 张能保留、单词错题却重置 20 张」的原因）。
+// 修复：与句型队列同构——当天第一次访问把今日队列 id 列表冻结进 localStorage（voco-due-queue-<今日>，
+// 条目 {t:'w',id:单词行id} / {t:'e',id:'err-<错题行id>'}），之后当天一切重建只认快照：
+// 答一张删一个 id（出队即重写），再进来只见剩余，数字只减不增；快照 = [] 即今日配额已练完（完成态），
+// 绝不回退到实时重捞。重建时按 id 反查（词 → _wordsAll，错题 → dueErrorCards() 现算），
+// 反查失败（库行已删/已纠正出队）→ 剪枝并重写快照，面板/卡组永不失联；历史视图（?date=）不建、不读、不写快照。
+// ═══════════════════════════════════════════════════════
+function _dueQueueSnapshotKey() { return 'voco-due-queue-' + getLocalToday(); }
+function _readDueQueueSnapshot() {
+  try {
+    const raw = localStorage.getItem(_dueQueueSnapshotKey());
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    return (o && Array.isArray(o.list)) ? o : null;
+  } catch (e) { return null; }
+}
+function _writeDueQueueSnapshot(snap) {
+  try { localStorage.setItem(_dueQueueSnapshotKey(), JSON.stringify(snap || { list: [] })); } catch (e) {}
+}
+// 卡片 → 快照条目 id：词存库行原始 id（卡面 id 带 'w-' 前缀），错题存 'err-<行id>'（与卡面 id 一致）
+function _dueCardSnapshotKey(c) {
+  return c && c.kind === 'word' ? String(c.ref && c.ref.id) : String(c && c.id);
+}
+// 快照 → 卡组（与 buildDueDeckMerged 同构映射；反查失败剪枝并重写，见块头注释）
+function _resolveDueSnapshot(snap) {
+  const out = [];
+  let pruned = false;
+  for (const en of (snap.list || [])) {
+    if (!en) { pruned = true; continue; }
+    if (en.t === 'w') {
+      const v = (_wordsAll || []).find(x => x && String(x.id) === String(en.id));
+      if (v) out.push({ kind: 'word', id: 'w-' + v.id, word: v.word, phonetic: v.phonetic || '', meaning: v.meaning || '', example: v.example || '', ref: v, dueKey: v.next_review_date || '0000-00-00' });
+      else pruned = true;
+    } else if (en.t === 'e') {
+      const c = dueErrorCards().find(x => x && String(x.id) === String(en.id));
+      if (c) out.push({ kind: 'error', id: c.id, error: c, dueKey: (c.ref && c.ref.next_review_date) || '0000-00-00' });
+      else pruned = true;
+    }
+  }
+  if (pruned) _writeDueQueueSnapshot({ list: out.map(c => ({ t: c.kind === 'word' ? 'w' : 'e', id: _dueCardSnapshotKey(c) })) });
+  return out;
+}
+// 今日卡组唯一入口：有快照 → 按快照重建；无快照且现场队列非空 → 捞前 20 冻结
+function getDueQueueForToday() {
+  const snap = _readDueQueueSnapshot();
+  if (snap) return _resolveDueSnapshot(snap);
+  const live = buildDueDeck();
+  // live = 0 时故意不冻结：此刻分不清「库未加载完」还是「真没卡」，留待卡组真正成型（>0）时冻结
+  if (live.length > 0) _writeDueQueueSnapshot({ list: live.map(c => ({ t: c.kind === 'word' ? 'w' : 'e', id: _dueCardSnapshotKey(c) })) });
+  return live;
+}
+// 答一张删一张（rateDueCard 内调用；v103 口径 again/good 均出队）
+function _dueQueueSnapshotRemove(item) {
+  const snap = _readDueQueueSnapshot();
+  if (!snap || !item) return;
+  const key = _dueCardSnapshotKey(item);
+  _writeDueQueueSnapshot({ list: snap.list.filter(en => en && String(en.id) !== key) });
+}
+// 「继续加练」：今日配额练完后从实时全量捞下一组 ≤20（排除快照在队），追加进今日快照续练——练不练都算今日已打卡
+function continueDueExtra() {
+  const snap = _readDueQueueSnapshot() || { list: [] };
+  const pending = new Set(snap.list.map(en => en && String(en.id)));
+  const extra = buildDueDeckMerged().filter(c => !pending.has(_dueCardSnapshotKey(c))).slice(0, DAILY_REVIEW_QUOTA);
+  if (!extra.length) { showToast('没有更多可加练的内容了 🎉'); renderDueDeck(); return; }
+  _writeDueQueueSnapshot({ list: snap.list.concat(extra.map(c => ({ t: c.kind === 'word' ? 'w' : 'e', id: _dueCardSnapshotKey(c) }))) });
+  renderDueDeck();
+}
 // 今日配额之外的积压量（任务面板 / 完成页「队列还有 N 张」同源口径）
+// v127 快照口径：积压 = 实时全量 − 今日快照剩余（已复习卡写回后退出全量，积压恒定；未冻结回落 v126 公式）
 function dueDeckBacklogCount() {
-  return Math.max(0, buildDueDeckMerged().length - DAILY_REVIEW_QUOTA);
+  const snap = _readDueQueueSnapshot();
+  return snap ? Math.max(0, buildDueDeckMerged().length - snap.list.length) : Math.max(0, buildDueDeckMerged().length - DAILY_REVIEW_QUOTA);
 }
 
 // ═══ v115 写回加固（due-review 50→24 复活根因修复）═══
@@ -3475,7 +3555,7 @@ function flowDueDeck() {
 }
 
 function renderDueDeck() {
-  _dueDeck = buildDueDeck();
+  _dueDeck = getDueQueueForToday(); // v127 每日快照：切页/重进只认快照，剩余数字只减不增（根治「退出再回来又变回 20 张」）
   _dueIdx = 0;
   _dueRevealed = false;
   _dueResults = { remembered: 0, forgot: 0 };
@@ -3494,8 +3574,9 @@ function renderDueDeck() {
 }
 
 // 未展开（正面）：词卡仅英文+音标（遮挡中文释义与例句）；错题卡 v123 起与句型卡 v115 同构——
-// 原句小字灰显对照 + rule 提示词直搬（📖 灰底框），rule 为空才回落中性回忆引导；
-// 正反提示词重复可接受（v115 句型卡先例，用户明确）。此前错题卡正面是 v99 起的中性引导设计、从没升级过。
+// 原句小字灰显对照 + rule 提示词直搬（📖 灰底框），rule 为空才回落中性回忆引导。
+// 2026-09-22 用户报「点开显示答案后提示词重复展示」：打卡卡正反面同屏堆叠（非句型卡翻转分屏），
+// v123「正反重复可接受」前提不成立——背面不再渲染 rule，全卡提示词只在正面出现一次。
 // 中央统一 [眼睛图标 点击显示答案]（v79 去 emoji，Lucide 图标 + 纯文本）；展开后（背面）底部切换 [没记住] [记住了]（v76 统一 ReviewButton 模板）
 function showDueCard() {
   const item = _dueDeck[_dueIdx];
@@ -3528,7 +3609,8 @@ function revealDueAnswer() {
   } else {
     // v79：错题背面按 CorrectionCard 正向规格 —— 绿色正确句居中为主视觉（去 → 箭头旧碎片），规则框无 emoji
     const e = item.error;
-    ansArea.innerHTML = `${e.correction ? `<div class="text-[1.5rem] font-bold text-[var(--c-green)] text-center mt-4 pt-4 border-t border-[var(--c-border-light)]">${h(e.correction)}</div>` : ''}${e.rule ? `<div class="text-xs text-[var(--c-text-ultradim)] text-left mt-3 p-2.5 bg-[var(--c-bg)] rounded-lg">${h(e.rule)}</div>` : ''}`;
+    // v127（2026-09-22）：打卡卡正反面同屏堆叠，规则提示词只在正面展示一次（正面灰底框直搬），背面仅绿色正确句——杜绝同屏重复
+    ansArea.innerHTML = e.correction ? `<div class="text-[1.5rem] font-bold text-[var(--c-green)] text-center mt-4 pt-4 border-t border-[var(--c-border-light)]">${h(e.correction)}</div>` : '';
   }
   const fb = document.getElementById('due-feedback');
   fb.className = 'mt-5 flex items-center justify-center gap-3';
@@ -3554,6 +3636,7 @@ async function rateDueCard(rating) {
     if (rating === 'good') _reviewedErrorIds.add(String(item.id));
     reviewErrorItem(item.error, rating === 'good' ? 3 : 0);
   }
+  _dueQueueSnapshotRemove(item); // v127 答一张删一张：快照剩余只减不增（again/good 均出队，与卡组推进同刻）
   _dueResults[rating === 'good' ? 'remembered' : 'forgot'] += 1;
   const body = document.getElementById('due-card-body');
   if (body) { body.style.opacity = '0'; body.style.transform = 'translateY(-8px)'; }
@@ -3577,7 +3660,7 @@ function endDueReview() {
       <div class="text-sm text-[var(--c-text-dim)] mb-1">记住了 <strong>${_dueResults.remembered}</strong> 个 · 没记住 <strong>${_dueResults.forgot}</strong> 个</div>
       <div class="text-xs text-[var(--c-text-ultradim)] mb-4">${backlog > 0 ? `队列还有 ${backlog} 张 · 每天 ${DAILY_REVIEW_QUOTA} 张约 ${Math.ceil(backlog / DAILY_REVIEW_QUOTA)} 天消化完` : '今日队列已全部清空，太棒了'}</div>
       ${backlog > 0
-        ? `<button class="btn-primary" style="width:auto;padding:10px 24px;" onclick="renderDueDeck()">继续加练（再来 ${Math.min(DAILY_REVIEW_QUOTA, backlog)} 张）</button>`
+        ? `<button class="btn-primary" style="width:auto;padding:10px 24px;" onclick="continueDueExtra()">继续加练（再来 ${Math.min(DAILY_REVIEW_QUOTA, backlog)} 张）</button>`
         : `<button class="btn-primary" style="width:auto;padding:10px 24px;" onclick="loadWords()">回到词汇库</button>`}
     </div>`;
 }
@@ -4557,9 +4640,10 @@ async function renderReviewSection() {
       <span class="text-[0.6875rem]">${parts.join(' ')}</span>
     </div>`;
   }).join('');
-  // ④ 反复弱点聚合（窗口 = 所选范围最近 5 次；v122 融合原「语法弱点分析」+「不自然表达分析」两个独立区块，
-  // 口径统一为窗口内 mistakes 聚合：weak_areas 标签 / 语法类别 / 表达根因 三行并列，附最新 GPT 诊断原文）
-  const winSess = sessions.slice(-5);
+  // ④ 反复弱点聚合（v122 融合原「语法弱点分析」+「不自然表达分析」两个独立区块，口径统一为窗口内 mistakes 聚合：
+  // weak_areas 标签 / 语法类别 / 表达根因 三行并列，附最新 GPT 诊断原文）。
+  // 2026-09-22 用户报「与范围选择器不联动」：原窗口硬编码 slice(-5)——选 4/8/16/全部都只聚合最近 5 次，改为整个所选范围
+  const winSess = sessions;
   const tagCount = {};
   const gramCount = {};
   const exprCount = {};
@@ -4577,7 +4661,7 @@ async function renderReviewSection() {
   const topGram = Object.entries(gramCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
   const topExpr = Object.entries(exprCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
   const lines = [];
-  if (topTags.length) lines.push(`<div class="text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">反复弱点：${topTags.map(([t, c]) => `<b class="text-[var(--c-text)]">${t} ×${c}</b>`).join(' · ')}</div>`);
+  if (topTags.length) lines.push(`<div class="text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">弱点标签：${topTags.map(([t, c]) => `<b class="text-[var(--c-text)]">${t} ×${c}</b>`).join(' · ')}</div>`);
   if (topGram.length) lines.push(`<div class="text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">语法弱点分布：${topGram.map(([t, c]) => `<b class="text-[var(--c-text)]">${t} ×${c}</b>`).join(' · ')}</div>`);
   if (topExpr.length) lines.push(`<div class="text-[0.6875rem] text-[var(--c-text-dim)] leading-relaxed">不自然表达根因：${topExpr.map(([t, c]) => `<b class="text-[var(--c-text)]">${t} ×${c}</b>`).join(' · ')}</div>`);
   if (lines.length) {
@@ -5673,5 +5757,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=126');
+  navigator.serviceWorker.register('/sw.js?v=127');
 }
