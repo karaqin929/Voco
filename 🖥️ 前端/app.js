@@ -380,7 +380,8 @@ async function loadHome() {
   // 快照失效点 = invalidateHomeData()：导入日报 / 备份还原 / 登出 / 切到复习·跟读·我的页（那些页会写库）时调用。
   if (_dataFresh) {
     buildGlobalMissionInputs(_vocabRaw, _errorsRaw, _reportsCache, _patternsRaw);
-    renderHomeSections();
+    // v128 兜底：任何区块渲染异常都不许卡死 _homeLoading / 点击排队（否则待办空白 + 历史日报点了没反应，v127 事故教训）
+    try { renderHomeSections(); } catch (e) { console.error('[voco] 首页渲染异常（部分区块可能未渲染）', e); }
     _homeLoading = false;
     _drainPendingViewDate();
     return;
@@ -414,7 +415,8 @@ async function loadHome() {
   // 第 4 参 patterns → 句型 SRS 历史库打标（_patternLibrary），供待办任务 2 与句型复习队列混合
   buildGlobalMissionInputs(_vocabRaw, _errorsRaw, _reportsCache, _patternsRaw);
   _dataFresh = true;
-  renderHomeSections();
+  // v128 兜底：与本地快照路径同款——单个区块渲染异常不卡死 _homeLoading / 点击排队，其余区块照常渲染
+  try { renderHomeSections(); } catch (e) { console.error('[voco] 首页渲染异常（部分区块可能未渲染）', e); }
   _homeLoading = false;
   _drainPendingViewDate();
   hydrateAllReportsInBackground();   // 其余日期后台补水：熊条点亮/打卡徽章按 content 精确判定
@@ -623,7 +625,7 @@ function renderStreakCard(streak, todayReport, vocab, reports) {
     <div class="grid overflow-x-auto hide-scrollbar gap-1 pt-2 pb-1 pl-1 pr-1 -ml-1 -mr-1" id="streak-strip" style="overflow-x:auto;grid-auto-flow:column;${days.length ? `grid-template-columns:repeat(${days.length-1},calc((100% - 24px)/6 - 4px)) 24px` : 'grid-auto-columns:14.28%'}">
       ${days.map(d => `
         <div class="flex flex-col items-start gap-px cursor-pointer" onclick="showBearDay('${d.date}',${d.active})">
-          <img class="bear-img w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===selected?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active ? '/bear-active.png' : '/bear-default.png'}" alt="${d.active ? '🐻' : '🌱'}" draggable="false" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
+          <img class="bear-img w-6 h-6 min-w-6 min-h-6 object-contain rounded-full transition-transform duration-150 ${d.date===selected?'shadow-[0_0_0_2px_var(--c-primary)] scale-110':''}" src="${d.active ? '/bear-active.png?v=129' : '/bear-default.png?v=129'}" alt="${d.active ? '🐻' : '🌱'}" draggable="false" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=flex items-center justify-center w-6 h-6 text-sm>${d.active ? '🐻' : '🌱'}</span>')" />
           <span class="text-[0.6875rem] whitespace-nowrap text-left ${d.date===selected ? 'text-[var(--c-primary)] font-bold' : 'text-[var(--c-text-ultradim)]'}">${d.month}/${d.day}</span>
         </div>
       `).join('')}
@@ -1183,7 +1185,7 @@ function renderTodoList(speakDoneToday) {
   // v127 每日快照：面板数字 = 今日剩余（getDueQueueForToday 冻结口径，答一张删一张只减不增——与句型任务 2 同构）；
   // 积压 = 实时全量 − 快照剩余（已复习卡写回后退出全量，积压恒定）
   const mergedDueCount = buildDueDeckMerged().length;
-  const dueDose = getDueQueueForToday().list.length;
+  const dueDose = getDueQueueForToday().length;
   const dueBacklog = Math.max(0, mergedDueCount - dueDose);
   // v103 完成判定修复：旧实现 deckReviewed 用 _reviewedErrorIds（会话内存 Set，刷新即清零）且 done 需 deckTotal>0——
   // 全部复习完后 dueCount/todayErrTaskCount 归 0，deckTotal>0 恒 false → 任务永远无法显示完成（用户实测：复习完所有词+错题仍不完成）。
@@ -2227,7 +2229,7 @@ async function auditModule2() {
   const dom2 = t2.textContent || '';
   const m2 = dom2.match(/[（(](\d+)张[)）]/);   // v107：同上，半/全角括号双兼容
   const mergedFull = buildDueDeckMerged().length;
-  const deckTotal = getDueQueueForToday().list.length; // v127 快照口径：面板 = 今日剩余（冻结后答一张删一张只减不增）
+  const deckTotal = getDueQueueForToday().length; // v127 快照口径：面板 = 今日剩余（冻结后答一张删一张只减不增）
   if (m2 && parseInt(m2[1], 10) === deckTotal) _auditPass(`任务 3 数字一致：面板显示 ${deckTotal} 张 === 今日快照剩余（合并 FIFO 全量 ${mergedFull} 张）`);
   else if (!m2) _auditSkip('任务 3 数字钩稽', '面板未渲染数字（今日已完成或无到期）');
   else _auditFail('任务 3 数字分裂', `面板显示「${m2[1]}」，实际今日快照剩余 deckTotal = ${deckTotal}`);
@@ -2235,7 +2237,7 @@ async function auditModule2() {
     t2.click();
     await _auditWaitFor(() => location.pathname === '/review' && _wordsFilter === 'due', 25, 300);
     if (_wordsFilter === 'due') {
-      const real = getDueQueueForToday().list.length;
+      const real = getDueQueueForToday().length;
       if (real === deckTotal) _auditPass(`任务 3 点击后 due 混合卡组生成：今日快照剩余 = ${real} === 面板 ${deckTotal}`);
       else _auditFail('任务 3 点击后卡组与面板数字不一致', `今日快照剩余 = ${real}，面板 = ${deckTotal}`);
     } else _auditFail('任务 3 点击后未进入 due 卡组页', `_wordsFilter = ${_wordsFilter}`);
@@ -3087,7 +3089,7 @@ function renderWordsSubTabs(activeMode) {
   // v99：错题部分 = dueErrorCards()（真 SM-2 曲线到期口径，与卡组完全同源）
   // v126 每日配额：Tab 数字 = 今日剂量 min(20, 合并 FIFO 全量)，与任务 3 面板同源（buildDueDeckMerged）
   // v127 每日快照：Tab 数字 = 今日剩余（与任务 3 面板、due 卡组同源 getDueQueueForToday，答一张删一张只减不增）
-  const dueCount = getDueQueueForToday().list.length;
+  const dueCount = getDueQueueForToday().length;
   const tabs = [
     { key: 'all', label: '全部词汇', count: _wordsAll.length },
     { key: 'grammar', label: '语法错题', count: grammarCount },
@@ -3313,6 +3315,7 @@ function _resolveDueSnapshot(snap) {
   return out;
 }
 // 今日卡组唯一入口：有快照 → 按快照重建；无快照且现场队列非空 → 捞前 20 冻结
+// ⚠️ 返回「卡组数组」（与句型侧 getSpeakQueueForToday 同构）——调用方直接 .length；{list} 是快照对象的包装字段，两者别混
 function getDueQueueForToday() {
   const snap = _readDueQueueSnapshot();
   if (snap) return _resolveDueSnapshot(snap);
@@ -5623,7 +5626,7 @@ async function detectClipboard() {
 // ═══════════════════════════════════════════════════════
 function EmptyState({ message = '暂无数据', size = 96 } = {}) {
   return `<div class="state-empty">
-    <img class="state-img bear-img" src="/bear-default.png" alt="💤" draggable="false" style="width:${size}px;height:${size}px"
+    <img class="state-img bear-img" src="/bear-default.png?v=129" alt="💤" draggable="false" style="width:${size}px;height:${size}px"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=state-fallback style=font-size:${size>80?48:32}px>💤</span>')" />
     <p class="state-text">${h(message)}</p>
   </div>`;
@@ -5631,7 +5634,7 @@ function EmptyState({ message = '暂无数据', size = 96 } = {}) {
 
 function LoadingState({ message = 'Voco小熊正一路小跑赶来...', size = 80 } = {}) {
   return `<div class="state-loading">
-    <img class="state-img animate-pulse bear-img" src="/bear-default.png" alt="⏳" draggable="false" style="width:${size}px;height:${size}px"
+    <img class="state-img animate-pulse bear-img" src="/bear-default.png?v=129" alt="⏳" draggable="false" style="width:${size}px;height:${size}px"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=state-fallback style=font-size:${size>80?48:32}px>⏳</span>')" />
     <p class="state-text">${h(message)}</p>
   </div>`;
@@ -5757,5 +5760,5 @@ sb.auth.onAuthStateChange((event, session) => {
 checkAuth();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=127');
+  navigator.serviceWorker.register('/sw.js?v=128');
 }

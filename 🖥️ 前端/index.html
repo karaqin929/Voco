@@ -9,11 +9,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="apple-touch-icon" href="/icon.png">
-  <link rel="preload" href="/bear-default.png" as="image">
-  <link rel="preload" href="/bear-active.png" as="image">
-  <link rel="preload" href="/bear-head-active.png" as="image">
-  <link rel="preload" href="/bear-head-default.png" as="image">
-  <link rel="stylesheet" href="/style.css?v=127">
+  <link rel="preload" href="/bear-default.png?v=129" as="image">
+  <link rel="preload" href="/bear-active.png?v=129" as="image">
+  <link rel="preload" href="/bear-head-active.png?v=129" as="image">
+  <link rel="preload" href="/bear-head-default.png?v=129" as="image">
+  <link rel="stylesheet" href="/style.css?v=128">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -128,7 +128,7 @@
 <body>
 <div id="voco-loading" class="voco-loader">
   <div class="voco-loader-inner">
-    <img class="voco-loader-img bear-img" src="/bear-default.png" alt="Voco" draggable="false"
+    <img class="voco-loader-img bear-img" src="/bear-default.png?v=129" alt="Voco" draggable="false"
       onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
     <span class="voco-loader-fallback">🐻</span>
     <div class="voco-loader-text">Voco小熊正一路小跑赶来...</div>
@@ -139,7 +139,7 @@
 <div id="login-screen" style="display:none;">
   <div class="login-card">
     <!-- v118 修复：登录页小熊由 v5.0 起硬编码的 emoji 换为真 PNG 熊头；PNG 加载失败仍优雅回退 emoji -->
-    <div class="login-icon"><img class="bear-img" src="/bear-head-default.png" alt="🐻" draggable="false" style="width:72px;height:72px;object-fit:contain;display:inline-block"
+    <div class="login-icon"><img class="bear-img" src="/bear-head-default.png?v=129" alt="🐻" draggable="false" style="width:72px;height:72px;object-fit:contain;display:inline-block"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-6xl>🐻</span>')"></div>
     <h1>Voco</h1>
     <p class="login-sub">追踪你的英语口语进步</p>
@@ -240,7 +240,7 @@
 
     <!-- Profile Header Card -->
     <div class="text-center py-5 px-4 mb-4 bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
-      <div class="mb-2"><img class="w-20 h-20 rounded-full object-contain mx-auto bear-img" src="/bear-head-active.png" alt="avatar" draggable="false" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-6xl>🐻</span>')"></div>
+      <div class="mb-2"><img class="w-20 h-20 rounded-full object-contain mx-auto bear-img" src="/bear-head-active.png?v=129" alt="avatar" draggable="false" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=text-6xl>🐻</span>')"></div>
       <div class="text-xl font-bold text-[var(--c-text)] mb-0.5" id="me-name">---</div>
       <div class="text-xs text-[var(--c-text-ultradim)] mb-2" id="me-subtitle">访客模式</div>
       <div class="flex justify-center gap-4 mb-2">
@@ -494,8 +494,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=127"></script>
-<script src="/parser.js?v=127"></script>
-<script src="/app.js?v=127"></script>
+<script src="/supabase-client.js?v=128"></script>
+<script src="/parser.js?v=128"></script>
+<script src="/app.js?v=128"></script>
 </body>
 </html>
