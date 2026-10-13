@@ -150,6 +150,23 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 print("VOICELOG: App created, routes registered", flush=True)
 
 
+# ─── 静态资源缓存策略（v128 事故修复）────────────────────
+# 根因：此前所有静态响应无 Cache-Control → Cloudflare 全部 DYNAMIC（边缘零缓存），
+# 20 天未访问后 Render 免费实例睡眠，首次打开每个资源都要打穿到冷源站（实测 index 32s），
+# 冷启动窗口内图片请求失败 → 前端 onerror 兜底 emoji 熊（用户报「前两次打开都是 emoji 熊」）。
+# 分层：
+#   IMMUTABLE —— ?v=NN 版本化资源（URL 内容永不变化，边缘一次命中终身热，冷启动不再拖累资源加载）
+#   SHORT     —— 入口类（index.html / manifest / icon，300s 边缘缓存，部署 5 分钟内收敛）
+#   NO_STORE  —— sw.js 必须永远穿透到源站（SW 更新检查的生命线，绝不允许边缘缓存锁旧）
+# ⚠️ 依赖「版本三连」铁律：任何文件内容变更必须同步 ?v=NN 新版本号，否则老客户端会被 immutable 锁旧。
+IMMUTABLE = 'public, max-age=31536000, immutable'
+SHORT = 'public, max-age=300'
+NO_STORE = 'no-store'
+
+def _static(path, cache_control):
+    return FileResponse(os.path.join(FRONTEND_DIR, path), headers={'Cache-Control': cache_control})
+
+
 class ReportInput(BaseModel):
     text: str
 
@@ -210,7 +227,7 @@ def index():
             html = f.read()
         html = html.replace("Voco", cfg.get("app_name", "Voco"))
         html = html.replace("<title>Voco</title>", f"<title>{cfg.get('app_name', 'Voco')}</title>")
-        return HTMLResponse(html)
+        return HTMLResponse(html, headers={'Cache-Control': SHORT})
     return HTMLResponse("<h1>Voco</h1>")
 
 
@@ -232,54 +249,60 @@ def api_save_config(data: ConfigInput):
 
 @app.get("/manifest.json")
 def manifest():
-    return FileResponse(os.path.join(FRONTEND_DIR, "manifest.json"))
+    return _static("manifest.json", SHORT)
 
 
 @app.get("/sw.js")
 def sw():
-    return FileResponse(os.path.join(FRONTEND_DIR, "sw.js"))
+    return _static("sw.js", NO_STORE)
 
 
 # Static file routes (avoid StaticFiles mount which overrides routes)
 @app.get("/style.css")
 def style_css():
-    return FileResponse(os.path.join(FRONTEND_DIR, "style.css"))
+    return _static("style.css", IMMUTABLE)
 
 @app.get("/app.js")
 def app_js():
-    return FileResponse(os.path.join(FRONTEND_DIR, "app.js"))
+    return _static("app.js", IMMUTABLE)
 
 @app.get("/icon.svg")
 def icon_svg():
-    return FileResponse(os.path.join(FRONTEND_DIR, "icon.svg"))
+    return _static("icon.svg", SHORT)
 
 @app.get("/supabase-client.js")
 def supabase_js():
-    return FileResponse(os.path.join(FRONTEND_DIR, "supabase-client.js"))
+    return _static("supabase-client.js", IMMUTABLE)
 
 @app.get("/parser.js")
 def parser_js():
-    return FileResponse(os.path.join(FRONTEND_DIR, "parser.js"))
+    return _static("parser.js", IMMUTABLE)
 
 @app.get("/bear-default.png")
 def bear_default():
-    return FileResponse(os.path.join(FRONTEND_DIR, "bear-default.png"))
+    return _static("bear-default.png", IMMUTABLE)
 
 @app.get("/bear-active.png")
 def bear_active():
-    return FileResponse(os.path.join(FRONTEND_DIR, "bear-active.png"))
+    return _static("bear-active.png", IMMUTABLE)
 
 @app.get("/bear-head-active.png")
 def bear_head_active():
-    return FileResponse(os.path.join(FRONTEND_DIR, "bear-head-active.png"))
+    return _static("bear-head-active.png", IMMUTABLE)
 
 @app.get("/bear-head-default.png")
 def bear_head_default():
-    return FileResponse(os.path.join(FRONTEND_DIR, "bear-head-default.png"))
+    return _static("bear-head-default.png", IMMUTABLE)
 
 @app.get("/icon.png")
 def icon_png():
-    return FileResponse(os.path.join(FRONTEND_DIR, "icon.png"))
+    return _static("icon.png", SHORT)
+
+
+@app.get("/version.json")
+def version_json():
+    # 版本自动收敛探测文件：边缘缓存 60s（部署后 1 分钟内全网收敛；SW 强制网络优先）
+    return _static("version.json", 'public, max-age=60')
 
 
 # ─── SPA 兜底路由（决策2 铁律）───────────────────────────

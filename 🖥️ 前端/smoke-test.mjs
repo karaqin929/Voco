@@ -75,7 +75,7 @@ globalThis.document = {
 
 // —— window / location / history ——
 globalThis.window = {
-  location: { origin: 'https://smoke.local', pathname: '/', search: '', href: 'https://smoke.local/' },
+  location: { origin: 'https://smoke.local', pathname: '/', search: '', href: 'https://smoke.local/', reload() {} },
   history: { pushState() {}, replaceState() {}, back() {}, forward() {} },
   addEventListener() {}, removeEventListener() {},
   matchMedia() { return { matches: false, addEventListener() {}, addListener() {}, removeListener() {} }; },
@@ -98,8 +98,17 @@ globalThis.localStorage = {
   get length() { return _store.size; },
 };
 
+// —— sessionStorage（v128 版本收敛用；独立内存 Map）——
+const _sessionStore = new Map();
+globalThis.sessionStorage = {
+  getItem(k) { return _sessionStore.has(k) ? _sessionStore.get(k) : null; },
+  setItem(k, v) { _sessionStore.set(String(k), String(v)); },
+  removeItem(k) { _sessionStore.delete(k); },
+  clear() { _sessionStore.clear(); },
+};
+
 // —— navigator / 其他 ——
-Object.defineProperty(globalThis, 'navigator', { value: { serviceWorker: { register() { return Promise.resolve(); } }, userAgent: 'node-smoke' }, configurable: true });
+Object.defineProperty(globalThis, 'navigator', { value: { serviceWorker: { register() { return Promise.resolve(); }, addEventListener() {} }, userAgent: 'node-smoke' }, configurable: true });
 globalThis.fetch = async () => { throw new Error('[smoke] 网络被禁用——渲染路径不应发起 fetch'); };
 globalThis.Chart = class { constructor() {} destroy() {} update() {} };
 globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {}, removeListener() {} });
@@ -325,6 +334,52 @@ function _testEpilogue() {
       assert(el('words-content').innerHTML.includes('没有待复习的内容'), '词错题空态未渲染');
       renderSentenceReview([], 0);
       assert(el('speak-player').innerHTML.includes('暂无待复习句型'), '句型空态未渲染');
+    });
+
+    // ── S8 JSON 日报 mistakes 透传守门（v129 复盘断链修复回归）：parseSmartReport 产物必须含 mistakes 键——
+    //    复盘页「语法弱点分布 / 不自然表达根因 / 语法重心建议」唯一数据源；category/pattern 显式标签必须原样存活
+    await scenario('S8 JSON 日报 mistakes 透传（复盘分布数据源）', async () => {
+      reset();
+      const src = JSON.stringify({
+        summary: { topic: '旅行', dailyThought: { en: 'x', zh: 'x' }, strengths: [], nextSteps: [], fluency: 6, accuracy: 6, naturalness: 6, vocabulary: 6, weak_areas: '时态' },
+        mistakes: [
+          { type: 'grammar', original: 'I go yesterday.', improved: 'I went yesterday.', explanation: '过去时间用过去时', category: '动词与时态' },
+          { type: 'expression', original: 'I very like it.', improved: 'I really like it.', explanation: '地道副词搭配', pattern: '直译语序' },
+        ],
+        coreSentences: [], newWords: [],
+      });
+      const p = parseSmartReport(src);
+      assert(Array.isArray(p.mistakes) && p.mistakes.length === 2, 'mistakes 透传缺失（复盘分布数据源断链）');
+      assert(p.mistakes[0].category === '动词与时态', 'grammar 项 category 标签丢失');
+      assert(p.mistakes[1].pattern === '直译语序', 'expression 项 pattern 标签丢失');
+      assert(getDayCounts(p).grammar === 1 && getDayCounts(p).expressions === 1, '四维计数口径异常');
+    });
+
+    // ── S9 transcript 精确占比覆盖守门（v129）：模型自报 speakingRatio 25% 必须被 transcript 逐词统计覆盖——
+    //    用户侧长文叙述 + 教练短句 → 用户占比显著高于 25%；导入预览与渲染链路同源同值
+    await scenario('S9 JSON 日报 transcript 占比覆盖（模型估算值作废）', async () => {
+      reset();
+      const src = JSON.stringify({
+        speakingRatio: 25,
+        summary: { topic: '旅行', dailyThought: { en: 'x', zh: 'x' }, strengths: [], nextSteps: [], fluency: 6, accuracy: 6, naturalness: 6, vocabulary: 6, weak_areas: '时态' },
+        mistakes: [], coreSentences: [], newWords: [],
+        transcript: [
+          { role: 'coach', content: 'Tell me about your trip to Bali.' },
+          { role: 'user', content: 'I went to the waterfalls in the north and it was absolutely breathtaking, the water was freezing but we swam anyway, and then we did a sunrise hike before the crowds arrived.' },
+          { role: 'coach', content: 'Sounds amazing.' },
+          { role: 'user', content: 'After that we tried puppy yoga near Ubud, and I spent two hours playing with golden retriever puppies, which was honestly the highlight of the whole week.' },
+          { role: 'coach', content: 'Any language struggles along the way?' },
+          { role: 'user', content: 'I had to ask for directions twice because I kept forgetting the word for intersection, but the locals were incredibly patient and one of them walked us there.' },
+        ],
+      });
+      const p = parseSmartReport(src);
+      const r = p.summary && p.summary.speakingRatio;
+      assert(r && typeof r.user === 'number' && typeof r.ai === 'number', 'transcript 占比未生成');
+      const pct = Math.round(r.user / (r.user + r.ai) * 100);
+      assert(r.user > r.ai, '用户侧词数应大于教练侧（实际 user=' + r.user + ' ai=' + r.ai + '）');
+      assert(pct >= 60, '用户占比被模型估算值 25% 绑架（实测 ' + pct + '%）——transcript 覆盖失效');
+      const v = validateImportInput(src);
+      assert(v.status === 'valid' && v.preview && v.preview.speakingRatio === pct, '导入预览占比未采用 transcript 精确值（预览 ' + (v.preview && v.preview.speakingRatio) + ' vs 精确 ' + pct + '）');
     });
 
     const fails = results.filter((r) => !r.ok);

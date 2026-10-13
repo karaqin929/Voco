@@ -26,6 +26,23 @@ function parseSpeakingRatio(text) {
   return (hits > 0 && (user + ai) > 0) ? { user, ai } : null;
 }
 
+// ── v129 transcript 精确占比：JSON 日报 transcript/conversation 数组 → 按角色逐词统计 {user,ai} ──
+// 这是开口占比的唯一可信数据源——模型自报的 speakingRatio（LLM 派生统计）由本函数覆盖。
+// role 判定：user/me/你/我 → 用户侧；其余一切（coach/assistant/ai/未知角色）→ 教练侧，
+// 分母不漏任何一行（防止未知角色行被丢弃导致 u/(u+0)=100% 虚高）。
+function countTranscriptRatio(tr) {
+  if (!Array.isArray(tr)) return null;
+  let u = 0, a = 0;
+  tr.forEach(line => {
+    if (!line || typeof line !== 'object') return;
+    const role = String((line.role || line.speaker) || '').toLowerCase();
+    const w = countTranscriptWords(String((line.content || line.text) || ''));
+    if (role.includes('user') || role.includes('me') || role === '你' || role === '我') u += w;
+    else a += w;
+  });
+  return (u + a > 0) ? { user: u, ai: a } : null;
+}
+
 // ── 分类规则提取引擎（4 标准分类归一化）────────────────────
 // 收敛为且仅收敛为：发音与重音 / 语法与句式 / 地道表达 / 逻辑与衔接，全部未命中才归「其他」。
 // 供解析器（parseItems）与 app.js normalizeErrorCategory（存量标签映射/错题卡渲染链路）共用 —— 单一分类源。

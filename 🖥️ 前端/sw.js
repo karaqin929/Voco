@@ -1,6 +1,9 @@
 // Voco Service Worker — cache-first (instant load even when Render is cold)
-const CACHE = 'voco-v138';
-const FILES = ['/','/index.html?v=128','/style.css?v=128','/app.js?v=128','/manifest.json','/supabase-client.js?v=128','/parser.js?v=128','/icon.png','/bear-default.png?v=129','/bear-active.png?v=129','/bear-head-active.png?v=129','/bear-head-default.png?v=129'];
+// v128 事故修复：① 缓存未命中且网络失败时不得返回 undefined（此前 respondWith(undefined) → TypeError →
+//   浏览器视为网络错误——冷启动窗口内熊图 emoji 兜底的高发通道之一，现改为 Response.error() 干净收口）；
+//   ② /version.json 强制网络优先（版本自动收敛的生命线，绝不允许被缓存锁旧）。
+const CACHE = 'voco-v139';
+const FILES = ['/','/index.html?v=129','/style.css?v=129','/app.js?v=129','/manifest.json','/supabase-client.js?v=129','/parser.js?v=129','/icon.png','/bear-default.png?v=129','/bear-active.png?v=129','/version.json'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -21,6 +24,21 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  // 版本探测 — 永远网络优先（失败才回退缓存）：旧壳客户端靠它发现新版本并自动刷新
+  if (e.request.url.includes('/version.json')) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res && res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+          return res;
+        }
+        return caches.match(e.request);
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
   // App shell — cache-first: instant from cache, update cache in background
   e.respondWith(
     caches.match(e.request).then(cached => {
@@ -28,9 +46,10 @@ self.addEventListener('fetch', e => {
         if (res && res.ok) {
           const clone = res.clone();
           caches.open(CACHE).then(c => c.put(e.request, clone));
+          return res;
         }
-        return res;
-      }).catch(() => cached);
+        return cached || Response.error();
+      }).catch(() => cached || Response.error());
       return cached || networked;
     })
   );

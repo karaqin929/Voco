@@ -60,6 +60,13 @@
 //            getTodayMissionState 句型三输出删除（_dailyPatterns 退役），待办数字 = getDueSentencesQueue 同函数同源；
 //            旧 Speak 过滤机器（SPEAK_PATTERN_TOPICS/SPEAK_FILTER_ALIASES/matchSpeakFilter）零调用方 → 物理删除。
 // ═══════════════════════════════════════════════════════
+// v128 线上事故修复：版本常量 + 内联熊图（根因复盘见 CLAUDE.md「v128 线上事故复盘」）
+// APP_VERSION 必须与 version.json 同步（发布清单第 4 项，版本三连同捆变更）；
+// BEAR_IMG 为 128px 透明底 PNG data URI —— 空态/加载态小熊永不依赖网络，
+// Render 冷启动窗口内图片请求失败时不再出现 🐻/💤 emoji 兜底。
+// ═══════════════════════════════════════════════════════
+const APP_VERSION = 'v129';
+const BEAR_IMG = 'data:image/png;base64,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';
 
 // ── Tab Switching ──────────────────────────────────────
 document.querySelectorAll('.tab-bar .tab').forEach(btn => {
@@ -527,7 +534,7 @@ function renderGreeting(streak, vocabList, reports, hasToday) {
   document.getElementById('greeting-date').textContent = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${wd[now.getDay()]}`;
 
   const st = document.getElementById('home-status-text');
-  if (st) st.innerHTML = hasToday ? '已导入 ChatGPT 学习记录' : '今天还没有导入日报';
+  if (st) st.innerHTML = hasToday ? '已导入 AI 教练学习记录' : '今天还没有导入日报';
 }
 
 function renderHistoryBanner(report, viewDate) {
@@ -1200,7 +1207,7 @@ function renderTodoList(speakDoneToday) {
   const deckDone = mergedDueCount === 0 ? deckReviewed > 0 : !!vocabDoneStamp;
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
-    { text: '对练打卡 · 完成今日对练', sub: hasTodayReport ? '今日已导入，自动完成' : '把 ChatGPT 练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
+    { text: '对练打卡 · 完成今日对练', sub: hasTodayReport ? '今日已导入，自动完成' : '把 AI 教练练习报告粘贴进来', done: hasTodayReport, action: hasTodayReport ? null : () => { showImportDialog(); } },
     // 任务 2（句型复习打卡）：句型 SRS 卡片队列 —— 点击直达今日到期队列；复习完最后一张卡片自动打卡 + SM-2 写回
     patternTask,
     // 任务 3（复习打卡）：完成今日单词错题复习 —— v88 数字 = due tab 混合卡组真实长度（到期词 + 错题），
@@ -1563,23 +1570,14 @@ function parseSmartReport(content) {
         for (const k of ['fluency', 'accuracy', 'naturalness', 'vocabulary']) {
           if (typeof s[k] === 'number' && normalized.summary[k] === undefined) normalized.summary[k] = s[k];
         }
-        // ④ 对话占比（Voco 2.0）：优先 JSON transcript 数组（role/content），否则扫原始文本角色标注行
+        // ④ 对话占比（v129 transcript 精确统计）：JSON 含 transcript/conversation 数组 → 按角色逐词统计，
+        //    覆盖模型自报的 speakingRatio（LLM 派生统计不可靠——Gemini 实测同会话生成仍低报 25%，
+        //    与报告自身叙述矛盾）。无 transcript → 退回模型自报值 → parseSpeakingRatio 扫描角色标注行。
+        const counted = countTranscriptRatio(j.transcript || j.conversation);
+        if (counted) normalized.summary.speakingRatio = counted;
         if (!normalized.summary.speakingRatio) {
-          const tr = j.transcript || j.conversation;
-          if (Array.isArray(tr)) {
-            let u = 0, a = 0;
-            tr.forEach(line => {
-              const role = String((line && (line.role || line.speaker)) || '').toLowerCase();
-              const w = countTranscriptWords(String((line && (line.content || line.text)) || ''));
-              if (role.includes('user') || role.includes('me') || role === '你' || role === '我') u += w;
-              else if (role.includes('assistant') || role.includes('ai')) a += w;
-            });
-            if (u + a > 0) normalized.summary.speakingRatio = { user: u, ai: a };
-          }
-          if (!normalized.summary.speakingRatio) {
-            const ratio = parseSpeakingRatio(t);
-            if (ratio) normalized.summary.speakingRatio = ratio;
-          }
+          const ratio = parseSpeakingRatio(t);
+          if (ratio) normalized.summary.speakingRatio = ratio;
         }
         return normalizeDailyData(normalized);
       }
@@ -1673,6 +1671,11 @@ function normalizeJsonReport(j, raw) {
       expression: String(ciRaw.expression || '').trim(),
       core_patterns: String(ciRaw.core_patterns || '').trim()
     } : null,
+    // v129 复盘断链修复：JSON 分支分流三桶后保留原始 mistakes 透传（category/pattern 显式标签完整）。
+    // 复盘页「语法弱点分布 / 不自然表达根因 / 语法重心建议」数据源 = parsed.mistakes——
+    // 该键自 v122 起缺失（normalizeJsonReport 从未输出），复盘聚合对 JSON 日报静默为空。
+    // normalizeDailyData 的 mistakes 清洗会补 id/wrongSentence 别名；原始键（含标签）原样保留。
+    mistakes: mistakes.map(m => ({ ...(m && typeof m === 'object' ? m : {}) })),
     raw
   };
 }
@@ -1737,11 +1740,14 @@ function validateImportInput(text) {
     const patternCount = normalized.patterns.length + normalized.sentence_patterns.length;
     const dur = Number(j.duration) || 0;
     const num = (v) => (typeof v === 'number' && isFinite(v)) ? v : null;
+    // v129：预览占比优先按 transcript 逐词精确计算（与渲染链路 parseSmartReport 同源同口径），
+    // 模型自报 speakingRatio 仅在无 transcript 时兜底展示
+    const countedRatio = countTranscriptRatio(j.transcript || j.conversation);
     return {
       status: 'valid', error: '',
       preview: {
         type: 'json', date: getLocalToday(), topic: s.topic || '', duration: dur,
-        speakingRatio: num(j.speakingRatio),
+        speakingRatio: countedRatio ? Math.round(countedRatio.user / (countedRatio.user + countedRatio.ai) * 100) : num(j.speakingRatio),
         fluency: num(s.fluency), accuracy: num(s.accuracy), naturalness: num(s.naturalness), vocabulary: num(s.vocabulary),
         wordCount: normalized.vocabulary.length, errorCount: errCount, patternCount
       },
@@ -2854,7 +2860,7 @@ async function fireTopicGeneratorPrompt(btn) {
   // 按钮交互反馈：✅ 变绿 2 秒后恢复（恢复完整内联样式，保留渐变主视觉）
   const originalHTML = btn.innerHTML;
   const originalStyle = btn.getAttribute('style') || '';
-  btn.innerHTML = '✅ Prompt 已复制！去贴给 GPT 吧';
+  btn.innerHTML = '✅ Prompt 已复制！去贴给 AI 教练吧';
   btn.style.background = 'var(--c-green)';
   btn.style.boxShadow = 'none';
   setTimeout(() => {
@@ -3178,7 +3184,7 @@ async function renderTopicLibrary() {
     words: byTopic[t.title] || []
   }));
   if (!_topicLibraryCache.length) {
-    container.innerHTML = EmptyState({ message: '还没有话题卡 · 导入 ChatGPT 话题卡后，这里会成为你的语境资产库', size: 80 });
+    container.innerHTML = EmptyState({ message: '还没有话题卡 · 导入 AI 教练话题卡后，这里会成为你的语境资产库', size: 80 });
     return;
   }
   container.innerHTML = _topicLibraryCache.map((t, i) => {
@@ -4653,7 +4659,12 @@ async function renderReviewSection() {
   winSess.forEach(s => {
     s.weakAreas.forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; });
     s.mistakes.forEach(m => {
-      if (m.type === 'grammar' && m.category) gramCount[m.category] = (gramCount[m.category] || 0) + 1;
+      if (m.type === 'grammar') {
+        // v129：显式 category 优先；老日报无标签 → 关键字启发式归类（与入库 error_pattern 同口径）
+        const c = GRAMMAR_CATEGORIES.includes(m.category) ? m.category
+          : classifyGrammarCategory(m.original, m.improved || m.correction, m.explanation || m.rule);
+        gramCount[c] = (gramCount[c] || 0) + 1;
+      }
       if (m.type === 'expression') {
         const cause = EXPRESSION_CAUSES.includes(m.pattern) ? m.pattern : classifyExpressionCause(m.original, m.improved || m.better, m.explanation || m.scene);
         exprCount[cause] = (exprCount[cause] || 0) + 1;
@@ -4673,7 +4684,7 @@ async function renderReviewSection() {
       const ins = withInsight.insights;
       let key = topTags.length ? _insightKeyForTag(topTags[0][0]) : (topGram.length ? 'grammar' : (topExpr.length ? 'expression' : null));
       if (!key || !ins[key]) key = ins.grammar ? 'grammar' : (ins.vocabulary ? 'vocabulary' : (ins.expression ? 'expression' : null));
-      if (key && ins[key]) lines.push(`<div class="mt-1.5 text-[0.6875rem] text-[var(--c-text-dim)] italic leading-relaxed">${_md(withInsight.date)} GPT 诊断：「${ins[key]}」</div>`);
+      if (key && ins[key]) lines.push(`<div class="mt-1.5 text-[0.6875rem] text-[var(--c-text-dim)] italic leading-relaxed">${_md(withInsight.date)} AI 教练诊断：「${ins[key]}」</div>`);
     }
     weakEl.innerHTML = `<div class="text-[0.6875rem] font-semibold text-[var(--c-text-dim)] mb-1">反复弱点</div>` + lines.join('');
   } else {
@@ -4683,7 +4694,12 @@ async function renderReviewSection() {
   const advices = [];
   const gramCats = {}; let gramTotal = 0;
   sessions.forEach(s => s.mistakes.forEach(m => {
-    if (m.type === 'grammar' && m.category) { gramCats[m.category] = (gramCats[m.category] || 0) + 1; gramTotal++; }
+    if (m.type === 'grammar') {
+      // v129：显式 category 优先；老日报无标签 → 关键字启发式归类（与 ④ 分布口径一致）
+      const c = GRAMMAR_CATEGORIES.includes(m.category) ? m.category
+        : classifyGrammarCategory(m.original, m.improved || m.correction, m.explanation || m.rule);
+      gramCats[c] = (gramCats[c] || 0) + 1; gramTotal++;
+    }
   }));
   if (gramTotal >= 3) {
     const topCat = Object.entries(gramCats).sort((a, b) => b[1] - a[1])[0];
@@ -4696,7 +4712,7 @@ async function renderReviewSection() {
       const d1 = last[d.key] - prev[d.key];
       const d2 = prev[d.key] - prev2[d.key];
       if (d1 < -0.5 && d2 < -0.5) {
-        advices.push({ ic: 'trending-down', text: `「${d.label}」连续 2 次下降（${Math.round(prev2[d.key])} → ${Math.round(prev[d.key])} → ${Math.round(last[d.key])}）：对练时主动自查，下次日报的 GPT 诊断会点名根因。` });
+        advices.push({ ic: 'trending-down', text: `「${d.label}」连续 2 次下降（${Math.round(prev2[d.key])} → ${Math.round(prev[d.key])} → ${Math.round(last[d.key])}）：对练时主动自查，下次日报的 AI 教练诊断会点名根因。` });
         break;
       }
     }
@@ -4707,8 +4723,8 @@ async function renderReviewSection() {
       const ik = _insightKeyForDim(lowDim.key);
       const withInsight = sessions.filter(s => s.insights && ik && s.insights[ik]).pop();
       const quote = (withInsight && ik && withInsight.insights[ik])
-        ? `（${_md(withInsight.date)} GPT 诊断：「${withInsight.insights[ik]}」）。`
-        : '——对练时主动尝试高阶表达，让 GPT 给出升级挑战。';
+        ? `（${_md(withInsight.date)} AI 教练诊断：「${withInsight.insights[ik]}」）。`
+        : '——对练时主动尝试高阶表达，让 AI 教练给出升级挑战。';
       advices.push({ ic: 'target', text: `重心建议：「${lowDim.label}」当前 ${Math.round(minVal)} 分，四维最低${quote}` });
     }
   }
@@ -4716,7 +4732,7 @@ async function renderReviewSection() {
   sessions.forEach(s => s.nextSteps.forEach(st => { stepCount[st] = (stepCount[st] || 0) + 1; }));
   const hotStep = Object.entries(stepCount).sort((a, b) => b[1] - a[1])[0];
   if (advices.length < 2 && hotStep && hotStep[1] >= 2) {
-    advices.push({ ic: 'sparkles', text: `GPT 在最近 ${sessions.length} 次里 ${hotStep[1]} 次建议「${hotStep[0]}」——这是被反复点名的方向，值得优先尝试。` });
+    advices.push({ ic: 'sparkles', text: `AI 教练在最近 ${sessions.length} 次里 ${hotStep[1]} 次建议「${hotStep[0]}」——这是被反复点名的方向，值得优先尝试。` });
   }
   if (advices.length < 2 && sessions.length >= 2) {
     const spanDays = _daysBetween(sessions[0].date, last.date);
@@ -4853,6 +4869,10 @@ const TEMPLATES = {
 
 {
   "speakingRatio": 0,
+  "transcript": [
+    { "role": "coach", "content": "教练说的原话（逐字照贴）" },
+    { "role": "user", "content": "你说的原话（逐字照贴，一字不改）" }
+  ],
   "summary": {
     "topic": "今天对话的核心主题标签",
     "dailyThought": { "en": "英文一句反思金句", "zh": "对话后的反思（中文，第一人称，一段话）" },
@@ -4884,8 +4904,8 @@ const TEMPLATES = {
 }
 
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
-1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords、coach_insights 这 6 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
-2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话的真实内容估算：按你的发言字数（或句数）÷ 双方总发言量计算——例如你说了约六成的话，就输出 60。这是从对话内容推导出的客观统计，严禁凭空编造或照抄占位值 0。
+1. 顶层必须正好是 speakingRatio、transcript、summary、mistakes、coreSentences、newWords、coach_insights 这 7 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
+2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话粗略估算即可——系统会按 transcript 逐词精确计算后覆盖它，估算偏差不影响最终结果，但严禁输出 0、负数或照抄占位值。
 3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
    - "grammar"：语法硬伤——还必须包含第五个键 category（语法弱点分类，只允许以下三个值之一，按错误的本质归类）：
@@ -4895,11 +4915,12 @@ const TEMPLATES = {
      explanation 必须写明具体的语法规则和改正要点（如「一般过去时用 went」），严禁用分类名代替解释。
    - "pronunciation"：发音错误（读错的词、重音、元音等）；
    - "expression"：语法正确但不够地道的表达升级——type 为 expression 的项还必须包含第五个键 pattern（不自然根因，只允许以下四个值之一）："直译语序"（中文语序/逐字直译，如 I very like it）、"用词搭配"（用词不当、词性误用或搭配错误，如 learn knowledge）、"冗余啰嗦"（多余的重复或填充，如 more better）、"表达习惯"（语法没错但不符合母语者习惯的说法）。explanation 必须写「为什么这样说更好」：具体写出重点词汇与固定搭配、句型结构，作为复习时回忆整句的线索；只写场景、不给词汇与句型提示的 explanation 视为不合格。
-5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。explanation 必须写「为什么这个更地道」：具体写出①重点词汇与固定搭配（如「take the time to do sth」）；②句型结构/句式骨架，作为复习时回忆整句的线索。只写场景、不给词汇与句型提示的 explanation 视为不合格。
+5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。explanation 必须写「为什么这个更地道」：具体写出①重点词汇与固定搭配（如「take the time to do sth」）；②句型结构/句式骨架，作为复习时回忆整句的线索。只写场景、不给词汇与句型提示的 explanation 视为不合格。targetSentence 只允许一个目标句——严禁用斜杠 / 并列两个备选句（如 "How do I put this? / Let me find the right words."）；多个替代表达请拆成多条 coreSentence，或把备选放进 explanation。
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
 7. coreSentences 不设数量上限：收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）。newWords 也不设数量上限（宁多勿漏），但收录标准是「你当天需要帮助才说出的词」，三条铁轨：① 必收——对话中你有任何求助痕迹的词：卡壳说不出、问过它的意思、查过、我给了提示词之后你才说出来、说错被纠正，满足任意一条就收录，轻微卡壳也算，绝不漏掉一个真生词；② 排除——你独立流利说出、全程没有任何求助或卡壳迹象的词，即使再高级、再专业也严禁收进 newWords（它们不是生词）；你独立用出的高级表达，请以整句形式收进 coreSentences 金句库，不要用 newWords 记；③ 拿不准有没有求助过时，默认收录（宁多勿漏）。严禁编造对话中根本没出现过的词。
 8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。coach_insights 里推荐的每个具体词汇/整块表达（如 build stamina、incline walking），必须同时在对应数组里有落点：当天求助过才说出的进 newWords、说错或直译被纠正的进 mistakes（expression 类）、值得内化的高阶表达进 coreSentences——洞察段落严禁成为这些词的唯一归宿。
 9. 所有 explanation 不要写全英文：用中文解释，英文只保留在具体词汇、语法错误、固定搭配或句型骨架本身等等。
+10. transcript 必须是数组，按对话顺序收录今天的完整对话：每一轮一条，不合并、不跳过任何一轮。每条必须同时包含 role 和 content 两个键：role 只允许 "user"（你说的每一句话）与 "coach"（教练说的每一句话）两个值；content 是该轮原话，必须逐字照贴——严禁改写、概括、省略或补全（语法错误也要原样保留，它们是复盘素材）。transcript 是全篇唯一允许大量照抄对话原文的字段，也是系统计算开口占比的唯一依据（你的占比 = 你的所有轮次字数 ÷ 双方总字数）。对话过长时：user 侧必须全部照贴、一字不删；coach 侧可只保留实质反馈句（去掉 Great、Right 这类纯附和），但严禁新增或改写任何内容。严禁输出空数组 [] 应付、严禁编造对话中不存在的话。
 
 【评分与点评铁律】（专业口语私教评审）：
 - 示例结构中的 0（speakingRatio / fluency / accuracy / naturalness / vocabulary）与 "弱点标签1, 弱点标签2" 只是占位符、示意字段类型——严禁直接输出占位值 0、严禁照抄占位文字。
@@ -4909,7 +4930,7 @@ const TEMPLATES = {
 - summary.dailyThought：en 用英文一句话总结今天最值得改进的一点；zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
 
 【引号铁律】——违反任何一条 = 整份日报报废，系统直接拒收：
-1. 全篇只允许英文半角直引号 "——包裹键名的引号和包裹字符串值的引号都必须用它。严禁弯引号 “ ” 和弯单引号 ‘ ’，包括字符串值内部（本指令文本中出现的 “ ” ‘ ’ 仅为反面示例，绝不要复制进 JSON）。特别警惕「右引号双边」硬错误：部分 GPT 版本会把某个字符串的开闭引号都写成弯右引号 ”（高频出现在 phonetic 音标字段，如 ”/ˈsiːlɪŋ/”），这同样是硬错误——开引号与闭引号必须同为半角直引号 "（写成 "/ˈsiːlɪŋ/"）。
+1. 全篇只允许英文半角直引号 "——包裹键名的引号和包裹字符串值的引号都必须用它。严禁弯引号 “ ” 和弯单引号 ‘ ’，包括字符串值内部（本指令文本中出现的 “ ” ‘ ’ 仅为反面示例，绝不要复制进 JSON）。特别警惕「右引号双边」硬错误：部分模型版本会把某个字符串的开闭引号都写成弯右引号 ”（高频出现在 phonetic 音标字段，如 ”/ˈsiːlɪŋ/”），这同样是硬错误——开引号与闭引号必须同为半角直引号 "（写成 "/ˈsiːlɪŋ/"）。
 2. 字符串值内部需要中文强调时（如 explanation 里引用某个中文词），一律使用「」（方角括号），或者不加任何引号。严禁在值内出现弯引号。
 3. 英文缩写（I'm、aren't、don't）用英文直单引号 '（半角），绝不用弯单引号 ’。
 4. 所有字符串值必须写成单行——严禁在字符串值内部换行（值内换行会直接导致 JSON 失效）。
@@ -4918,9 +4939,10 @@ const TEMPLATES = {
 【输出前自检】——必须逐条确认，全部通过才允许输出：
 □ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
-□ 顶层 6 个键齐全（含 coach_insights），summary 的 9 个键齐全，空内容用 [] 不用 null；
+□ 顶层 7 个键齐全（含 transcript 与 coach_insights），summary 的 9 个键齐全，空内容用 [] 不用 null；
 □ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
-□ speakingRatio 是基于本次对话内容估算的百分比数字（0-100），不是占位值 0；
+□ transcript 数组收录了今天全部对话轮次：user 侧一字未删、coach 侧无新增无改写，每条都有 role/content 两个键（role 只有 user / coach 两种取值），content 逐字照贴且为单行；
+□ speakingRatio 是 0-100 的百分比数字（粗略估算即可，系统会按 transcript 重算覆盖），不是占位值 0；
 □ 四项评分与 weak_areas 都基于今日对话真实表现打分归纳，没有输出占位值 0、没有照抄占位文字；
 □ 所有字符串值均为单行，值内无未转义的直双引号；
 □ 无任何以 ” 开头的字符串——开闭引号必须同为半角直引号 "（逐字段检查 phonetic 音标字段）；
@@ -4929,6 +4951,7 @@ const TEMPLATES = {
 □ coach_insights 四句诊断都基于今日对话的具体表现，严厉专业、直接指出问题，无空泛套话；
 □ coach_insights 中提到的每个具体目标词汇/表达，都能在 newWords / mistakes / coreSentences 里找到对应落点——洞察不是词汇的唯一归宿；
 □ 所有 explanation 都没有写全英文（中文解释，英文只保留在词汇、语法错误、搭配或句型骨架本身等等）；
+□ coreSentences 每条 targetSentence 只含一个目标句（无斜杠并列备选句）；
 □ 所有键名与上面示例结构一字不差。`
 };
 // v123 评分示例去锚定（用户指令，2026-09-08）：示例分数 7/6.5/6/7 对 GPT 有锚定效应（实测分数挤在 6-7 带）——
@@ -5510,7 +5533,7 @@ function renderFlowStep() {
   } else if (_flowStep === 2) {
     bodyHTML = `<div style="padding:16px;">
       <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;">${steps[2]}</p>
-      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">打开 ChatGPT，用准备好的话题开始口语对话练习。<br>练完后回到这里导入日报。</p>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">打开 AI 教练（ChatGPT / Gemini 均可），用准备好的话题开始口语对话练习。<br>练完后回到这里导入日报。</p>
       <div style="display:flex;gap:8px;">
         <button class="btn-small" id="flow-prev">← 上一步</button>
         <button class="btn-primary" id="flow-next" style="flex:1;">我已练完 →</button>
@@ -5519,9 +5542,9 @@ function renderFlowStep() {
   } else if (_flowStep === 3) {
     bodyHTML = `<div style="padding:16px;">
       <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;">${steps[3]}</p>
-      <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">用模板生成日报 → 粘贴到 ChatGPT → 把结果粘贴回来</p>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">用模板生成日报 → 粘贴给 AI 教练 → 把结果粘贴回来</p>
       <div class="template-btns" style="margin-bottom:10px;"><button class="tpl-btn" data-tpl="report">📝 日报模板</button></div>
-      <textarea id="flow-report-input" rows="5" placeholder="将 ChatGPT 生成的日报内容粘贴到这里..."></textarea>
+      <textarea id="flow-report-input" rows="5" placeholder="将 AI 教练生成的日报内容粘贴到这里..."></textarea>
       <div style="display:flex;gap:8px;">
         <button class="btn-small" id="flow-prev">← 上一步</button>
         <button class="btn-primary" id="flow-finish" style="flex:1;">解析入库 ✓</button>
@@ -5626,7 +5649,7 @@ async function detectClipboard() {
 // ═══════════════════════════════════════════════════════
 function EmptyState({ message = '暂无数据', size = 96 } = {}) {
   return `<div class="state-empty">
-    <img class="state-img bear-img" src="/bear-default.png?v=129" alt="💤" draggable="false" style="width:${size}px;height:${size}px"
+    <img class="state-img bear-img" src="${BEAR_IMG}" alt="💤" draggable="false" style="width:${size}px;height:${size}px"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=state-fallback style=font-size:${size>80?48:32}px>💤</span>')" />
     <p class="state-text">${h(message)}</p>
   </div>`;
@@ -5634,7 +5657,7 @@ function EmptyState({ message = '暂无数据', size = 96 } = {}) {
 
 function LoadingState({ message = 'Voco小熊正一路小跑赶来...', size = 80 } = {}) {
   return `<div class="state-loading">
-    <img class="state-img animate-pulse bear-img" src="/bear-default.png?v=129" alt="⏳" draggable="false" style="width:${size}px;height:${size}px"
+    <img class="state-img animate-pulse bear-img" src="${BEAR_IMG}" alt="⏳" draggable="false" style="width:${size}px;height:${size}px"
       onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span class=state-fallback style=font-size:${size>80?48:32}px>⏳</span>')" />
     <p class="state-text">${h(message)}</p>
   </div>`;
@@ -5759,6 +5782,41 @@ sb.auth.onAuthStateChange((event, session) => {
 
 checkAuth();
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=128');
+// ── 版本自动收敛（v128 事故修复）──────────────────────────
+// 场景：SW 缓存长期锁旧壳（用户 20 天未打开 → 每次打开都被喂旧 app.js，v127 的今日待办 bug 复活）。
+// 打开时对比 version.json（SW 对该路径强制网络优先 + 边缘 60s 缓存），版本不一致 → 本次会话自动刷新一次；
+// 新 SW 激活（controllerchange）同样自动刷新一次。sessionStorage 防循环，网络失败静默跳过（下次打开再收敛）。
+async function checkVersionConverge() {
+  if (typeof sessionStorage === 'undefined') return;
+  if (sessionStorage.getItem('voco-auto-reloaded') || sessionStorage.getItem('voco-version-checked')) return;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 4000);
+    const res = await fetch('/version.json', { cache: 'no-store', signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res || !res.ok) return;
+    sessionStorage.setItem('voco-version-checked', '1');
+    const data = await res.json();
+    if (data && data.version && data.version !== APP_VERSION) {
+      sessionStorage.setItem('voco-auto-reloaded', '1');
+      location.reload();
+    }
+  } catch (e) {
+    // 网络失败/超时：静默跳过——冷启动窗口内 version.json 也可能失败，收敛顺延到下次打开
+  }
 }
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js?v=129', { updateViaCache: 'none' });
+  if (navigator.serviceWorker.addEventListener) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      // 新 SW 已接管（skipWaiting+claim）→ 自动刷新进入新版本，杜绝整次会话停留在旧壳
+      if (!sessionStorage.getItem('voco-auto-reloaded')) {
+        sessionStorage.setItem('voco-auto-reloaded', '1');
+        location.reload();
+      }
+    });
+  }
+}
+
+checkVersionConverge();
