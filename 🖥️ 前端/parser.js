@@ -43,6 +43,67 @@ function countTranscriptRatio(tr) {
   return (u + a > 0) ? { user: u, ai: a } : null;
 }
 
+// ── v130 数组壳兜底：GPT 长输出偶发漏写数组方括号（"key": "a", "b", "c" 裸奔元素）──
+// 仅在 JSON.parse 失败后由 sanitizeJsonInput 调用（合法 JSON 零开销零改动）。
+// 逐键走查：键冒号后若出现 ≥2 个深度 0 的逗号分隔裸元素且无 [ 壳 → 判定漏壳，补 [ ]。
+// 单元素裸值（合法字符串/对象值，如 "topic": "情绪"）绝不误伤——走查按「逗号后是键名
+// 还是元素」区分：逗号后跟 "xxx": 形态即单值收尾，否则是下一个裸元素。
+// 触发条件：≥2 个裸元素（通用判定），或模板数组键（transcript/strengths/nextSteps/
+// mistakes/coreSentences/newWords——模板契约固定为数组）的 1 个裸元素（GPT 只写一条时也补壳，
+// 防止归一化层按非数组静默丢行）。
+// 已知取舍：数字/布尔裸元素不计入元素数（日报数组实际只含字符串与对象，无影响）。
+function repairBracketlessArrays(text) {
+  const s = String(text || '');
+  const KEY_AT = /^"([A-Za-z_][A-Za-z_0-9]*)"\s*:/;
+  const ARR_KEYS = ['transcript', 'strengths', 'nextSteps', 'mistakes', 'coreSentences', 'newWords'];
+  const repairs = [];
+  let inStr = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '\\') { i++; continue; }              // 保留已有转义（\" 等不判字符串边界）
+    if (ch === '"') {
+      if (!inStr) {
+        const m = s.slice(i).match(KEY_AT);           // 字符串外的 "标识": 形态才是键
+        if (m) {
+          const keyName = m[1];
+          // 走查该键的值区域：深度 0 计元素；逗号后跟键名 → 单值收尾
+          let p = i + m[0].length, depth = 0, elems = 0, end = -1, bracketed = false;
+          while (p < s.length) {
+            const c = s[p];
+            if (c === '"') {                          // 裸字符串元素
+              if (depth === 0) elems++;
+              p++; while (p < s.length && s[p] !== '"') { if (s[p] === '\\') p++; p++; }
+              if (p < s.length) p++;                  // 越过闭引号（否则被当成下一个元素的开引号）
+              continue;
+            }
+            if (c === '{') { if (depth === 0) elems++; depth++; p++; continue; }   // 裸对象元素
+            if (c === '[') { if (depth === 0) bracketed = true; depth++; p++; continue; }
+            if (c === '}' || c === ']') {
+              if (depth === 0) { end = p; break; }    // 闭合父对象 → 区域收尾
+              depth--; p++; continue;
+            }
+            if (c === ',' && depth === 0) {
+              let q = p + 1;
+              while (q < s.length && (s[q] === ' ' || s[q] === '\t' || s[q] === '\n' || s[q] === '\r')) q++;
+              if (s[q] === '"' && s.slice(q).match(KEY_AT)) { end = p; break; }   // 逗号后是键 → 单值收尾
+            }
+            p++;
+          }
+          if (end !== -1 && !bracketed && (elems >= 2 || (elems === 1 && ARR_KEYS.includes(keyName)))) {
+            repairs.push({ start: i + m[0].length, end });
+          }
+        }
+        inStr = true;                                 // 键也是字符串——入串态
+      } else inStr = false;
+    }
+  }
+  if (!repairs.length) return s;
+  let out = s;
+  repairs.sort((a, b) => b.start - a.start);          // 从右往左补，位置不漂移
+  for (const r of repairs) out = out.slice(0, r.start) + '[' + out.slice(r.start, r.end) + ']' + out.slice(r.end);
+  return out;
+}
+
 // ── 分类规则提取引擎（4 标准分类归一化）────────────────────
 // 收敛为且仅收敛为：发音与重音 / 语法与句式 / 地道表达 / 逻辑与衔接，全部未命中才归「其他」。
 // 供解析器（parseItems）与 app.js normalizeErrorCategory（存量标签映射/错题卡渲染链路）共用 —— 单一分类源。

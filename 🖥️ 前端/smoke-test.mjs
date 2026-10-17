@@ -382,6 +382,32 @@ function _testEpilogue() {
       assert(v.status === 'valid' && v.preview && v.preview.speakingRatio === pct, '导入预览占比未采用 transcript 精确值（预览 ' + (v.preview && v.preview.speakingRatio) + ' vs 精确 ' + pct + '）');
     });
 
+    // ── S10 数组壳兜底守门（v130）：GPT 长输出漏写数组方括号 → 自动补 [ ] 救回导入；
+    //    单元素裸值（topic 字符串 / dailyThought 对象等合法单值）绝不误伤；合法 JSON 零改动零报错
+    await scenario('S10 JSON 日报数组漏方括号自动补壳（v130 兜底）', async () => {
+      reset();
+      const src = '{ "speakingRatio": 50, "summary": { "topic": "工作", "dailyThought": { "en": "Use past tense.", "zh": "过去时态。" }, "strengths": "能够主动开启对话", "可以描述复杂感受", "nextSteps": "练习条件句", "fluency": 6, "accuracy": 6, "naturalness": 6, "vocabulary": 6, "weak_areas": "时态" }, "mistakes": { "type": "grammar", "original": "I go yesterday.", "improved": "I went yesterday.", "explanation": "过去时间用过去时", "category": "动词与时态" }, { "type": "expression", "original": "I very like it.", "improved": "I really like it.", "explanation": "地道副词搭配", "pattern": "直译语序" }, "coreSentences": { "targetSentence": "It slipped my mind.", "replacedSentence": "I forgot it.", "explanation": "地道结构" }, "newWords": { "word": "stamina", "phonetic": "/ˈstæmɪnə/", "meaning": "耐力", "example": "You need stamina." }, { "word": "serendipity", "phonetic": "/ˌserənˈdɪpəti/", "meaning": "意外之喜", "example": "It was serendipity." }, "coach_insights": { "vocabulary": "词汇受限", "grammar": "时态出错", "expression": "中式直译", "core_patterns": "职场表达" } }';
+      const v = validateImportInput(src);
+      assert(v.status === 'valid', '漏方括号日报应被自动补壳救回: ' + v.error);
+      assert(v.preview.errorCount === 1 && v.preview.patternCount === 2 && v.preview.wordCount === 2,
+        '补壳后预览统计错误: ' + JSON.stringify(v.preview));
+      assert(v.preview.speakingRatio === 50, '补壳后 speakingRatio 透传异常');
+      const p = parseSmartReport(src);
+      assert(Array.isArray(p.mistakes) && p.mistakes.length === 2, '补壳后 mistakes 不是 2 条');
+      assert(p.mistakes[0].category === '动词与时态' && p.mistakes[1].pattern === '直译语序', '补壳后错题标签丢失');
+      assert(Array.isArray(p.vocabulary) && p.vocabulary.length === 2, '补壳后 newWords 不是 2 条');
+      assert(Array.isArray(p.sentence_patterns) && p.sentence_patterns.length === 1, '补壳后 coreSentences 不是 1 条');
+      assert(String(p.summary.strengths).includes('能够主动开启对话') && String(p.summary.strengths).includes('可以描述复杂感受'), '补壳后 strengths 元素丢失');
+      assert(String(p.summary.next_suggestions).includes('练习条件句'), '补壳后 nextSteps 元素丢失');
+      assert(!Array.isArray(p.summary.topic) && p.summary.topic === '工作', '单元素裸字符串值（topic）被误伤成数组');
+      assert(p.summary.dailyThought && !Array.isArray(p.summary.dailyThought) && p.summary.dailyThought.zh === '过去时态。', '单元素裸对象值（dailyThought）被误伤');
+      const good = reportJSON();
+      assert(repairBracketlessArrays(good) === good, '合法 JSON 被兜底改动');
+      const g2 = JSON.parse(sanitizeJsonInput(good));
+      assert(Array.isArray(g2.summary.strengths) && g2.summary.strengths.length === 1, '合法 JSON 经兜底后结构变化');
+      assert(validateImportInput(good).status === 'valid', '合法 JSON 导入被兜底误伤');
+    });
+
     const fails = results.filter((r) => !r.ok);
     console.log('\n[smoke] 场景 ' + (results.length - fails.length) + '/' + results.length + ' 通过');
     if (fails.length) {

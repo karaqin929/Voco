@@ -1,4 +1,4 @@
-# 📝 完美日报生成指令（唯一权威版 · v129：新增 transcript 逐字对话字段——开口占比由系统按对话原文精确计算）
+# 📝 完美日报生成指令（唯一权威版 · v130：数组方括号硬性铁律——GPT 漏写 [ ] 系统也会自动补壳救回）
 
 > **和 AI 教练（ChatGPT / Gemini 等）结束对练时，把下面整段指令发过去**（或直接点 App 内「导入日报」弹窗的「复制模板」按钮——两者完全同步）。
 > 生成的 JSON **原样粘贴进 Voco「导入日报」对话框**即可解析入库。
@@ -49,7 +49,7 @@
 ```
 
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
-1. 顶层必须正好是 speakingRatio、transcript、summary、mistakes、coreSentences、newWords、coach_insights 这 7 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
+1. 顶层必须正好是 speakingRatio、transcript、summary、mistakes、coreSentences、newWords、coach_insights 这 7 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。所有数组字段（transcript、summary 里的 strengths 与 nextSteps、mistakes、coreSentences、newWords）的元素必须写进方括号 [ ] 内，严禁把元素直接裸写在键后（如 "strengths": "优点1", "优点2" 是硬错误）。
 2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话粗略估算即可——系统会按 transcript 逐词精确计算后覆盖它，估算偏差不影响最终结果，但严禁输出 0、负数或照抄占位值。
 3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
@@ -85,6 +85,7 @@
 □ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
 □ 顶层 7 个键齐全（含 transcript 与 coach_insights），summary 的 9 个键齐全，空内容用 [] 不用 null；
+□ 六个数组（transcript / strengths / nextSteps / mistakes / coreSentences / newWords）全部带方括号 [ ]，元素写在 [ ] 内；
 □ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
 □ transcript 数组收录了今天全部对话轮次：user 侧一字未删、coach 侧无新增无改写，每条都有 role/content 两个键（role 只有 user / coach 两种取值），content 逐字照贴且为单行；
 □ speakingRatio 是 0-100 的百分比数字（粗略估算即可，系统会按 transcript 重算覆盖），不是占位值 0；
@@ -130,4 +131,5 @@ AI 教练日报 JSON → Voco 系统消费链路的完整映射，字段名即�
 - v96 起 App 解析层内置「智能引号状态机」兜底：即使模型输出含弯引号或值内嵌套中文引号，也能安全归一化后解析（兜底网，不替代本指令的源头铁律）。
 - v97 起**不再需要手动填写练习时长**：会话维度由 `speakingRatio`（对话占比）承载——这是模型能从对话内容里直接统计出的客观数字。旧版含 `duration` 的日报仍可正常导入（时长保留，新日报不再新增时长）。
 - v129 起新增 `transcript`（逐字对话原文）：开口占比由 App 按角色逐词精确计算，不再依赖模型估算的 `speakingRatio`（实测 Gemini 同会话生成仍会把占比低报成 25%——LLM 派生统计不可靠，模型自报值仅作无 transcript 旧日报的兜底）。旧版日报（无 transcript 字段）仍可正常导入，占比退回模型估算值。
+- v130 起 App 解析层新增「数组壳兜底」：GPT 偶发漏写数组方括号（元素直接裸写在键后）也会被自动补 [ ] 修复入库——兜底网，不替代本指令的方括号铁律。
 - v105 起新增 `coach_insights`（私教洞察四维诊断）：新版模板必含；旧版模板生成的日报（无该字段）**仍可正常导入**——首页「需要提升」四卡的「洞察」行静默回落为基础统计文案（如「不地道的表达 8 句 · 主要问题：表达习惯」），三行排版结构完全一致、绝不开天窗。用新版模板重新生成当日日报即可获得真正的私教诊断。

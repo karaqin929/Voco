@@ -1303,7 +1303,26 @@ function sanitizeJsonInput(s) {
       if (/"(duration|summary|mistakes|coreSentences|newWords|topic)"|“/.test(span)) t = span;
     }
   }
-  return normalizeSmartQuotes(t);
+  const cleaned = normalizeSmartQuotes(t);
+  // v130 数组壳兜底：GPT 长输出偶发漏写数组方括号（"key": "a", "b" 裸奔元素）——
+  // 先试解析（合法 JSON 零改动），失败才走 repairBracketlessArrays 补 [ ] 重试；
+  // 修复后仍不合法则保持原文，由上游按原样报错。仅在 { 开头（JSON 意图）时尝试，
+  // Markdown 日报不受影响。
+  if (cleaned.startsWith('{')) {
+    try {
+      JSON.parse(cleaned);
+    } catch (e) {
+      const repaired = repairBracketlessArrays(cleaned);
+      if (repaired !== cleaned) {
+        try {
+          JSON.parse(repaired);
+          console.warn('[sanitizeJsonInput] 检测到数组缺方括号，已自动补壳修复（v130 兜底）');
+          return repaired;
+        } catch (e2) { /* 修复后仍不合法 → 保持原文，由上游按原样报错 */ }
+      }
+    }
+  }
+  return cleaned;
 }
 
 function isDailyReport(report) {
@@ -4904,7 +4923,7 @@ const TEMPLATES = {
 }
 
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
-1. 顶层必须正好是 speakingRatio、transcript、summary、mistakes、coreSentences、newWords、coach_insights 这 7 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。
+1. 顶层必须正好是 speakingRatio、transcript、summary、mistakes、coreSentences、newWords、coach_insights 这 7 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。所有数组字段（transcript、summary 里的 strengths 与 nextSteps、mistakes、coreSentences、newWords）的元素必须写进方括号 [ ] 内，严禁把元素直接裸写在键后（如 "strengths": "优点1", "优点2" 是硬错误）。
 2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话粗略估算即可——系统会按 transcript 逐词精确计算后覆盖它，估算偏差不影响最终结果，但严禁输出 0、负数或照抄占位值。
 3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
@@ -4940,6 +4959,7 @@ const TEMPLATES = {
 □ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
 □ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
 □ 顶层 7 个键齐全（含 transcript 与 coach_insights），summary 的 9 个键齐全，空内容用 [] 不用 null；
+□ 六个数组（transcript / strengths / nextSteps / mistakes / coreSentences / newWords）全部带方括号 [ ]，元素写在 [ ] 内；
 □ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
 □ transcript 数组收录了今天全部对话轮次：user 侧一字未删、coach 侧无新增无改写，每条都有 role/content 两个键（role 只有 user / coach 两种取值），content 逐字照贴且为单行；
 □ speakingRatio 是 0-100 的百分比数字（粗略估算即可，系统会按 transcript 重算覆盖），不是占位值 0；
