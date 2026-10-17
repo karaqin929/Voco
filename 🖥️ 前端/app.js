@@ -65,7 +65,7 @@
 // BEAR_IMG 为 128px 透明底 PNG data URI —— 空态/加载态小熊永不依赖网络，
 // Render 冷启动窗口内图片请求失败时不再出现 🐻/💤 emoji 兜底。
 // ═══════════════════════════════════════════════════════
-const APP_VERSION = 'v129';
+const APP_VERSION = 'v130';
 const BEAR_IMG = 'data:image/png;base64,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';
 
 // ── Tab Switching ──────────────────────────────────────
@@ -3189,7 +3189,7 @@ async function renderTopicLibrary() {
     sb.from('topics').select('*').order('created_at', { ascending: false }),
     sb.from('vocabulary').select('word, source_topic').not('source_topic', 'is', null)
   ]);
-  // 客户端按 source_topic 归组关联词（topic-card 导入链路写入 source_topic=title）
+  // 客户端按 source_topic 归组关联词（日报导入链路写入 source_topic=当日话题 title；历史 topic-card 链路同款）
   const byTopic = {};
   (vocab || []).forEach(v => {
     if (!v.source_topic) return;
@@ -3203,7 +3203,7 @@ async function renderTopicLibrary() {
     words: byTopic[t.title] || []
   }));
   if (!_topicLibraryCache.length) {
-    container.innerHTML = EmptyState({ message: '还没有话题卡 · 导入 AI 教练话题卡后，这里会成为你的语境资产库', size: 80 });
+    container.innerHTML = EmptyState({ message: '还没有话题 · 导入日报后，练过的话题会自动沉淀到这里，随时生成话题复盘 Prompt 回炉', size: 80 });
     return;
   }
   container.innerHTML = _topicLibraryCache.map((t, i) => {
@@ -3212,7 +3212,7 @@ async function renderTopicLibrary() {
     <div class="topic-card bg-[var(--c-surface)] rounded-2xl p-4 mb-3 border border-[var(--c-border-light)]" style="box-shadow:var(--c-shadow-sm)">
       <div class="flex justify-between items-start gap-2 mb-1.5">
         <span class="text-sm font-bold text-[var(--c-text)] leading-snug break-words">📖 ${h(t.title)}</span>
-        <span class="shrink-0 text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] whitespace-nowrap">${t.keyTerms.length} 个关键术语</span>
+        ${t.keyTerms.length ? `<span class="shrink-0 text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-[var(--c-primary-light)] text-[var(--c-primary)] whitespace-nowrap">${t.keyTerms.length} 个关键术语</span>` : ''}
       </div>
       ${t.description ? `<div class="text-xs text-[var(--c-text-dim)] mb-2 leading-relaxed">${h(t.description)}</div>` : ''}
       ${previewWords.length ? `
@@ -3232,7 +3232,8 @@ async function fireTopicRevivalPrompt(btn, idx) {
   const topic = (_topicLibraryCache || [])[idx];
   if (!topic) return;
   const topicWords = topic.words.length ? topic.words : topic.keyTerms;
-  const prompt = `作为我的英语口语私教，我们之前探讨过【${topic.title}】这个话题。今天我想继续或者换个角度聊聊这个话题，请在接下来的对话中，自然地引导我使用这些词汇：[${topicWords.join(', ')}]。你先向我提问吧。`;
+  const wordGuide = topicWords.length ? `请在接下来的对话中，自然地引导我使用这些词汇：[${topicWords.join(', ')}]。` : '';
+  const prompt = `作为我的英语口语私教，我们之前探讨过【${topic.title}】这个话题。今天我想继续或者换个角度聊聊这个话题。${wordGuide}你先向我提问吧。`;
   const copied = await copyToClipboardWithFallback(prompt);
   if (!copied) { showToast('复制失败，请长按文本手动复制'); return; }
   showToast('📋 话题复盘 Prompt 已复制', 'success');
@@ -4934,45 +4935,35 @@ const TEMPLATES = {
      explanation 必须写明具体的语法规则和改正要点（如「一般过去时用 went」），严禁用分类名代替解释。
    - "pronunciation"：发音错误（读错的词、重音、元音等）；
    - "expression"：语法正确但不够地道的表达升级——type 为 expression 的项还必须包含第五个键 pattern（不自然根因，只允许以下四个值之一）："直译语序"（中文语序/逐字直译，如 I very like it）、"用词搭配"（用词不当、词性误用或搭配错误，如 learn knowledge）、"冗余啰嗦"（多余的重复或填充，如 more better）、"表达习惯"（语法没错但不符合母语者习惯的说法）。explanation 必须写「为什么这样说更好」：具体写出重点词汇与固定搭配、句型结构，作为复习时回忆整句的线索；只写场景、不给词汇与句型提示的 explanation 视为不合格。
-5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。explanation 必须写「为什么这个更地道」：具体写出①重点词汇与固定搭配（如「take the time to do sth」）；②句型结构/句式骨架，作为复习时回忆整句的线索。只写场景、不给词汇与句型提示的 explanation 视为不合格。targetSentence 只允许一个目标句——严禁用斜杠 / 并列两个备选句（如 "How do I put this? / Let me find the right words."）；多个替代表达请拆成多条 coreSentence，或把备选放进 explanation。
+5. coreSentences 数组的每一项必须同时包含 targetSentence（高阶金句）、replacedSentence（被替代的平庸表达）、explanation 三个键。replacedSentence 必须是你今天对话里真实说过的原句（逐字照贴你的原话），严禁编造或杜撰对话中不存在的话。explanation 必须写「为什么这个更地道」：具体写出①重点词汇与固定搭配（如「take the time to do sth」）；②句型结构/句式骨架，作为复习时回忆整句的线索。只写场景、不给词汇与句型提示的 explanation 视为不合格。targetSentence 只允许一个目标句——严禁用斜杠 / 并列两个备选句（如 "How do I put this? / Let me find the right words."）；多个替代表达请拆成多条 coreSentence，或把备选放进 explanation。
 6. newWords 数组的每一项必须同时包含 word、phonetic、meaning、example 四个键，word 不能为空字符串。
-7. coreSentences 不设数量上限：收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）。newWords 也不设数量上限（宁多勿漏），但收录标准是「你当天需要帮助才说出的词」，三条铁轨：① 必收——对话中你有任何求助痕迹的词：卡壳说不出、问过它的意思、查过、我给了提示词之后你才说出来、说错被纠正，满足任意一条就收录，轻微卡壳也算，绝不漏掉一个真生词；② 排除——你独立流利说出、全程没有任何求助或卡壳迹象的词，即使再高级、再专业也严禁收进 newWords（它们不是生词）；你独立用出的高级表达，请以整句形式收进 coreSentences 金句库，不要用 newWords 记；③ 拿不准有没有求助过时，默认收录（宁多勿漏）。严禁编造对话中根本没出现过的词。
+7. coreSentences 不设数量上限：收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）。newWords 也不设数量上限（宁多勿漏），但收录标准是「你当天需要帮助才说出的词」，三条铁轨：① 必收——对话中你有任何求助痕迹的词：卡壳说不出、问过它的意思、查过、我给了提示词之后你才说出来、说错被纠正，满足任意一条就收录，轻微卡壳也算，绝不漏掉一个真生词；② 排除——你独立流利说出、全程没有任何求助或卡壳迹象的词，即使再高级、再专业也严禁收进 newWords（它们不是生词）；你独立用出的高级表达，请以整句形式收进 coreSentences 金句库，不要用 newWords 记；③ 拿不准有没有求助过时，默认收录（宁多勿漏）。严禁编造对话中根本没出现过的词。已经作为 mistakes 的 improved 收录的表达，严禁再收进 coreSentences（错题卡已承载其复习；金句只收你独立用出的地道表达或错题之外值得内化的句型，两者不重复计数）。
 8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。coach_insights 里推荐的每个具体词汇/整块表达（如 build stamina、incline walking），必须同时在对应数组里有落点：当天求助过才说出的进 newWords、说错或直译被纠正的进 mistakes（expression 类）、值得内化的高阶表达进 coreSentences——洞察段落严禁成为这些词的唯一归宿。
 9. 所有 explanation 不要写全英文：用中文解释，英文只保留在具体词汇、语法错误、固定搭配或句型骨架本身等等。
 10. transcript 必须是数组，按对话顺序收录今天的完整对话：每一轮一条，不合并、不跳过任何一轮。每条必须同时包含 role 和 content 两个键：role 只允许 "user"（你说的每一句话）与 "coach"（教练说的每一句话）两个值；content 是该轮原话，必须逐字照贴——严禁改写、概括、省略或补全（语法错误也要原样保留，它们是复盘素材）。transcript 是全篇唯一允许大量照抄对话原文的字段，也是系统计算开口占比的唯一依据（你的占比 = 你的所有轮次字数 ÷ 双方总字数）。对话过长时：user 侧必须全部照贴、一字不删；coach 侧可只保留实质反馈句（去掉 Great、Right 这类纯附和），但严禁新增或改写任何内容。严禁输出空数组 [] 应付、严禁编造对话中不存在的话。
 
 【评分与点评铁律】（专业口语私教评审）：
-- 示例结构中的 0（speakingRatio / fluency / accuracy / naturalness / vocabulary）与 "弱点标签1, 弱点标签2" 只是占位符、示意字段类型——严禁直接输出占位值 0、严禁照抄占位文字。
+- 示例结构中的 0（speakingRatio / fluency / accuracy / naturalness / vocabulary）与 "弱点标签1, 弱点标签2" 只是占位符、示意字段类型——严禁直接输出占位值 0、严禁照抄占位文字，每一项评分与弱项都必须来自今天的真实对话。
 - 逐项回看今天对话中用户的实际表现，基于对话里的具体证据打分（0-10，可含一位小数）：fluency 流利度（停顿、迟疑、重复、语速）；accuracy 准确度（时态、单复数、冠词、句式等语法错误频率）；naturalness 自然度（是否地道、搭配是否自然、有无中式英语）；vocabulary 词汇丰富度（用词是否丰富准确：是否反复依赖简单词、是否用上对话中学到的新表达）。
-- weak_areas：归纳今天暴露最明显的 1-3 个弱点（中文标签，逗号分隔）。
-- 每一项评分与弱项都必须来自今天的真实对话，禁止照抄占位值 0 / "弱点标签1, 弱点标签2"。
-- summary.dailyThought：en 用英文一句话总结今天最值得改进的一点；zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
+- weak_areas 归纳今天暴露最明显的 1-3 个弱点（中文标签，逗号分隔）；summary.dailyThought：en 用英文一句话总结今天最值得改进的一点，zh 用中文第一人称写一段反思，结合上面的评分点出今天最值得改进的一点。
 
 【引号铁律】——违反任何一条 = 整份日报报废，系统直接拒收：
 1. 全篇只允许英文半角直引号 "——包裹键名的引号和包裹字符串值的引号都必须用它。严禁弯引号 “ ” 和弯单引号 ‘ ’，包括字符串值内部（本指令文本中出现的 “ ” ‘ ’ 仅为反面示例，绝不要复制进 JSON）。特别警惕「右引号双边」硬错误：部分模型版本会把某个字符串的开闭引号都写成弯右引号 ”（高频出现在 phonetic 音标字段，如 ”/ˈsiːlɪŋ/”），这同样是硬错误——开引号与闭引号必须同为半角直引号 "（写成 "/ˈsiːlɪŋ/"）。
 2. 字符串值内部需要中文强调时（如 explanation 里引用某个中文词），一律使用「」（方角括号），或者不加任何引号。严禁在值内出现弯引号。
-3. 英文缩写（I'm、aren't、don't）用英文直单引号 '（半角），绝不用弯单引号 ’。
+3. 英文缩写（I'm、aren't、don't）用英文直单引号 '（半角），绝不用弯单引号 ’。字符串值内如需英文引述（如例句 He said "hi"），请改用英文单引号 '（写成 He said 'hi'）或加反斜杠转义（写成 He said \\"hi\\"），严禁出现未转义的直双引号。
 4. 所有字符串值必须写成单行——严禁在字符串值内部换行（值内换行会直接导致 JSON 失效）。
-5. 字符串值内如需英文引述（如例句 He said "hi"），请改用英文单引号 '（写成 He said 'hi'）或加反斜杠转义（写成 He said \\"hi\\"），严禁出现未转义的直双引号。
 
 【输出前自检】——必须逐条确认，全部通过才允许输出：
-□ 整篇无任何 “ ” ‘ ’ 弯引号，值内中文强调用的是「」；
-□ 从第一个 { 到最后一个 } 是完整合法 JSON，无 Markdown 围栏、无说明文字；
-□ 顶层 7 个键齐全（含 transcript 与 coach_insights），summary 的 9 个键齐全，空内容用 [] 不用 null；
-□ 六个数组（transcript / strengths / nextSteps / mistakes / coreSentences / newWords）全部带方括号 [ ]，元素写在 [ ] 内；
-□ mistakes 每项的 type 只有 grammar / pronunciation / expression 三种，grammar 项含 category 键且取值只有动词与时态 / 名词与冠词 / 句式与搭配 三种，expression 项含 pattern 键且取值只有直译语序 / 用词搭配 / 冗余啰嗦 / 表达习惯 四种；
-□ transcript 数组收录了今天全部对话轮次：user 侧一字未删、coach 侧无新增无改写，每条都有 role/content 两个键（role 只有 user / coach 两种取值），content 逐字照贴且为单行；
-□ speakingRatio 是 0-100 的百分比数字（粗略估算即可，系统会按 transcript 重算覆盖），不是占位值 0；
-□ 四项评分与 weak_areas 都基于今日对话真实表现打分归纳，没有输出占位值 0、没有照抄占位文字；
-□ 所有字符串值均为单行，值内无未转义的直双引号；
-□ 无任何以 ” 开头的字符串——开闭引号必须同为半角直引号 "（逐字段检查 phonetic 音标字段）；
-□ newWords 的每个词都有当天求助或卡壳的互动证据（或属于拿不准的情形）——没有一个是我当天独立流利说出的词，拿不准时宁多勿漏先收录；
-□ 今天所有求助过才说出的词都收进了 newWords——即使它已经出现在 mistakes 或洞察里也要收（词卡记生词、错题卡记错误，双落点不冲突），没有只在洞察或错题里出现的漏网求助词；
-□ coach_insights 四句诊断都基于今日对话的具体表现，严厉专业、直接指出问题，无空泛套话；
-□ coach_insights 中提到的每个具体目标词汇/表达，都能在 newWords / mistakes / coreSentences 里找到对应落点——洞察不是词汇的唯一归宿；
-□ 所有 explanation 都没有写全英文（中文解释，英文只保留在词汇、语法错误、搭配或句型骨架本身等等）；
-□ coreSentences 每条 targetSentence 只含一个目标句（无斜杠并列备选句）；
-□ 所有键名与上面示例结构一字不差。`
+□ 合法 JSON：无 Markdown 围栏、无说明文字；无弯引号 “ ” ‘ ’、无以 ” 开头的字符串（逐字段检查 phonetic）、值内中文强调用「」、所有字符串值单行且值内无未转义的直双引号；
+□ 顶层 7 个键 + summary 9 个键齐全，空内容用 [] 不用 null，所有键名与示例结构一字不差；
+□ 六个数组（transcript / strengths / nextSteps / mistakes / coreSentences / newWords）全部带 [ ]，元素写在 [ ] 内；
+□ mistakes 枚举无越界无串位：type 三值（grammar / pronunciation / expression）、grammar 含 category 三值、expression 含 pattern 四值；
+□ transcript 收录今天全部对话轮次：user 一字未删、coach 无新增无改写、role 只有 user / coach、content 逐字照贴且单行；
+□ speakingRatio 是 0-100 的估算不是占位值 0；四项评分与 weak_areas 基于今日对话真实表现，无占位值、无照抄占位文字；
+□ newWords 每个词都有当天求助或卡壳证据（宁多勿漏）；已出现在 mistakes 的求助词也要收（双落点不冲突）；严禁编造对话中根本没出现过的词；
+□ coreSentences 每条 targetSentence 单句无斜杠并列；replacedSentence 是我今天真实说过的原句（严禁编造）；已经作为 mistakes 的 improved 收录的句子不再收进 coreSentences；
+□ coach_insights 四句诊断基于今日对话具体表现、无空泛套话，提到的词汇/表达都有 newWords / mistakes / coreSentences 落点；
+□ 所有 explanation 均中文为主（英文只保留词汇、语法错误、搭配或句型骨架本身）。`
 };
 // v123 评分示例去锚定（用户指令，2026-09-08）：示例分数 7/6.5/6/7 对 GPT 有锚定效应（实测分数挤在 6-7 带）——
 //            示例结构中的 speakingRatio/fluency/accuracy/naturalness/vocabulary 全部改占位值 0、weak_areas 改
@@ -4988,6 +4979,10 @@ const TEMPLATES = {
 //             洞察严禁成为唯一归宿）+ 自检两条（洞察词汇落点核查 + 求助词完整性——即使已出现在 mistakes 也要收进 newWords）。
 // v125 追加·explanation 语言风格（9.14 起 explanation 漂移成全英文；查证旧版模板从未规定语言——风格是模板中文语境自然形成，无旧文案可恢复）：
 //             新增轻量铁律 #9（不要写全英文：用中文解释，英文只保留词汇、语法错误、搭配/句型骨架本身等等，无例句句式固化）+ 自检一条。双文件一字不差。
+// v131 结构精简 + 金句双铁律（2026-10-17，用户：金句与错题大量重叠、防止日报 prompt 冗长打补丁）：
+//             ① 铁律 #5 新增 replacedSentence 必须真实原句（补回 v124 重写时金句侧丢失的「真实出现」约束——金句 11 编造弱化句即此空子）；
+//             ② 铁律 #7 新增「错题 improved 严禁重收金句」（错题卡已承载其复习；patterns 表内同句双卡=重复复习，金句只收独立用出/错题之外的高阶句型）；
+//             ③ 结构归并去重：评分与点评铁律 5→3 条、引号铁律 5→4 条（缩写+引述合并）、自检 17→10 条（逐条覆盖核对，无约束丢失）。双文件正文一字不差。
 // v97：TEMPLATES.topic / TEMPLATES.insight 已物理删除——话题卡与弱点分析模板功能彻底下线，TEMPLATES 只保留 report。
 
 function copyTemplate(type) {
@@ -5179,6 +5174,9 @@ async function importJsonDailyReport(jsonReport, rawText, importDate) {
           practice_count: sb.raw('practice_count + 1'),
           last_practiced_at: new Date().toISOString()
         }).eq('id', existingTopic.id);
+      } else {
+        // v131 批次：新话题首次出现 → INSERT 入库（旧缺陷：只更新不插入，日报新话题永远进不了话题库）
+        await sb.from('topics').insert({ user_id: uid, title: topic, practice_count: 1, last_practiced_at: new Date().toISOString() });
       }
     }
   }
@@ -5278,6 +5276,9 @@ async function importDailyReport(parsed) {
           practice_count: sb.raw('practice_count + 1'),
           last_practiced_at: new Date().toISOString()
         }).eq('id', existingTopic.id);
+      } else {
+        // v131 批次：新话题首次出现 → INSERT 入库（旧缺陷：只更新不插入，日报新话题永远进不了话题库）
+        await sb.from('topics').insert({ user_id: uid, title: topic, practice_count: 1, last_practiced_at: new Date().toISOString() });
       }
     }
   }
@@ -5827,7 +5828,7 @@ async function checkVersionConverge() {
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=129', { updateViaCache: 'none' });
+  navigator.serviceWorker.register('/sw.js?v=130', { updateViaCache: 'none' });
   if (navigator.serviceWorker.addEventListener) {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       // 新 SW 已接管（skipWaiting+claim）→ 自动刷新进入新版本，杜绝整次会话停留在旧壳
