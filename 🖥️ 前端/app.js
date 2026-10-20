@@ -65,7 +65,7 @@
 // BEAR_IMG 为 128px 透明底 PNG data URI —— 空态/加载态小熊永不依赖网络，
 // Render 冷启动窗口内图片请求失败时不再出现 🐻/💤 emoji 兜底。
 // ═══════════════════════════════════════════════════════
-const APP_VERSION = 'v130';
+const APP_VERSION = 'v131';
 const BEAR_IMG = 'data:image/png;base64,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';
 
 // ── Tab Switching ──────────────────────────────────────
@@ -193,12 +193,6 @@ function navigateShadowing(id, sentence, date, view) {
   _navigatingViaProgram = false;
 }
 
-function clearFilter() {
-  _activeFilter = null;
-  _activeFilterLabel = '';
-  window.history.pushState({}, '', '/');
-}
-
 // 旧路由归一化：?tab=words/new/mistakes/review/speak → /review / /shadowing（历史书签/分享链接无缝兼容）
 function normalizeLegacyUrl() {
   if (location.pathname !== '/') return;
@@ -231,8 +225,9 @@ function handleRoute() {
     const dParam = sp.get('date');
     _ctxDate = (dParam && dParam !== getLocalToday()) ? dParam : null;
     // filter=today：首页「复习今日单词」携带的过滤态，正交于三 Tab，只渲染 isNewToday 词
+    // 旧 tab 参数归一（new→all / mistakes→grammar / review→due）：渲染内容同源，Tab 高亮不再悬空（2026-10-20 审计修复）
     _wordsFilter = sp.get('filter') === 'today' ? 'today'
-      : (['all', 'grammar', 'due', 'topics', 'new', 'mistakes', 'review'].includes(t) ? t : 'all');
+      : (['all', 'grammar', 'due', 'topics'].includes(t) ? t : ({ new: 'all', mistakes: 'grammar', review: 'due' }[t] || 'all'));
   } else if (path === '/shadowing') {
     tab = 'speak';
     _activeFilter = null; _activeFilterLabel = ''; // URL 的 filter/id/date/view 参数才是句型复习页唯一事实源
@@ -247,7 +242,7 @@ function handleRoute() {
     const t = new URLSearchParams(location.search).get('tab') || 'home';
     const legacy = { words: 'words', new: 'words', mistakes: 'words', review: 'words', speak: 'speak', me: 'me' };
     tab = legacy[t] || 'home';
-    if (t === 'new' || t === 'mistakes' || t === 'review') _wordsFilter = t;
+    if (t === 'new' || t === 'mistakes' || t === 'review') _wordsFilter = ({ new: 'all', mistakes: 'grammar', review: 'due' }[t]);
   }
   _navigatingViaProgram = true;
   document.querySelector(`.tab[data-tab=${tab}]`).click();
@@ -263,6 +258,7 @@ async function checkAuth() {
   if (_authChecked) return; // prevent double-fire from onAuthStateChange + manual call
   _authChecked = true;
   const { data: { session } } = await sb.auth.getSession();
+  _uid = session ? session.user.id : null; // 跨账号隔离：用户态 localStorage 键名按 uid 后缀（2026-10-20 审计修复）
   if (session) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-main').style.display = 'block';
@@ -312,8 +308,9 @@ async function loadConfig() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return;
   const { data } = await sb.from('user_config').select('*').eq('user_id', session.user.id).maybeSingle();
-  if (data) { APP_NAME = data.app_name || 'Voco'; if (data.user_name) localStorage.setItem('voco-username', data.user_name); }
-  else { await sb.from('user_config').insert([{ user_id: session.user.id, app_name: 'Voco', user_name: '' }]); }
+  // 跨账号隔离：无论对方有无昵称都覆写本地值——换账号登录绝不残留上一账号昵称（2026-10-20 审计修复）
+  if (data) { APP_NAME = data.app_name || 'Voco'; localStorage.setItem('voco-username', data.user_name || ''); }
+  else { await sb.from('user_config').insert([{ user_id: session.user.id, app_name: 'Voco', user_name: '' }]); localStorage.setItem('voco-username', ''); }
   document.querySelector('.app-title').textContent = APP_NAME;
   document.title = APP_NAME;
 }
@@ -456,7 +453,7 @@ function renderHomeSections() {
   const emptyHero = document.getElementById('home-empty-hero');
   if (emptyHero) emptyHero.classList.toggle('hidden', !showEmptyHero);
   // 句型复习打卡戳：卡片队列复习完最后一张时写入 voco-speak-done，此处只读比对（时间判断仍在加载层）
-  const speakDoneToday = (() => { try { return localStorage.getItem('voco-speak-done') === today; } catch (e) { return false; } })();
+  const speakDoneToday = (() => { try { return localStorage.getItem(_userStorageKey('voco-speak-done')) === today; } catch (e) { return false; } })();
 
   // Section 1: Header
   const dates = [...new Set(vList.map(v => v.date_added).filter(Boolean))].sort().reverse();
@@ -874,15 +871,9 @@ function dedupePatternsByText(list) {
 }
 
 // ═══ 渲染层计数（纯布尔读取，零时间判断、零兜底逻辑） ═══
-// 顶部 SM-2 卡片数字 / 首页待办 / 复习页 tab=review 列表 —— 三处共用同一规则，绝不分叉
+// 今日新词计数（isNewToday 纯布尔）；countMistakeWords/countReviewWords 已随 SSOT 收敛为死代码，2026-10-20 审计清理
 function countTodayWords(words) {
   return (words || []).filter(w => w.isNewToday === true).length;
-}
-function countMistakeWords(words, errors) {
-  return (words || []).filter(w => w.isMistake === true).length;
-}
-function countReviewWords(words) {
-  return (words || []).filter(w => w.needsReview === true).length;
 }
 
 function renderMetricsOverview() {
@@ -1203,7 +1194,7 @@ function renderTodoList(speakDoneToday) {
   const deckReviewed = reviewedToday + errReviewedToday;
   // v115 完成判定兜底：本地完成戳（endDueReview 写入）——云端写回偶发延迟/失败时不吞掉用户的完成事实
   let vocabDoneStamp = '';
-  try { vocabDoneStamp = localStorage.getItem('voco-vocab-done') === getLocalToday() ? getLocalToday() : ''; } catch (e) { vocabDoneStamp = ''; }
+  try { vocabDoneStamp = localStorage.getItem(_userStorageKey('voco-vocab-done')) === getLocalToday() ? getLocalToday() : ''; } catch (e) { vocabDoneStamp = ''; }
   const deckDone = mergedDueCount === 0 ? deckReviewed > 0 : !!vocabDoneStamp;
   const todos = [
     // 任务 1（对练打卡）：导入今日日报 —— 检测到今日有导入记录，自动标记已完成
@@ -1791,7 +1782,7 @@ function validateImportInput(text) {
       preview: {
         type: 'markdown', date: parsed.meta.date || getLocalToday(), topic: parsed.meta.topic || '',
         duration: Number(parsed.meta.duration) || 0,
-        fluency: num(parsed.summary.fluency), accuracy: num(parsed.summary.accuracy), naturalness: num(parsed.summary.naturalness),
+        fluency: num((parsed.summary || {}).fluency), accuracy: num((parsed.summary || {}).accuracy), naturalness: num((parsed.summary || {}).naturalness),
         wordCount: (parsed.vocabulary || []).length,
         errorCount: (parsed.grammar || []).length + (parsed.pronunciation || []).length,
         patternCount: (parsed.patterns || []).length
@@ -2674,7 +2665,7 @@ async function loadWords() {
   const dParam = params.get('date');
   _ctxDate = (dParam && dParam !== getLocalToday()) ? dParam : null;
   const activeTab = params.get('tab') || 'all';
-  let mode = ['new', 'mistakes', 'review', 'grammar', 'due', 'topics'].includes(activeTab) ? activeTab : 'all';
+  let mode = ['grammar', 'due', 'topics'].includes(activeTab) ? activeTab : ({ new: 'all', mistakes: 'grammar', review: 'due' }[activeTab] || 'all');
   if (params.get('filter') === 'today') mode = 'today';
   if (mode === 'all') {
     // 兼容旧参数 wordsView/view 与历史键名（today→new / errors→mistakes）
@@ -3299,13 +3290,16 @@ function buildDueDeck() {
 // 问题根源：卡组此前每次进页面都现场 buildDueDeck() 重捞前 20——已复习卡的 SM-2 写回异步未落地会原地复活、
 // 「继续加练」语义在重进后被重置为「从头再来一组」，数字只增不减（句型侧 v121 快照已根治，本侧同病不同医，
 // 这正是「句型复习剩 18 张能保留、单词错题却重置 20 张」的原因）。
-// 修复：与句型队列同构——当天第一次访问把今日队列 id 列表冻结进 localStorage（voco-due-queue-<今日>，
+// 修复：与句型队列同构——当天第一次访问把今日队列 id 列表冻结进 localStorage（voco-due-queue-<uid>-<今日>，
 // 条目 {t:'w',id:单词行id} / {t:'e',id:'err-<错题行id>'}），之后当天一切重建只认快照：
 // 答一张删一个 id（出队即重写），再进来只见剩余，数字只减不增；快照 = [] 即今日配额已练完（完成态），
 // 绝不回退到实时重捞。重建时按 id 反查（词 → _wordsAll，错题 → dueErrorCards() 现算），
 // 反查失败（库行已删/已纠正出队）→ 剪枝并重写快照，面板/卡组永不失联；历史视图（?date=）不建、不读、不写快照。
 // ═══════════════════════════════════════════════════════
-function _dueQueueSnapshotKey() { return 'voco-due-queue-' + getLocalToday(); }
+// 跨账号隔离（2026-10-20 审计修复）：键名按 uid 后缀隔离——同设备换账号不继承对方当日队列/完成态；
+// _uid 未就绪（会话尚未加载）时回退无后缀键——此刻不存在跨账号写入窗口
+function _userStorageKey(base) { return _uid ? (base + '-' + _uid) : base; }
+function _dueQueueSnapshotKey() { return _userStorageKey('voco-due-queue-' + getLocalToday()); }
 function _readDueQueueSnapshot() {
   try {
     const raw = localStorage.getItem(_dueQueueSnapshotKey());
@@ -3657,7 +3651,7 @@ async function rateDueCard(rating) {
     // v103：统一反馈服务（与句型卡共用 SM-2 写回路径，deck item id 带 'w-' 前缀 → 传原始单词 id）
     // 改 fire-and-forget：旧实现 await 写库（select+update 两次网络往返），点击「记住了」后卡片冻结 2-3 秒才跳下一词；
     // 本地 SM-2 态同步在函数同步段立即生效，DB 回写后台进行 —— 与句型卡 rateSentenceCard 完全一致
-    handleReviewFeedback(String(item.ref.id), rating, item.ref).catch(() => {});
+    handleReviewFeedback(String(item.ref.id), rating, item.ref).catch(err => { console.warn('[voco] 复习写回失败（卡片已出队）', err); });
   } else {
     // v99 错题真 SM-2：again/good 均推进曲线并落库
     // v103 统一「没记住」口径：again 与 good 一样直接出队——next_review_date 已推进到明天，
@@ -3678,7 +3672,7 @@ async function rateDueCard(rating) {
 
 function endDueReview() {
   // v115 完成判定兜底：配额卡组清空时打本地完成戳（写回全部落库前的即时完成凭据，自过期=按日期比对）
-  try { localStorage.setItem('voco-vocab-done', getLocalToday()); } catch (e) { /* 隐私模式忽略 */ }
+  try { localStorage.setItem(_userStorageKey('voco-vocab-done'), getLocalToday()); } catch (e) { /* 隐私模式忽略 */ }
   // v126：完成 = 今日配额练完（积压不影响打卡）；有积压 → 「继续加练」再来一组，练不练都算今日已打卡
   const backlog = dueDeckBacklogCount();
   const container = document.getElementById('words-content');
@@ -4103,13 +4097,13 @@ function getDueSentencesQueue(speakAll) {
 // 每日句型队列快照（根治「做一半点去其他页面，打卡数量不断增多、永远做不完」）
 // 问题根源：队列此前每次进页面都现场重捞 —— 已复习到期卡的 SM-2 写回异步未落地会原地复活、
 // 新卡预算每轮重抽 10 张（复习掉的预算槽被新句回填）、中途导入的日报句随时挤入 → 数字只增不减。
-// 修复：当天第一次进入今日队列时把队列 id 列表冻结进 localStorage（voco-speak-queue-<今日>），
+// 修复：当天第一次进入今日队列时把队列 id 列表冻结进 localStorage（voco-speak-queue-<uid>-<今日>），
 // 之后当天一切重建只认快照：答一张删一个 id（出队即重写），再进来只见剩余，数字只减不增；
 // 快照 = [] 即今日已练完（完成态），绝不回退到实时重捞。历史视图（?date=）不建、不读、不写快照。
 // 快照条目 {t:'pat',id}（重建时按 id 从 _patternLibrary 反查，解析/SM-2 字段恒新鲜——库行已删则静默跳过）；
 // {t:'anchor',text}（锚定句，唯一携带文本的条目）。快照条数 = 当日队列长度（v126 起 = 今日配额 ≤20，加练组另行追加），体积可忽略。
 // ═══════════════════════════════════════════════════════
-function _speakQueueSnapshotKey() { return 'voco-speak-queue-' + getLocalToday(); }
+function _speakQueueSnapshotKey() { return _userStorageKey('voco-speak-queue-' + getLocalToday()); }
 function _readSpeakQueueSnapshot() {
   try {
     const raw = localStorage.getItem(_speakQueueSnapshotKey());
@@ -4164,7 +4158,7 @@ function _speakQueueSnapshotRemove(item) {
   _speakQueueSnapshotMarkDone(item); // v126：答一张记一张——加练组重捞时排除已练条目
 }
 // ── v126 加练记账：当日已练条目留痕（pat 按库行 id、锚定句按文本），加练组 = Raw 队列 − 已练 − 快照在队 ──
-function _speakQueueDoneKey() { return 'voco-speak-queue-done-' + getLocalToday(); }
+function _speakQueueDoneKey() { return _userStorageKey('voco-speak-queue-done-' + getLocalToday()); }
 function _speakQueueDoneSet() {
   try { const raw = localStorage.getItem(_speakQueueDoneKey()); return new Set(raw ? JSON.parse(raw) : []); } catch (e) { return new Set(); }
 }
@@ -4389,7 +4383,7 @@ function rateSentenceCard(status) {
 function showSrsDone() {
   // v117 审计修复：历史日期视图（?date= 非今日）复习完队列绝不写今日打卡戳——否则浏览历史顺带把任务 2 点亮
   const hist = _ctxDate && _ctxDate !== getLocalToday();
-  if (!hist) { try { localStorage.setItem('voco-speak-done', getLocalToday()); } catch (e) {} } // 点亮首页【句型复习打卡】
+  if (!hist) { try { localStorage.setItem(_userStorageKey('voco-speak-done'), getLocalToday()); } catch (e) {} } // 点亮首页【句型复习打卡】
   // v126 加练口径：历史视图只读无加练；今日视图计算「已练 + 快照在队」之外的剩余句数
   let restCount = 0;
   if (!hist) {
@@ -5514,137 +5508,6 @@ function speakWord(text) {
 }
 
 // ═══════════════════════════════════════════════════════
-// Practice Flow [deprecated v4.0 — replaced by import dialog + tab-based navigation]
-// ═══════════════════════════════════════════════════════
-let _flowStep = 0;
-
-function renderFlowStep() {
-  // [deprecated v4.0]
-  return;
-  const steps = ['选择话题', '练习准备', '开始练习', '导入报告'];
-  const flowContainer = document.getElementById('practice-flow');
-  if (!flowContainer) return;
-
-  const progressHTML = steps.map((s, i) => {
-    let cls = 'flow-dot';
-    if (i < _flowStep) cls += ' done';
-    if (i === _flowStep) cls += ' active';
-    return `<span class="${cls}">${i < _flowStep ? '✓' : i + 1}</span>${i < steps.length - 1 ? '<span class="flow-line"></span>' : ''}`;
-  }).join('');
-
-  let bodyHTML = '';
-  if (_flowStep === 0) {
-    bodyHTML = `<div style="padding:16px;">
-      <p style="font-size:14px;color:var(--text-dim);margin-bottom:12px;">${steps[0]}</p>
-      <p style="font-size:12px;color:var(--text-ultradim);margin-bottom:12px;">从话题库选择一个话题开始今天的口语练习</p>
-      <select id="flow-topic-select" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;font-family:inherit;">
-        <option value="">选择话题...</option>
-      </select>
-      <button class="btn-primary" id="flow-next" style="margin-top:12px;" disabled>下一步 →</button>
-    </div>`;
-  } else if (_flowStep === 1) {
-    bodyHTML = `<div style="padding:16px;">
-      <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;">${steps[1]}</p>
-      <div id="flow-preview-content"><p style="font-size:12px;color:var(--text-ultradim);">正在加载话题信息...</p></div>
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <button class="btn-small" id="flow-prev">← 上一步</button>
-        <button class="btn-primary" id="flow-next" style="flex:1;">开始练习 →</button>
-      </div>
-    </div>`;
-  } else if (_flowStep === 2) {
-    bodyHTML = `<div style="padding:16px;">
-      <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;">${steps[2]}</p>
-      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">打开 AI 教练（ChatGPT / Gemini 均可），用准备好的话题开始口语对话练习。<br>练完后回到这里导入日报。</p>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-small" id="flow-prev">← 上一步</button>
-        <button class="btn-primary" id="flow-next" style="flex:1;">我已练完 →</button>
-      </div>
-    </div>`;
-  } else if (_flowStep === 3) {
-    bodyHTML = `<div style="padding:16px;">
-      <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;">${steps[3]}</p>
-      <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">用模板生成日报 → 粘贴给 AI 教练 → 把结果粘贴回来</p>
-      <div class="template-btns" style="margin-bottom:10px;"><button class="tpl-btn" data-tpl="report">📝 日报模板</button></div>
-      <textarea id="flow-report-input" rows="5" placeholder="将 AI 教练生成的日报内容粘贴到这里..."></textarea>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-small" id="flow-prev">← 上一步</button>
-        <button class="btn-primary" id="flow-finish" style="flex:1;">解析入库 ✓</button>
-      </div>
-    </div>`;
-  }
-
-  flowContainer.innerHTML = `<div class="flow-progress">${progressHTML}</div>${bodyHTML}`;
-
-  // Bind
-  const prevBtn = document.getElementById('flow-prev');
-  const nextBtn = document.getElementById('flow-next');
-  const finishBtn = document.getElementById('flow-finish');
-
-  if (prevBtn) prevBtn.onclick = () => { if (_flowStep > 0) { _flowStep--; renderFlowStep(); } };
-  if (nextBtn) nextBtn.onclick = () => { if (_flowStep < 3) { _flowStep++; renderFlowStep(); } };
-  if (finishBtn) finishBtn.onclick = async () => {
-    const text = document.getElementById('flow-report-input')?.value;
-    if (text) await importReport(text);
-    _flowStep = 4;
-    renderCompletion();
-  };
-
-  if (_flowStep === 0) {
-    loadTopicsForFlow();
-    const sel = document.getElementById('flow-topic-select');
-    if (sel) sel.onchange = function() {
-      const btn = document.getElementById('flow-next');
-      if (btn) btn.disabled = !this.value;
-    };
-  }
-
-  if (_flowStep === 1) {
-    const sel = document.getElementById('flow-topic-select');
-    if (sel) showFlowPreview(sel.value);
-  }
-
-  if (_flowStep === 3) {
-    document.querySelectorAll('#practice-flow .tpl-btn').forEach(btn => {
-      btn.onclick = () => copyTemplate(btn.dataset.tpl);
-    });
-  }
-}
-
-async function loadTopicsForFlow() { return; // [deprecated v4.0]
-  const { data: topics } = await sb.from('topics').select('*').order('created_at', { ascending: false });
-  const sel = document.getElementById('flow-topic-select');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">选择话题...</option>' + (topics || []).map(t => `<option value="${t.id}">${h(t.title)}</option>`).join('');
-}
-
-async function showFlowPreview(topicId) { return; // [deprecated v4.0]
-  const { data: topic } = await sb.from('topics').select('*').eq('id', topicId).single();
-  if (!topic) return;
-  const { data: vocab } = await sb.from('vocabulary').select('*').or(`source_topic.ilike.%${topic.title}%`);
-  const terms = (vocab || []).slice(0, 5);
-  const div = document.getElementById('flow-preview-content');
-  if (!div) return;
-  div.innerHTML = `
-    <div style="font-size:16px;font-weight:700;color:var(--text);">${h(topic.title)}</div>
-    ${topic.description ? `<div style="font-size:13px;color:var(--text-dim);margin-top:6px;">${h(topic.description)}</div>` : ''}
-    ${terms.length ? `<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">${terms.map(v => `<span style="padding:4px 10px;background:var(--bg);border-radius:12px;font-size:12px;color:var(--text-dim);">${h(v.word)}</span>`).join('')}</div>` : ''}
-    <div style="margin-top:12px;font-size:13px;color:var(--primary);">💪 用英语描述你与 "${h(topic.title)}" 相关的经历</div>`;
-}
-
-function renderCompletion() { return; // [deprecated v4.0]
-  const flowContainer = document.getElementById('practice-flow');
-  if (!flowContainer) return;
-  flowContainer.innerHTML = `
-    <div class="flow-progress"><span class="flow-dot done">✓</span><span class="flow-line"></span><span class="flow-dot done">✓</span><span class="flow-line"></span><span class="flow-dot done">✓</span><span class="flow-line"></span><span class="flow-dot done">✓</span></div>
-    <div style="text-align:center;padding:20px;">
-      <div style="font-size:48px;margin:16px 0;">🎉</div>
-      <div style="font-size:18px;font-weight:700;">练习完成！</div>
-      <p style="font-size:13px;color:var(--text-dim);margin:8px 0;">日报已入库，去首页查看学习成果</p>
-      <button class="btn-primary" onclick="document.querySelector('.tab[data-tab=home]').click();">查看日报 →</button>
-    </div>`;
-}
-
-// ═══════════════════════════════════════════════════════
 // Clipboard Detection
 // ═══════════════════════════════════════════════════════
 async function detectClipboard() {
@@ -5828,7 +5691,7 @@ async function checkVersionConverge() {
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js?v=130', { updateViaCache: 'none' });
+  navigator.serviceWorker.register('/sw.js?v=131', { updateViaCache: 'none' });
   if (navigator.serviceWorker.addEventListener) {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       // 新 SW 已接管（skipWaiting+claim）→ 自动刷新进入新版本，杜绝整次会话停留在旧壳

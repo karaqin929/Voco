@@ -12,7 +12,7 @@
   <!-- v128 事故修复：loader/login/avatar 熊图改为内联 data URI（永不依赖网络，冷启动期不再 emoji 兜底）；仅熊条仍走网络熊图，保留 preload -->
   <link rel="preload" href="/bear-default.png?v=129" as="image">
   <link rel="preload" href="/bear-active.png?v=129" as="image">
-  <link rel="stylesheet" href="/style.css?v=130">
+  <link rel="stylesheet" href="/style.css?v=131">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
@@ -319,25 +319,6 @@
       </div>
     </div>
 
-    <!-- Group: Learning Goals -->
-    <div class="mb-4">
-      <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="target" class="w-3.5 h-3.5"></i> 学习目标</div>
-      <div class="bg-[var(--c-surface)] rounded-2xl border border-[var(--c-border-light)] overflow-hidden" style="box-shadow:var(--c-shadow-sm)">
-        <div class="flex justify-between items-center px-4 py-3.5">
-          <span class="text-sm text-[var(--c-text)]">每日目标时长</span>
-          <select class="bg-[var(--c-bg)] text-[var(--c-text)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-sm font-medium outline-none focus:border-[var(--c-primary)]" id="goal-duration">
-            <option>15 分钟</option><option selected>30 分钟</option><option>45 分钟</option><option>60 分钟</option>
-          </select>
-        </div>
-        <div class="flex justify-between items-center px-4 py-3.5 border-t border-[var(--c-border-light)]">
-          <span class="text-sm text-[var(--c-text)]">每日提醒时间</span>
-          <select class="bg-[var(--c-bg)] text-[var(--c-text)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-sm font-medium outline-none focus:border-[var(--c-primary)]" id="goal-reminder">
-            <option>08:00</option><option>12:00</option><option selected>20:00</option><option>22:00</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
     <!-- Group: Data Management -->
     <div class="mb-4">
       <div class="text-xs font-bold text-[var(--c-text-dim)] mb-2 px-0.5"><i data-lucide="database" class="w-3.5 h-3.5"></i> 数据管理</div>
@@ -494,8 +475,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.400.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/supabase-client.js?v=130"></script>
-<script src="/parser.js?v=130"></script>
-<script src="/app.js?v=130"></script>
+<script src="/supabase-client.js?v=131"></script>
+<script src="/parser.js?v=131"></script>
+<script src="/app.js?v=131"></script>
 </body>
 </html>

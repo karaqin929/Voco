@@ -336,8 +336,7 @@
 - 今日待办三闭环（v61，v73 更新任务 2 文案）：`renderTodoList` 动态生成，mock todos 字段已物理删除——① 对练打卡·导入今日日报（hasTodayReport 自动完成）② **句型复习打卡**·完成(今日)句型复习 (${patternTaskCount}句)（点击 navigateShadowing 直达今日到期队列；`showSrsDone` 队列清空时写 `voco-speak-done` 当日戳，加载层比对传入 speakDoneToday；任务数来自 `ms.totalPatternTaskCount`）③ 复习打卡·完成今日到期复习 (${dueCount}词)（countReviewWords 纯布尔计数，文案标明「到期复习」区别于「今日新词」；点击 navigateReview('due')）
 - 计数铁律（单一数据源，绝不分叉）：
   - 今日新词 `countTodayWords`：isNewToday 布尔优先，date_added 兜底
-  - 错词 `countMistakeWords`：isMistake 优先，errors 交叉比对兜底
-  - 待复习 `countReviewWords`：纯布尔 `needsReview === true`；SM-2 `isDueBySrs` 兜底发生在**打标层**（stampDailyTags），不在计数层 —— 首页 todo / 复习页 tab=due 两处共用
+  - ~~错词 `countMistakeWords`~~ / ~~待复习 `countReviewWords`~~：已随 SSOT 收敛（getTodayMissionState）成为零调用死代码，2026-10-20 审计物理删除
 - SM-2：quality again=0/good=3/easy=5；interval 1→6→~15→~37 天；easeFactor 2.5 起、1.3 底
 - **无损数据清洗层 `normalizeDailyData`**（历史日报 8.10/8.12 等渲染前必经，幂等）：
   - 挂载：`parseSmartReport` JSON 分支（归一化前 ① + 归一化后 ②）、Markdown 分支 ③、`importJsonDailyReport` 导入入口
