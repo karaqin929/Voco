@@ -287,6 +287,10 @@ def lucide_js():
 def chart_js():
     return _static("chart.umd.js", IMMUTABLE)
 
+@app.get("/tailwind.min.js")
+def tailwind_js():
+    return _static("tailwind.min.js", IMMUTABLE)
+
 @app.get("/parser.js")
 def parser_js():
     return _static("parser.js", IMMUTABLE)
