@@ -274,6 +274,19 @@ def icon_svg():
 def supabase_js():
     return _static("supabase-client.js", IMMUTABLE)
 
+# 2026-10-20 事故修复：三库自托管（jsdelivr 大陆网络不稳），路由与 IMMUTABLE 分层同其他 ?v= 版本化资源
+@app.get("/supabase-js.min.js")
+def supabase_umd_js():
+    return _static("supabase-js.min.js", IMMUTABLE)
+
+@app.get("/lucide.min.js")
+def lucide_js():
+    return _static("lucide.min.js", IMMUTABLE)
+
+@app.get("/chart.umd.js")
+def chart_js():
+    return _static("chart.umd.js", IMMUTABLE)
+
 @app.get("/parser.js")
 def parser_js():
     return _static("parser.js", IMMUTABLE)
