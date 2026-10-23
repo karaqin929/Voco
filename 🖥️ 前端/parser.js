@@ -43,6 +43,20 @@ function countTranscriptRatio(tr) {
   return (u + a > 0) ? { user: u, ai: a } : null;
 }
 
+// ── v135 轮次口径占比：JSON 日报 turns {user, coach} → 百分比 {user,ai,pct:true,turns:true} ──
+// 背景：模型自报百分比不可靠（实测自报 72.5 vs 逐词真值 55，偏离 17.5 点），且任何百分比例子
+// 都会锚定模型输出（v123 评分示例锚定的同款教训）——故 v135 起模板不再要求模型输出任何百分比，
+// 只要求如实数双方轮次（transcript 时代 146 轮一条不漏已实证该能力），除法与钳制由本函数执行。
+// 数据校验：user/coach 必须为非负有限数、合计 > 0；占比落在 1-99（0/100 = 单方零轮次，视为无效数据）。
+function turnsToSpeakingRatio(turns) {
+  if (!turns || typeof turns !== 'object' || Array.isArray(turns)) return null;
+  const u = Number(turns.user), c = Number(turns.coach);
+  if (!isFinite(u) || !isFinite(c) || u < 0 || c < 0 || (u + c) <= 0) return null;
+  const pct = Math.round((u / (u + c)) * 100);
+  if (pct < 1 || pct > 99) return null;
+  return { user: pct, ai: 100 - pct, pct: true, turns: true };
+}
+
 // ── v130 数组壳兜底：GPT 长输出偶发漏写数组方括号（"key": "a", "b", "c" 裸奔元素）──
 // 仅在 JSON.parse 失败后由 sanitizeJsonInput 调用（合法 JSON 零开销零改动）。
 // 逐键走查：键冒号后若出现 ≥2 个深度 0 的逗号分隔裸元素且无 [ 壳 → 判定漏壳，补 [ ]。

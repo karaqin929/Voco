@@ -408,6 +408,40 @@ function _testEpilogue() {
       assert(validateImportInput(good).status === 'valid', '合法 JSON 导入被兜底误伤');
     });
 
+    // ── S11 turns 轮次口径占比守门（v135）：模型只数轮次、代码算百分比——
+    //    优先级 transcript（旧日报逐词精确）> turns（新模板轮次口径）> speakingRatio（模型自报兜底）> null；
+    //    turns 无效（0/负数/缺失/合计为 0/占比越界 1-99）一律拒绝并回退，绝不产出脏占比
+    await scenario('S11 JSON 日报 turns 轮次口径占比（代码计算 + 回退链）', async () => {
+      reset();
+      const base = {
+        summary: { topic: '股票推介', dailyThought: { en: 'x', zh: 'x' }, strengths: [], nextSteps: [], fluency: 6, accuracy: 6, naturalness: 6, vocabulary: 6, weak_areas: '时态' },
+        mistakes: [], coreSentences: [], newWords: [],
+      };
+      // ① turns 正常：73/146 → 50/50
+      const p1 = parseSmartReport(JSON.stringify({ ...base, turns: { user: 73, coach: 73 } }));
+      const r1 = p1.summary && p1.summary.speakingRatio;
+      assert(r1 && r1.user === 50 && r1.ai === 50, 'turns 占比应 50/50（实际 ' + JSON.stringify(r1) + '）');
+      const v1 = validateImportInput(JSON.stringify({ ...base, turns: { user: 73, coach: 73 } }));
+      assert(v1.status === 'valid' && v1.preview.speakingRatio === 50, 'turns 预览占比应为 50（实际 ' + (v1.preview && v1.preview.speakingRatio) + '）');
+      // ② turns 与 speakingRatio 并存：turns 优先
+      const p2 = parseSmartReport(JSON.stringify({ ...base, turns: { user: 73, coach: 73 }, speakingRatio: 90 }));
+      assert(p2.summary.speakingRatio.user === 50, 'turns 必须覆盖模型自报 speakingRatio');
+      // ③ turns 全 0（无效）→ 回退 speakingRatio
+      const p3 = parseSmartReport(JSON.stringify({ ...base, turns: { user: 0, coach: 0 }, speakingRatio: 60 }));
+      assert(p3.summary.speakingRatio && p3.summary.speakingRatio.user === 60 && p3.summary.speakingRatio.pct === true, 'turns 无效应回退 speakingRatio 60');
+      // ④ turns 负数 / 缺失 → null 占比（不炸、不产脏数据）
+      const p4 = parseSmartReport(JSON.stringify({ ...base, turns: { user: -5, coach: 3 } }));
+      assert(!p4.summary.speakingRatio, 'turns 非法应产出 null 占比');
+      const p5 = parseSmartReport(JSON.stringify(base));
+      assert(!p5.summary.speakingRatio, '无任何占比源应产出 null 占比');
+      // ⑤ transcript（旧日报）仍最高优先
+      const p6 = parseSmartReport(JSON.stringify({ ...base, turns: { user: 1, coach: 99 }, transcript: [
+        { role: 'coach', content: 'hi' },
+        { role: 'user', content: 'I traveled to Bali and it was wonderful in every way imaginable.' },
+      ] }));
+      assert(p6.summary.speakingRatio.user > p6.summary.speakingRatio.ai, '旧日报 transcript 逐词精确仍须最高优先');
+    });
+
     const fails = results.filter((r) => !r.ok);
     console.log('\n[smoke] 场景 ' + (results.length - fails.length) + '/' + results.length + ' 通过');
     if (fails.length) {
