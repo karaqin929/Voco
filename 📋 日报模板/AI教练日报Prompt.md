@@ -1,4 +1,4 @@
-# 📝 完美日报生成指令（唯一权威版 · 随 App v130 发布：金句真实性 + 防重叠双铁律 + 结构精简）
+# 📝 完美日报生成指令（唯一权威版 · 随 App v134 发布：剔除 transcript + 占比估算铁律升级）
 
 > **和 AI 教练（ChatGPT / Gemini 等）结束对练时，把下面整段指令发过去**（或直接点 App 内「导入日报」弹窗的「复制模板」按钮——复制内容与本指令正文完全同步，不含文末人类附录）。
 > 生成的 JSON **原样粘贴进 Voco「导入日报」对话框**即可解析入库。
@@ -13,10 +13,6 @@
 ```json
 {
   "speakingRatio": 0,
-  "transcript": [
-    { "role": "coach", "content": "教练说的原话（逐字照贴）" },
-    { "role": "user", "content": "你说的原话（逐字照贴，一字不改）" }
-  ],
   "summary": {
     "topic": "今天对话的核心主题标签",
     "dailyThought": { "en": "英文一句反思金句", "zh": "对话后的反思（中文，第一人称，一段话）" },
@@ -49,8 +45,8 @@
 ```
 
 【字段结构铁律】——键名一字不差、类型严格一致，任何一条违反都会导致日报被系统拒绝：
-1. 顶层必须正好是 speakingRatio、transcript、summary、mistakes、coreSentences、newWords、coach_insights 这 7 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。所有数组字段（transcript、summary 里的 strengths 与 nextSteps、mistakes、coreSentences、newWords）的元素必须写进方括号 [ ] 内，严禁把元素直接裸写在键后（如 "strengths": "优点1", "优点2" 是硬错误）。
-2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。基于本次对话粗略估算即可——系统会按 transcript 逐词精确计算后覆盖它，估算偏差不影响最终结果，但严禁输出 0、负数或照抄占位值。
+1. 顶层必须正好是 speakingRatio、summary、mistakes、coreSentences、newWords、coach_insights 这 6 个键，一个都不能少。今天没有某类内容时输出空数组 []，绝不允许删除键、改成 null 或写成别的名字。所有数组字段（summary 里的 strengths 与 nextSteps、mistakes、coreSentences、newWords）的元素必须写进方括号 [ ] 内，严禁把元素直接裸写在键后（如 "strengths": "优点1", "优点2" 是硬错误）。
+2. speakingRatio 是你说话量占总对话量的比例（百分比数字，0-100，可含一位小数，纯数字不是字符串）。这是系统计算占比的唯一依据，必须认真估算：大致统计你的发言轮次与教练的发言轮次，并把双方单轮长度如实纳入比较（你的长段表达与教练的短反馈都要算），按「你的总字数 ÷ 双方总字数」的口径得出——严禁随口写、严禁输出 0、负数或照抄占位值。
 3. summary 必须是对象，且包含以下 9 个键：topic（字符串，单个主题标签，严禁用逗号分隔多个话题）、dailyThought（对象，必含 en 和 zh 两个字符串）、strengths（字符串数组）、nextSteps（字符串数组）、fluency（数字）、accuracy（数字）、naturalness（数字）、vocabulary（数字）、weak_areas（字符串）。9 键一个都不能少。
 4. mistakes 数组的每一项必须同时包含 type、original、improved、explanation 四个键。type 只允许以下三个值之一，绝不混用、绝不自造其他值：
    - "grammar"：语法硬伤——还必须包含第五个键 category（语法弱点分类，只允许以下三个值之一，按错误的本质归类）：
@@ -65,7 +61,6 @@
 7. coreSentences 不设数量上限：收录所有值得内化的地道句型（高阶、高频、有明显改进价值的表达）。newWords 也不设数量上限（宁多勿漏），但收录标准是「你当天需要帮助才说出的词」，三条铁轨：① 必收——对话中你有任何求助痕迹的词：卡壳说不出、问过它的意思、查过、我给了提示词之后你才说出来、说错被纠正，满足任意一条就收录，轻微卡壳也算，绝不漏掉一个真生词；② 排除——你独立流利说出、全程没有任何求助或卡壳迹象的词，即使再高级、再专业也严禁收进 newWords（它们不是生词）；你独立用出的高级表达，请以整句形式收进 coreSentences 金句库，不要用 newWords 记；③ 拿不准有没有求助过时，默认收录（宁多勿漏）。严禁编造对话中根本没出现过的词。已经作为 mistakes 的 improved 收录的表达，严禁再收进 coreSentences（错题卡已承载其复习；金句只收你独立用出的地道表达或错题之外值得内化的句型，两者不重复计数）。
 8. coach_insights 必须是对象，包含以下 4 个键：vocabulary（今日词汇痛点）、grammar（今日最高频的语法错误模式）、expression（不够地道的思维原因）、core_patterns（今日金句适用的交际场景）。每句用中文写 1-2 句诊断评语，以严厉且专业的私教口吻直接指出问题：基于今天对话中的具体表现（结合 mistakes 的 category/pattern 分布与 weak_areas），严禁空泛表扬、严禁套话、严禁编造。coach_insights 里推荐的每个具体词汇/整块表达（如 build stamina、incline walking），必须同时在对应数组里有落点：当天求助过才说出的进 newWords、说错或直译被纠正的进 mistakes（expression 类）、值得内化的高阶表达进 coreSentences——洞察段落严禁成为这些词的唯一归宿。
 9. 所有 explanation 不要写全英文：用中文解释，英文只保留在具体词汇、语法错误、固定搭配或句型骨架本身等等。
-10. transcript 必须是数组，按对话顺序收录今天的完整对话：每一轮一条，不合并、不跳过任何一轮。每条必须同时包含 role 和 content 两个键：role 只允许 "user"（你说的每一句话）与 "coach"（教练说的每一句话）两个值；content 是该轮原话，必须逐字照贴——严禁改写、概括、省略或补全（语法错误也要原样保留，它们是复盘素材）。transcript 是全篇唯一允许大量照抄对话原文的字段，也是系统计算开口占比的唯一依据（你的占比 = 你的所有轮次字数 ÷ 双方总字数）。对话过长时：user 侧必须全部照贴、一字不删；coach 侧可只保留实质反馈句（去掉 Great、Right 这类纯附和），但严禁新增或改写任何内容。严禁输出空数组 [] 应付、严禁编造对话中不存在的话。
 
 【评分与点评铁律】（专业口语私教评审）：
 - 示例结构中的 0（speakingRatio / fluency / accuracy / naturalness / vocabulary）与 "弱点标签1, 弱点标签2" 只是占位符、示意字段类型——严禁直接输出占位值 0、严禁照抄占位文字，每一项评分与弱项都必须来自今天的真实对话。
@@ -80,11 +75,10 @@
 
 【输出前自检】——必须逐条确认，全部通过才允许输出：
 □ 合法 JSON：无 Markdown 围栏、无说明文字；无弯引号 “ ” ‘ ’、无以 ” 开头的字符串（逐字段检查 phonetic）、值内中文强调用「」、所有字符串值单行且值内无未转义的直双引号；
-□ 顶层 7 个键 + summary 9 个键齐全，空内容用 [] 不用 null，所有键名与示例结构一字不差；
-□ 六个数组（transcript / strengths / nextSteps / mistakes / coreSentences / newWords）全部带 [ ]，元素写在 [ ] 内；
+□ 顶层 6 个键 + summary 9 个键齐全，空内容用 [] 不用 null，所有键名与示例结构一字不差；
+□ 五个数组（strengths / nextSteps / mistakes / coreSentences / newWords）全部带 [ ]，元素写在 [ ] 内；
 □ mistakes 枚举无越界无串位：type 三值（grammar / pronunciation / expression）、grammar 含 category 三值、expression 含 pattern 四值；
-□ transcript 收录今天全部对话轮次：user 一字未删、coach 无新增无改写、role 只有 user / coach、content 逐字照贴且单行；
-□ speakingRatio 是 0-100 的估算不是占位值 0；四项评分与 weak_areas 基于今日对话真实表现，无占位值、无照抄占位文字；
+□ speakingRatio 是 0-100、基于今天对话轮次与字数占比认真估算（严禁占位值 0、严禁随口估）；四项评分与 weak_areas 基于今日对话真实表现，无占位值、无照抄占位文字；
 □ newWords 每个词都有当天求助或卡壳证据（宁多勿漏）；已出现在 mistakes 的求助词也要收（双落点不冲突）；严禁编造对话中根本没出现过的词；
 □ coreSentences 每条 targetSentence 单句无斜杠并列；replacedSentence 是我今天真实说过的原句（严禁编造）；已经作为 mistakes 的 improved 收录的句子不再收进 coreSentences；
 □ coach_insights 四句诊断基于今日对话具体表现、无空泛套话，提到的词汇/表达都有 newWords / mistakes / coreSentences 落点；
@@ -100,8 +94,8 @@ AI 教练日报 JSON → Voco 系统消费链路的完整映射，字段名即�
 
 | 日报 JSON 字段 | 类型 | 系统消费位置 |
 |------|------|------|
-| `speakingRatio` | 数字（0-100 百分比） | 旧日报占比兜底（无 transcript 时使用）；新日报被 transcript 精确统计覆盖 |
-| `transcript[].role/content` | 数组（user/coach 逐字原话） | 首页「对话占比」精确计算的唯一依据——逐词统计后覆盖 `speakingRatio` 估算值 |
+| `speakingRatio` | 数字（0-100 百分比） | 首页「对话占比」的直接数据源——模型按对话轮次与字数占比估算（v134 起占比唯一来源，见铁律 #2） |
+| `transcript[].role/content` | 数组（user/coach 逐字原话） | 已废弃（v134 剔除）：旧版含此字段的日报仍可导入，占比照旧按逐词精确计算；新模板不再输出此字段 |
 | `duration`（旧版兼容，可选） | 数字（分钟） | 首页「开口时长/总时长」×0.6、`progress.total_minutes`（旧日报仍可用，新模板不再输出） |
 | `summary.topic` | 字符串 | 首页话题标签、`topics` 表、各表 `source_topic` |
 | `summary.dailyThought.en/.zh` | 字符串 | 首页「当日对话想法」卡片 |
@@ -122,7 +116,8 @@ AI 教练日报 JSON → Voco 系统消费链路的完整映射，字段名即�
 - 旧版 Markdown 模板日报**仍然可以正常导入**——App 内置无损清洗层 `normalizeDailyData` 会把老格式适配到新界面，历史记录一条不丢。
 - v96 起 App 解析层内置「智能引号状态机」兜底：即使模型输出含弯引号或值内嵌套中文引号，也能安全归一化后解析（兜底网，不替代本指令的源头铁律）。
 - v97 起**不再需要手动填写练习时长**：会话维度由 `speakingRatio`（对话占比）承载——这是模型能从对话内容里直接统计出的客观数字。旧版含 `duration` 的日报仍可正常导入（时长保留，新日报不再新增时长）。
-- v129 起新增 `transcript`（逐字对话原文）：开口占比由 App 按角色逐词精确计算，不再依赖模型估算的 `speakingRatio`（实测 Gemini 同会话生成仍会把占比低报成 25%——LLM 派生统计不可靠，模型自报值仅作无 transcript 旧日报的兜底）。旧版日报（无 transcript 字段）仍可正常导入，占比退回模型估算值。
+- v134 起剔除 `transcript`（v129–v133 曾要求逐字对话原文）：实测含 transcript 的日报单份膨胀至 3 万+字符——生成极慢、微信等通道无法整段复制搬运，且长输出诱发模型漏写数组方括号、复制通道转义污染（`\[` `\]`）导致整份导入报废——占比精确化的收益被整份日报报废的风险完全抵消。旧版含 `transcript` 的日报仍可正常导入，占比照旧按逐词精确计算（解析端完全兼容、零降级）；新版日报占比由模型按铁律 #2 认真估算（唯一来源）。
 - v130 起 App 解析层新增「数组壳兜底」：GPT 偶发漏写数组方括号（元素直接裸写在键后）也会被自动补 [ ] 修复入库——兜底网，不替代本指令的方括号铁律。
 - v130 起（与 App v130 同步发布）模板结构精简：评分与点评铁律 5→3 条、引号铁律 5→4 条、自检 17→10 条归并（逐条覆盖核对，无约束丢失）；新增金句双铁律——replacedSentence 必须真实原句（补回 v124 重写时金句侧丢失的「真实出现」约束）+ 错题 improved 不重收金句（错题卡已承载其复习；金句只收独立用出或错题之外的高阶句型）。
+- v134 起（与 App v134 同步发布）模板剔除 transcript：顶层 7 键 → 6 键、铁律 10 → 9 条、自检 10 → 9 条；speakingRatio 升级为占比唯一来源（铁律 #2 要求按轮次与字数占比认真估算，严禁随口写）。
 - v105 起新增 `coach_insights`（私教洞察四维诊断）：新版模板必含；旧版模板生成的日报（无该字段）**仍可正常导入**——首页「需要提升」四卡的「洞察」行静默回落为基础统计文案（如「不地道的表达 8 句 · 主要问题：表达习惯」），三行排版结构完全一致、绝不开天窗。用新版模板重新生成当日日报即可获得真正的私教诊断。

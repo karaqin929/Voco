@@ -12,9 +12,9 @@
   <!-- v128 事故修复：loader/login/avatar 熊图改为内联 data URI（永不依赖网络，冷启动期不再 emoji 兜底）；仅熊条仍走网络熊图，保留 preload -->
   <link rel="preload" href="/bear-default.png?v=129" as="image">
   <link rel="preload" href="/bear-active.png?v=129" as="image">
-  <link rel="stylesheet" href="/style.css?v=133">
+  <link rel="stylesheet" href="/style.css?v=134">
   <!-- 2026-10-20 事故修复：Tailwind 自托管——外部 CDN 依赖归零（大陆网络不稳，Tailwind 加载失败 = 排版全散） -->
-  <script src="/tailwind.min.js?v=133"></script>
+  <script src="/tailwind.min.js?v=134"></script>
   <script>tailwind.config={corePlugins:{preflight:false}}</script>
   <style>
     /* ═══ Voco v5.0 Design Tokens — 5 Morandi Themes × 3 Modes ═══ */
@@ -115,7 +115,7 @@
       @keyframes modalPop{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
   </style>
   <!-- 2026-10-20 事故修复：supabase-js 自托管（jsdelivr 大陆网络不稳定，加载失败 = 熊屏永不消失） -->
-  <script src="/supabase-js.min.js?v=133" defer></script>
+  <script src="/supabase-js.min.js?v=134" defer></script>
   <style>
     /* Splash screen — covers Render cold-start / white-screen gap */
     .voco-loader { display:flex; align-items:center; justify-content:center; min-height:100vh; min-height:100dvh; background:#FBF7F0; font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
@@ -476,10 +476,10 @@
 </div>
 
 <!-- 2026-10-20 事故修复：lucide/chart.js 自托管 + 全部 defer 并行下载（原 jsdelivr 串行阻塞 + 网络不稳） -->
-<script src="/lucide.min.js?v=133" defer></script>
-<script src="/chart.umd.js?v=133" defer></script>
-<script src="/supabase-client.js?v=133" defer></script>
-<script src="/parser.js?v=133" defer></script>
-<script src="/app.js?v=133" defer></script>
+<script src="/lucide.min.js?v=134" defer></script>
+<script src="/chart.umd.js?v=134" defer></script>
+<script src="/supabase-client.js?v=134" defer></script>
+<script src="/parser.js?v=134" defer></script>
+<script src="/app.js?v=134" defer></script>
 </body>
 </html>

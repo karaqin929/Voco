@@ -2,8 +2,8 @@
 // v128 事故修复：① 缓存未命中且网络失败时不得返回 undefined（此前 respondWith(undefined) → TypeError →
 //   浏览器视为网络错误——冷启动窗口内熊图 emoji 兜底的高发通道之一，现改为 Response.error() 干净收口）；
 //   ② /version.json 强制网络优先（版本自动收敛的生命线，绝不允许被缓存锁旧）。
-const CACHE = 'voco-v143';
-const FILES = ['/','/index.html?v=133','/style.css?v=133','/tailwind.min.js?v=133','/app.js?v=133','/manifest.json','/supabase-client.js?v=133','/parser.js?v=133','/supabase-js.min.js?v=133','/lucide.min.js?v=133','/chart.umd.js?v=133','/icon.png','/bear-default.png?v=129','/bear-active.png?v=129','/version.json'];
+const CACHE = 'voco-v144';
+const FILES = ['/','/index.html?v=134','/style.css?v=134','/tailwind.min.js?v=134','/app.js?v=134','/manifest.json','/supabase-client.js?v=134','/parser.js?v=134','/supabase-js.min.js?v=134','/lucide.min.js?v=134','/chart.umd.js?v=134','/icon.png','/bear-default.png?v=129','/bear-active.png?v=129','/version.json'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
